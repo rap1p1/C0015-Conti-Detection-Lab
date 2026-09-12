@@ -1,0 +1,32 @@
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+
+# Environment / secret files
+.env
+.env.*
+*secret*
+*token*
+*password*
+*credential*
+
+# Elastic / Fleet sensitive artifacts
+enrollment*
+service-token*
+fleet-token*
+
+# Logs / temporary files
+*.log
+*.tmp
+*.bak
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

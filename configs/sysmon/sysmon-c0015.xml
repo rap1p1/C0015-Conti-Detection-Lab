@@ -1,0 +1,36 @@
+<Sysmon schemaversion="4.91">
+  <HashAlgorithms>SHA256</HashAlgorithms>
+  <CheckRevocation/>
+
+  <EventFiltering>
+
+    <!-- Event ID 1: Process Create -->
+    <ProcessCreate onmatch="exclude">
+    </ProcessCreate>
+
+    <!-- Event ID 3: Network Connection -->
+    <NetworkConnect onmatch="exclude">
+    </NetworkConnect>
+
+    <!-- Event ID 11: File Create -->
+    <FileCreate onmatch="exclude">
+    </FileCreate>
+
+    <!-- Event IDs 12, 13, 14: Registry -->
+    <RegistryEvent onmatch="exclude">
+    </RegistryEvent>
+
+    <!-- Event IDs 17, 18: Named Pipes -->
+    <PipeEvent onmatch="exclude">
+    </PipeEvent>
+
+    <!-- Event IDs 19, 20, 21: WMI -->
+    <WmiEvent onmatch="exclude">
+    </WmiEvent>
+
+    <!-- Event ID 22: DNS Query -->
+    <DnsQuery onmatch="exclude">
+    </DnsQuery>
+
+  </EventFiltering>
+</Sysmon>
