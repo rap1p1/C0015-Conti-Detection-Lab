@@ -1,0 +1,3 @@
+event.type : "start"
+and process.name : ("net.exe" or "net1.exe")
+and process.command_line : *view*

@@ -1,0 +1,3 @@
+sequence by host.id with maxspan=2m
+  [process where event.type == "start" and process.name == "cmd.exe"] by process.entity_id
+  [process where event.type == "start" and process.name == "nltest.exe" and process.command_line like "*domain_trusts*"] by process.parent.entity_id

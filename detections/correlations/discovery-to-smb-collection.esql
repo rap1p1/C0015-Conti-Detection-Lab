@@ -1,0 +1,31 @@
+FROM .internal.alerts-security.alerts-default-*
+| WHERE kibana.alert.rule.name IN (
+    "Windows Process Discovery via Tasklist",
+    "Domain Groups Discovery via Net",
+    "Domain Trust Discovery via NLTest",
+    "Network Share Discovery via Net View",
+    "Remote SMB File Read from Network Share"
+  )
+| EVAL behavior_family = CASE(
+    kibana.alert.rule.name == "Windows Process Discovery via Tasklist", "process_discovery",
+    kibana.alert.rule.name == "Domain Groups Discovery via Net", "account_group_discovery",
+    kibana.alert.rule.name == "Domain Trust Discovery via NLTest", "domain_trust_discovery",
+    kibana.alert.rule.name == "Network Share Discovery via Net View", "network_share_discovery",
+    kibana.alert.rule.name == "Remote SMB File Read from Network Share", "network_share_collection",
+    "other"
+  )
+| EVAL collection_hit = CASE(
+    kibana.alert.rule.name == "Remote SMB File Read from Network Share", 1, 0
+  )
+| STATS
+    behavior_count = COUNT_DISTINCT(behavior_family),
+    collection_count = SUM(collection_hit),
+    host_count = COUNT_DISTINCT(host.name),
+    source_ip_count = COUNT_DISTINCT(source.ip),
+    latest_signal = MAX(@timestamp)
+  BY user.name
+| WHERE behavior_count >= 4
+  AND collection_count >= 1
+  AND host_count >= 2
+  AND source_ip_count >= 1
+  AND latest_signal > NOW() - 5 minutes

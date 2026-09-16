@@ -5,8 +5,13 @@
   <EventFiltering>
 
     <!-- Event ID 1: Process Create -->
-    <ProcessCreate onmatch="exclude">
-    </ProcessCreate>
+  <ProcessCreate onmatch="exclude">
+    <Rule groupRelation="and">
+      <ParentImage condition="end with">\vmtoolsd.exe</ParentImage>
+      <CommandLine condition="contains">\VMware\VMware Tools\</CommandLine>
+      <CommandLine condition="contains any">poweron-vm-default.bat;resume-vm-default.bat</CommandLine>
+    </Rule>
+  </ProcessCreate>
 
     <!-- Event ID 3: Network Connection -->
     <NetworkConnect onmatch="exclude">

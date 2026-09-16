@@ -1,0 +1,7 @@
+event.type : "start"
+and process.name : ("net.exe" or "net1.exe")
+and (
+  process.command_line : *group*
+  or process.command_line : *user*
+  or process.command_line : *localgroup*
+)

@@ -140,4 +140,38 @@ registry telemetry remained intact. A controlled modification of:
 successfully generated Sysmon Event ID 13.
 
 Result: benign noise was reduced without losing visibility into persistence-relevant
-registry activity.
+registry activity.## 2026-09-14 - Active Directory and File Server Foundation
+
+DC01 was promoted to a domain controller for `c0015.lab` and configured as the lab DNS server.
+
+Created test identities and groups:
+- `duc.user` -> Finance
+- `it.admin` -> IT-Admins
+
+WS01 and FS01 were joined to the domain. Elastic telemetry confirmed the transition from local identities to domain fields such as `user.domain = C0015`.
+
+FS01 was configured with two SMB shares:
+- `Finance`
+- `IT`
+
+Benign dummy files were created for controlled access testing. From WS01, `duc.user` could enumerate and access the Finance share while access to the IT share was denied as intended.
+## 2026-09-15 - Discovery and SMB Collection Detection Milestone
+
+Validated the following behaviors on WS01:
+- T1057 Process Discovery
+- T1069.002 Domain Groups Discovery
+- T1482 Domain Trust Discovery
+- T1135 Network Share Discovery
+
+FS01 file-share auditing was enabled for the Finance test data. Event ID 5145 successfully recorded remote access to `budget-q3.txt` from WS01 by `C0015\duc.user`.
+
+Elastic Agent was installed on FS01 and enrolled into Fleet after resolving route, CA trust, token, and local daemon-state issues. Security Event ID 5145 then became centrally searchable in Elastic.
+
+Five low-severity atomic rules were created as building blocks. A final ES|QL rule correlated discovery and collection activity across WS01 and FS01.
+
+Final result:
+- rule: `Suspicious Discovery and Network Share Collection Chain`
+- severity: Medium
+- risk score: 60
+- ATT&CK mapped to Discovery and Collection
+- end-to-end validation: PASS

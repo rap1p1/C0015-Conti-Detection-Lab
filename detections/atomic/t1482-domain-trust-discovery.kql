@@ -1,0 +1,7 @@
+event.type : "start"
+and process.name : "nltest.exe"
+and (
+  process.command_line : *domain_trusts*
+  or process.command_line : *all_trusts*
+  or process.command_line : *trusted_domains*
+)
