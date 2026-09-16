@@ -175,3 +175,24 @@ Final result:
 - risk score: 60
 - ATT&CK mapped to Discovery and Collection
 - end-to-end validation: PASS
+
+## 2026-09-16 - Repository and Detection Engineering Checkpoint
+
+The first full detection milestone was documented and prepared for version control.
+
+Repository updates include:
+- completed project README and core technical documentation;
+- stored atomic KQL building blocks for T1057, T1069.002, T1482, T1135, and T1039;
+- stored the ES|QL correlation for the first analyst-facing detection;
+- documented cross-host investigation logic, noise handling, and telemetry limitations;
+- retained the final correlation alert as the primary report evidence target.
+
+The repository continues to exclude secrets, enrollment tokens, certificate private keys, and SSH private keys from version control.
+
+### Commit identity
+
+Git is configured locally with `user.name = rap1p1`; repository changes are committed under the user's identity.
+
+### Next campaign step
+
+Continue C0015 emulation with additional Discovery techniques before progressing into lateral movement, staging, exfiltration, and impact simulation. Each future milestone should repeat the telemetry -> analytic -> tuning -> alert workflow used here.

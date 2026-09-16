@@ -1,38 +1,51 @@
-# Lessons Learned
+﻿# Lessons Learned
 
-## Telemetry is not the same as visibility everywhere
+## Telemetry is not the same as behavior visibility
 
-A local event can exist without being visible in the SIEM. FS01 initially generated Event ID 5145 locally, but the event did not become centrally searchable until Elastic Agent was installed and enrolled on FS01.
+A command can execute successfully without producing a new Process Create event. For example, `type` is a built-in command handled by an already-running `cmd.exe`. Sysmon Event ID 1 therefore cannot be expected to reveal every interactive shell command.
 
-## Sysmon does not record every command typed into a shell
+The defensive question should be "can the behavior be observed?" rather than "can the exact command string be observed?" In the T1039 case, FS01 Event ID 5145 provided stronger evidence of actual remote file access.
 
-Sysmon Event ID 1 records process creation. Interactive `cmd.exe` built-ins such as `type`, `dir`, and `cd` may execute inside an existing shell without creating a new process.
+## Server-side logs can be stronger than client-side intent
 
-Detection should focus on the observable security-relevant behavior, not assume every typed command becomes process telemetry.
+Client telemetry can show a command attempting to access a resource. Server-side auditing can confirm that access was actually granted and identify the user, source IP, share, target file, and requested access rights.
 
-## Server-side evidence can be stronger than client command-line evidence
+## Process identity matters
 
-For T1039, FS01 Event ID 5145 directly proved that `duc.user` from WS01 accessed `budget-q3.txt` over SMB. That evidence was stronger than trying to infer the read from an interactive command shell.
+Numeric PIDs can be reused. Entity-aware EQL using `process.entity_id` and `process.parent.entity_id` produced stronger parent-child correlation than PID-only logic.
 
-## `net.exe` and `net1.exe` should not be modeled as a fixed chain
+## Time constraints are real detection logic
 
-Both binaries appeared in this lab. A production-oriented building block should cover both instead of requiring a universal `net.exe -> net1.exe` relationship.
-## Building blocks should optimize for recall
+An EQL sequence can fail even when parent-child identity is correct if the first event is older than `maxspan`. Long-lived interactive shells demonstrated why temporal assumptions must be tested instead of increased only to force a match.
 
-Low-confidence atomic rules can be broader and noisier than final analyst-facing rules. Precision is recovered at the correlation layer by requiring multiple distinct behavior families and shared context.
+## Legitimate tools require behavioral context
 
-## Count distinct behaviors, not raw alert volume
+`cmd.exe`, `net.exe`, `net1.exe`, `nltest.exe`, and `tasklist.exe` are legitimate Windows utilities. Process-name-only detections are noisy and weak. Command line, user, host role, temporal clustering, and follow-on behavior provide the needed context.
 
-A single action may create multiple events or alerts. The final correlation uses distinct rule/behavior families so duplicate `net.exe`/`net1.exe` and SMB records do not inflate confidence.
+## Building blocks should optimize recall, correlation should optimize confidence
 
-## Cross-host detections need careful grouping
+The account/group building block intentionally covers both `net.exe` and `net1.exe` and multiple account/group discovery subcommands. This creates some duplicate or benign signals, but the correlation layer uses distinct behavior families to prevent raw alert count from becoming confidence.
 
-Discovery occurred on WS01 while the SMB collection event was recorded on FS01. Grouping only by `host.name` would split the same attack story. User and network context are required to bridge the hosts.
+## Collection filtering and detection tuning are different
 
-## Detection licensing affects engineering choices
+A Sysmon exclusion removes telemetry before it reaches the SIEM. A detection exception or correlation condition keeps the event available for hunting and investigation while reducing alerts. Source-side exclusions should therefore remain narrow.
 
-Native alert suppression was unavailable under the current license. A freshness condition on the latest contributing signal was used with a sliding look-back window to reduce duplicate correlation alerts.
+## Cross-host detection requires data from both sides
 
-## Tune collection narrowly
+WS01 discovery telemetry alone did not prove that a file on FS01 was read. Installing Elastic Agent on FS01 and enabling Detailed File Share auditing converted a local Event Viewer artifact into centralized evidence usable by Elastic Security.
 
-Broad source-side exclusions remove evidence permanently. When possible, retain useful telemetry and reduce noise in detection logic, exceptions, aggregation, or correlation instead.
+## Troubleshoot the telemetry path before reinstalling agents
+
+Several apparent Elastic problems were actually routing, VMware NAT, Tailscale, CA-trust, or local daemon-state problems. The reliable troubleshooting order is endpoint -> route/gateway -> overlay -> Fleet/Elasticsearch -> agent -> integration.
+
+## Detection engineering is iterative
+
+The project repeatedly used the same cycle: observe raw telemetry, inspect ECS mappings, write a prototype, test edge cases, analyze false positives, tune, and only then promote logic into a rule. The final correlation is stronger because the atomic experiments were preserved rather than skipped.
+
+## Licensing can influence detection design
+
+Native alert suppression was unavailable under the current Elastic license. The correlation therefore uses a sliding look-back window plus a freshness condition on the newest contributing signal to reduce repeated correlation alerts without hiding the underlying atomic data.
+
+## Portfolio evidence should be curated
+
+Atomic-rule screenshots and intermediate experiments are useful repository evidence, but the report should emphasize a small number of high-value screenshots: architecture, representative raw telemetry, cross-host evidence, and the final analyst-facing correlation alert.
