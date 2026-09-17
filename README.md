@@ -48,7 +48,7 @@ Telemetry flows from Windows endpoints through Elastic Agent → Kali (Tailscale
 
 ## Detection Engineering Methodology
 
-The project evaluates detections through controls, variations, correlations, containment, and recovery — not ATT&CK checkbox count.
+The project evaluates detections through controls, variations, correlations, containment, and recovery.
 
 ```text
 C0015 forensic evidence
@@ -69,14 +69,6 @@ Atomic analytics (low-confidence building blocks)
   → behavioral correlations (cross-host, multi-signal)
   → campaign-level investigation (full chain reconstruction)
 ```
-
-## Completed Milestones
-
-**Discovery and SMB Collection Correlation (C1)**
-
-- Atomic detections validated: Process Discovery, Domain Groups Discovery, Domain Trust Discovery, Network Share Discovery, Remote SMB File Read
-- Cross-host ES|QL correlation: `Suspicious Discovery and Network Share Collection Chain` — Medium severity, risk score 60
-- End-to-end validation: PASS
 
 ## Planned Phases
 
@@ -133,27 +125,6 @@ Every campaign claim is classified as:
 | **UNKNOWN** | Insufficient evidence; gap remains unresolved |
 | **LAB ASSUMPTION** | Prerequisite introduced to make the lab executable |
 | **SUPPLEMENTAL** | Useful experiment not counted as core C0015 coverage |
-
-The project does not silently convert unknown aspects of the historical campaign into lab facts.
-
-**Notable unknown:** C0015 privileged credential provenance before WMI lateral movement is UNKNOWN. The lab assumes the operator already possesses an authorized account on FS01. Credential acquisition is not part of the core reconstruction.
-
-## Safety Boundaries
-
-| Boundary | Status |
-|---|---|
-| Original Bazar malware | Not executed |
-| Original Conti ransomware | Not executed |
-| Cracked/leaked Cobalt Strike | Not used |
-| LSASS credential dumping | Outside core reconstruction |
-| Injection into system-critical processes | Not performed live |
-| Arbitrary C2 shell | Not part of the project |
-| Self-propagating ransomware | Not part of the project |
-| Unrestricted payload upload | Not part of the project |
-
-Controlled DLL injection targets a lab-owned process. The Conti impact stage operates on a bounded disposable corpus with hard limits on file count, byte count, execution time, and directory scope.
-
-Secrets, enrollment tokens, certificate private keys, and SSH private keys are excluded from version control.
 
 ## Documentation
 
