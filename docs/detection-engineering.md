@@ -1,31 +1,45 @@
-﻿# Detection Engineering
+# Detection Engineering
 
-## Design goal
+## Detection Architecture
 
-The lab separates low-confidence atomic analytics from analyst-facing correlation. Atomic rules favor recall inside a bounded behavior family; the final rule combines multiple distinct signals to increase confidence and reduce noise.
+The project builds detections in three layers:
 
-## Atomic building blocks
+```text
+Atomic analytics (low-confidence building blocks)
+    ↓
+Behavioral correlations (cross-host, multi-signal)
+    ↓
+Campaign-level investigation (full chain reconstruction)
+```
 
-| Rule | ATT&CK | Severity | Risk |
-|---|---|---:|---:|
-| Windows Process Discovery via Tasklist | T1057 | Low | 15 |
-| Domain Groups Discovery via Net | T1069.002 | Low | 20 |
-| Domain Trust Discovery via NLTest | T1482 | Low | 20 |
-| Network Share Discovery via Net View | T1135 | Low | 20 |
-| Remote SMB File Read from Network Share | T1039 | Low | 25 |
+Atomic detections are intentionally broad to preserve recall within bounded behavior families. Correlation rules combine multiple atomic signals to increase confidence and reduce noise. Campaign-level investigation ties correlations into the C0015 intrusion narrative.
+
+---
+
+## Atomic Building Blocks
+
+Existing validated atomic detections:
+
+| Rule | ATT&CK | Severity | Risk | Status |
+|---|---|---:|---:|---|
+| Windows Process Discovery via Tasklist | T1057 | Low | 15 | DETECTED |
+| Domain Groups Discovery via Net | T1069.002 | Low | 20 | DETECTED |
+| Domain Trust Discovery via NLTest | T1482 | Low | 20 | DETECTED |
+| Network Share Discovery via Net View | T1135 | Low | 20 | DETECTED |
+| Remote SMB File Read from Network Share | T1039 | Low | 25 | DETECTED |
 
 Atomic rules have no notification actions. Their purpose is to create reusable signals for correlation and investigation.
 
-## T1057 - Process Discovery
+### T1057 — Process Discovery
 
 ```kql
 event.type : "start"
 and process.name : "tasklist.exe"
 ```
 
-This signal is intentionally broad because `tasklist.exe` is common administrative activity and is not treated as malicious by itself.
+Intentionally broad. `tasklist.exe` is common administrative activity and is not malicious by itself.
 
-## T1069.002 - Account/Group Discovery
+### T1069.002 — Account/Group Discovery
 
 ```kql
 event.type : "start"
@@ -37,9 +51,9 @@ and (
 )
 ```
 
-The rule covers both `net.exe` and `net1.exe`. The lab observed `cmd.exe -> net.exe -> net1.exe`, but that implementation detail is not required by the analytic. The building block is intentionally broader than only `Domain Admins` so correlation can provide precision later.
+Covers both `net.exe` and `net1.exe`. The lab observed `cmd.exe → net.exe → net1.exe`, but the analytic does not require that specific chain. Broader than only `Domain Admins` so correlation provides precision.
 
-## T1482 - Domain Trust Discovery
+### T1482 — Domain Trust Discovery
 
 ```kql
 event.type : "start"
@@ -51,7 +65,7 @@ and (
 )
 ```
 
-## T1135 - Network Share Discovery
+### T1135 — Network Share Discovery
 
 ```kql
 event.type : "start"
@@ -59,7 +73,7 @@ and process.name : ("net.exe" or "net1.exe")
 and process.command_line : *view*
 ```
 
-## T1039 - Network Share File Access
+### T1039 — Remote SMB File Access
 
 ```kql
 event.code : "5145"
@@ -69,42 +83,143 @@ and file.name : *
 and source.ip : *
 ```
 
-The T1039 rule uses FS01 server-side auditing. This is stronger evidence of actual remote file access than a client-side shell command alone.
+Uses FS01 server-side auditing (Event ID 5145). Stronger evidence of actual remote file access than a client-side shell command alone.
 
-## Duplicate handling
+### Duplicate Handling
 
-One action can produce multiple atomic alerts. The lab observed duplicate `net.exe`/`net1.exe` signals and multiple 5145 events for a single SMB read. The correlation therefore counts distinct behavior families rather than raw alert count.
+One action can produce multiple atomic alerts. The lab observed duplicate `net.exe`/`net1.exe` signals and multiple 5145 events for a single SMB read. Correlation counts distinct behavior families rather than raw alert count, preserving recall at the atomic layer while preventing duplicates from inflating confidence.
 
-This preserves recall at the atomic layer while preventing duplicate events from artificially increasing correlation confidence.
+---
 
-## Detection #1 - Cross-host correlation
+## Validated Correlations
+
+### C1 — Discovery to SMB Collection
 
 **Rule:** `Suspicious Discovery and Network Share Collection Chain`
 **Severity:** Medium
 **Risk score:** 60
+**Status:** DETECTED — end-to-end validation PASS
 
-The ES|QL rule reads Elastic Security alerts from the five atomic rules, maps each rule to a behavior family, and aggregates by `user.name`.
+The ES|QL rule reads alerts from the five atomic rules, maps each to a behavior family, and aggregates by `user.name`.
 
 Required conditions:
-- at least four distinct behavior families;
-- at least one network-share collection signal;
-- activity across at least two hosts;
-- at least one source IP in contributing alerts;
-- the newest contributing signal must be recent enough for the active correlation window.
 
-ATT&CK mapping:
-- T1057 Process Discovery
-- T1069.002 Domain Groups
-- T1482 Domain Trust Discovery
-- T1135 Network Share Discovery
-- T1039 Data from Network Shared Drive
+- At least four distinct behavior families
+- At least one network-share collection signal
+- Activity across at least two hosts
+- At least one source IP in contributing alerts
+- The newest contributing signal must be recent enough for the active correlation window
 
-The current production-like schedule is intended to run every five minutes with a fifteen-minute look-back. During validation, intervals were temporarily reduced to one minute.
+The production schedule runs every five minutes with a fifteen-minute look-back. Validation intervals were temporarily reduced to one minute during testing.
 
-## Noise controls and validation
+ATT&CK mapping: T1057, T1069.002, T1482, T1135, T1039
 
-Atomic alerts are expected to be noisy enough to preserve useful recall. The final rule reduces noise through aggregation, required collection activity, multi-host context, a bounded look-back window, and a freshness condition on the latest contributing signal.
+---
 
-Native alert suppression was not available under the current license, so duplicate correlation alerts are controlled at the query and schedule layer instead.
+## Correlation Roadmap
 
-Final validation produced one Medium alert after replaying the full chain. The final alert is the primary report evidence; atomic alerts are retained as supporting repository evidence.
+### C2 — Bootstrap / Foothold
+
+```text
+document/script → proxy execution or DLL → unusual network activity
+```
+
+Correlates the initial execution chain from the Bazar stage reconstruction with outbound callback activity.
+
+### C3 — Identity / WMI Pivot
+
+```text
+source host → privileged authentication → WMI remote execution
+  → target process → new callback
+```
+
+Correlates the authentication and lateral-movement evidence from the WMI phase across WS01 and FS01.
+
+### C4 — Collection / Transfer
+
+```text
+SMB access → collecting process → outbound transfer
+```
+
+Correlates file-share access with data staging and transfer activity.
+
+### C5 — Injection Suspicion
+
+```text
+source process → target process access → module/target behavior
+```
+
+Correlates process access events with module loading and behavioral changes in the target process.
+
+### C6 — Impact
+
+```text
+process/account → high-rate file activity → broad local/SMB scope
+```
+
+Correlates the behavioral invariants of the Conti impact reconstruction: modification rate, breadth, and scope.
+
+---
+
+## Detection Engineering Loop
+
+Every experiment follows the same workflow:
+
+```text
+1.  Define the detection hypothesis
+2.  Record lab state and configuration
+3.  Run a legitimate control
+4.  Run the target behavior
+5.  Validate local telemetry
+6.  Validate Elastic ingestion and field mapping
+7.  Let the scheduled analytic execute
+8.  Record the result
+9.  Change one meaningful observable (controlled variation)
+10. Re-run the experiment
+11. Improve the analytic if it misses
+12. Re-run target and control cases (regression)
+13. Close the experiment with evidence
+```
+
+### Result States
+
+| State | Meaning |
+|---|---|
+| NOT RUN | Experiment not yet executed |
+| BLOCKED BY ENVIRONMENT | Infrastructure prerequisite not met |
+| PREVENTED | Security control stopped the behavior |
+| SENSOR GAP | Expected telemetry not generated |
+| INGEST/MAPPING GAP | Telemetry generated but not correctly ingested or mapped |
+| DETECTION MISS | Telemetry available but analytic did not fire |
+| DETECTED | Analytic correctly identified the behavior |
+| PARTIAL | Detection fired but with incomplete coverage |
+
+---
+
+## Noise Controls
+
+Atomic alerts are expected to be noisy. The correlation layer reduces noise through:
+
+- Aggregation by user identity
+- Required collection activity (not just discovery)
+- Multi-host context requirement
+- Bounded look-back window
+- Freshness condition on the latest contributing signal
+
+Native alert suppression was not available under the current license; duplicate correlation alerts are controlled at the query and schedule layer.
+
+---
+
+## EQL Validation Queries
+
+Entity-aware EQL sequences are used for telemetry validation of parent-child process relationships. These are development/validation tools, not production detections.
+
+Available EQL prototypes:
+
+| File | Purpose |
+|---|---|
+| `t1057-cmd-tasklist-sequence.eql` | cmd.exe → tasklist.exe parent-child validation |
+| `t1059-003-cmd-whoami-sequence.eql` | cmd.exe → whoami.exe parent-child validation |
+| `t1069-002-cmd-net-domain-groups.eql` | cmd.exe → net.exe domain group discovery validation |
+| `t1135-cmd-net-view-sequence.eql` | cmd.exe → net.exe share discovery validation |
+| `t1482-cmd-nltest-sequence.eql` | cmd.exe → nltest.exe trust discovery validation |

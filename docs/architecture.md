@@ -1,75 +1,148 @@
 # Architecture
 
-## Goal
+## Overview
 
-Build an isolated Windows/Active Directory environment that can generate realistic endpoint, identity, and file-share telemetry while sending logs to a separately hosted Elastic Stack.
+This document defines the authoritative infrastructure for the C0015 Conti Detection Lab. The lab reconstructs the C0015 intrusion lifecycle on isolated virtual machines, generating real Windows, Active Directory, and network telemetry for analysis in Elastic Security.
+
+## Network
+
+```text
+VMnet2 — 192.168.50.0/24
+  Type: Host-only
+  DHCP: Disabled
+  Gateway: None (Windows endpoints have no default Internet route)
+```
+
+All lab systems share a single flat subnet. This is a known limitation: same-subnet traffic between endpoints does not traverse a routing device, which limits network-level visibility to host-based packet capture or span configurations.
 
 ## Systems
 
-| Host | Role | Lab IP |
+| Host | Address | Role |
 |---|---|---|
-| DC01 | AD DS + DNS | 192.168.50.10 |
-| WS01 | Initial Windows workstation | 192.168.50.20 |
-| FS01 | Windows file server | 192.168.50.30 |
-| Kali | Lab gateway / Tailscale router | 192.168.50.100 |
-| ELASTIC01 | Elasticsearch + Kibana + Fleet Server | Tailscale 100.77.46.126 |
+| DC01 | 192.168.50.10 | Active Directory Domain Services, DNS, authentication telemetry |
+| WS01 | 192.168.50.20 | Initial victim workstation — primary emulation origin |
+| FS01 | 192.168.50.30 | File server, lateral-movement target, backup-role surrogate |
+| Kali | 192.168.50.100 | Operator host, isolated-lab gateway, Tailscale subnet router |
+| Windows host | 192.168.50.1 | VMware host, optional lab-side service host |
+| ELASTIC01 | Tailscale network | Elasticsearch, Kibana, Fleet Server |
 
-Domain: `c0015.lab`  
-NetBIOS: `C0015`
+### Host Role Notes
 
-## Network isolation
+**DC01** serves as the domain controller and DNS server for `c0015.lab`. It is not used as an arbitrary attack target. DC01 provides authentication telemetry (logon events, Kerberos, group policy) but is not the focus of lateral-movement experiments in the C0015 reconstruction.
 
-The Windows lab segment uses VMware VMnet2 (`192.168.50.0/24`) without a default Internet gateway. This reduces accidental exposure while still allowing controlled telemetry routing.
-## Telemetry path
+**FS01** is a file-server and backup-role surrogate. It is not a true enterprise backup server. It hosts controlled SMB shares for collection and impact experiments and serves as the lateral-movement target for the WMI phase.
+
+**Kali** has two network interfaces:
+- `eth0` on VMnet2 (192.168.50.100) — lab-facing
+- `eth1` on VMware NAT — outbound connectivity and Tailscale
+
+Kali maintains the Tailscale tunnel that connects the isolated lab segment to ELASTIC01. Windows endpoints use persistent host routes to ELASTIC01 through Kali.
+
+## Active Directory
 
 ```text
-WS01 / FS01
-   -> Elastic Agent
-   -> Kali (192.168.50.100)
-   -> Tailscale
-   -> Fleet Server / Elasticsearch on ELASTIC01
-   -> Kibana / Elastic Security
+Domain:   c0015.lab
+NetBIOS:  C0015
 ```
 
-Kali has a second VMware NAT interface for outbound connectivity and maintains the Tailscale path to ELASTIC01. Windows endpoints use persistent host routes to `100.77.46.126/32` through Kali.
+### Organizational Units
 
-## Endpoint telemetry
-
-WS01 and FS01 use Elastic Agent under the `C0015-Windows-Endpoints` policy and namespace `c0015`.
-
-WS01 additionally uses Sysmon for detailed process, network, file, registry, WMI, named-pipe, and DNS telemetry.
-
-FS01 provides Windows Security auditing for SMB/file-share access, including Event ID 5145.
-
-## Elastic components
-
-- Elasticsearch 9.5.3
-- Kibana 9.5.3
-- Fleet Server on ELASTIC01
-- Elastic Agent on Windows endpoints
-- Windows integration for Security and Sysmon logs
-- ECS-normalized fields for detection and investigation
-## Active Directory foundation
-
-Organizational units:
 - `Lab-Users`
 - `Lab-Computers`
 - `Lab-Groups`
 
-Test identities:
-- `C0015\duc.user` - member of Finance
-- `C0015\it.admin` - member of IT-Admins
+### Identities
 
-FS01 shares:
-- `\\FS01\Finance`
-- `\\FS01\IT`
+| Account | Group | Purpose |
+|---|---|---|
+| `C0015\duc.user` | Finance | Standard user, initial victim context |
+| `C0015\it.admin` | IT-Admins | Administrative account for controlled experiments |
 
-The Finance share contains benign dummy files such as `budget-q3.txt` and `payroll-notes.txt` for safe collection testing.
+### SMB Shares (FS01)
 
-## Trust and certificate model
+| Share | Local Path | Purpose |
+|---|---|---|
+| `\\FS01\Finance` | `C:\Shares\Finance` | Benign dummy files for collection testing |
+| `\\FS01\IT` | `C:\Shares\IT` | Access-control testing |
 
-Fleet and Elasticsearch are reached over TLS. Windows agents trust the lab CA used to sign the Fleet Server certificate. Private keys and enrollment tokens are excluded from version control.
+The Finance share contains benign test files (`budget-q3.txt`, `payroll-notes.txt`) used for safe collection and impact experiments.
 
-## Operational boundary
+## Telemetry Path
 
-The lab emulates ATT&CK behaviors only on owned virtual machines and benign data. Real Conti/Bazar malware, credential theft, destructive encryption, and uncontrolled external targeting are explicitly out of scope.
+```text
+WS01 / FS01
+  → Elastic Agent
+  → Kali (192.168.50.100)
+  → Tailscale tunnel
+  → Fleet Server on ELASTIC01
+  → Elasticsearch
+  → Kibana / Elastic Security
+```
+
+Kali has a VMware NAT interface for outbound connectivity and maintains the Tailscale path to ELASTIC01. Windows endpoints use persistent host routes to the ELASTIC01 Tailscale address through Kali.
+
+### Telemetry Stack
+
+- Elasticsearch and Kibana on ELASTIC01
+- Fleet Server on ELASTIC01
+- Elastic Agent on Windows endpoints (WS01, FS01)
+- Windows integration for Security and Sysmon log ingestion
+- ECS-normalized fields for detection and investigation
+
+## Endpoint Telemetry
+
+### WS01
+
+- **Elastic Agent** under the `C0015-Windows-Endpoints` policy, namespace `c0015`
+- **Sysmon** with campaign-tuned configuration covering:
+  - Process creation (Event ID 1)
+  - Network connections (Event ID 3)
+  - File creation (Event ID 11)
+  - Registry activity (Event IDs 12, 13, 14)
+  - Named pipes (Event IDs 17, 18)
+  - WMI activity (Event IDs 19, 20, 21)
+  - DNS queries (Event ID 22)
+
+Future injection experiments may require additional Sysmon visibility for image/module loading and process access.
+
+### FS01
+
+- **Elastic Agent** under the `C0015-Windows-Endpoints` policy, namespace `c0015`
+- **Windows Security auditing** for SMB/file-share access, including Event ID 5145
+
+### DC01
+
+- Provides authentication and group-policy telemetry
+- Logon events (4624, 4625, 4672), explicit credential use, Kerberos activity
+
+## CALDERA Integration (Planned)
+
+Apache CALDERA will provide the orchestration and tasking layer for the Bazar and Cobalt Strike stage reconstructions:
+
+- Campaign orchestration and adversary profiles
+- Controlled agents on target endpoints
+- Task scheduling and operation replay
+- Task/result logging for detection validation
+
+CALDERA serves as the controlled tasking/orchestration surrogate used to reconstruct the Cobalt Strike role. It is not Cobalt Strike; it reproduces the command-and-control workflow with observable, bounded operations.
+
+Expected deployment: CALDERA server on Kali or the Windows host, with agents deployed to WS01 and FS01 as needed during specific campaign phases.
+
+## Network Capture Limitations
+
+All lab systems are on the same VMnet2 subnet. Consequences:
+
+- Traffic between WS01 and FS01 does not traverse a router or firewall
+- Network-level detection depends on host-based packet capture or Sysmon network events
+- No inline network security device is available for blocking experiments
+- Packet capture points must be defined per experiment
+
+This is a known constraint documented for transparency.
+
+## Trust and Certificate Model
+
+Fleet Server and Elasticsearch are reached over TLS. Windows agents trust the lab CA used to sign the Fleet Server certificate. Private keys, enrollment tokens, and certificate materials are excluded from version control.
+
+## Operational Boundary
+
+The lab executes controlled behaviors only on owned virtual machines using benign commands, dummy data, and safe substitutes. Original Bazar/Conti malware, cracked Cobalt Strike, destructive encryption, credential theft from system processes, and uncontrolled external targeting are out of scope.
