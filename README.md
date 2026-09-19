@@ -75,7 +75,7 @@ Atomic analytics (low-confidence building blocks)
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Ground truth and sensor readiness | Partial |
-| 1 | Initial access / bootstrap reconstruction | Planned |
+| 1 | Initial access / bootstrap reconstruction | Complete |
 | 2 | Bazar Stage Reconstruction | Planned |
 | 3 | Cobalt Strike Stage Reconstruction | Planned |
 | 4 | Discovery and target selection | Partial (atomics complete) |
@@ -138,4 +138,4 @@ Every campaign claim is classified as:
 
 ## Current Status
 
-The lab is in active development. The discovery-to-collection detection milestone is complete. The project is preparing for bootstrap reconstruction, CALDERA integration, and the remaining C0015 lifecycle phases.
+The lab is in active development. Phase 1 (bootstrap/Bazar-stage benign reconstruction) is complete with live telemetry evidence on WS01. The discovery-to-collection detection milestone is complete. The project is preparing for Phase 2 (Bazar-stage callback and CALDERA integration) and the remaining C0015 lifecycle phases.

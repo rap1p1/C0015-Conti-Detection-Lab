@@ -80,3 +80,32 @@ First detection milestone documented and committed to version control.
 - ES|QL correlation stored for the first analyst-facing detection
 - Cross-host investigation logic, noise handling, and telemetry limitations documented
 - Repository excludes secrets, enrollment tokens, and private keys
+
+---
+
+## 2026-09-19 — Phase 1 Bootstrap Chain Complete
+
+Phase 1 benign Bazar-stage reconstruction verified end-to-end on WS01.
+
+**Chain validated:** WINWORD.EXE → cmd.exe → mshta.exe → HTTP artifact retrieval → benign DLL written to disk → regsvr32.exe → c0015-marker.dll loaded → DllRegisterServer() → dll-executed.txt marker created.
+
+**Checkpoints:**
+
+| Checkpoint | Description | Status |
+|---|---|---|
+| P1-A | Office → cmd.exe → mshta.exe | PASS |
+| P1-B | HTTP retrieval + network event + artifact creation | PASS |
+| P1-C | DLL delivery + regsvr32 execution + ImageLoad + marker | PASS |
+
+**DLL hash continuity:** SHA-256 `d9622f80c022133f2d060dfb758410413174dfbda69ecd370899c6a361b75544` verified Kali → WS01 (Sysmon Event ID 7 ImageLoad).
+
+**Known gaps:**
+
+- **Sensor gap:** No Sysmon Event ID 3 captured for the final P1-C DLL network retrieval. Server-side HTTP evidence confirms the transfer occurred; process and file telemetry independently support the chain.
+- **Timing:** Kali clock skew remains unresolved. Windows/Sysmon UTC (~02:38 UTC) and Kali HTTP logs (~22:38 local) are not precisely synchronized. Cross-host timestamp comparison is unreliable until corrected.
+- **P1-B attribution:** Event ID 3 contained `Image=<unknown process>` with null ProcessGuid. mshta.exe attribution is INFERRED from PID correlation, not direct sensor identification.
+
+**Detection hypotheses documented:** Six analytic opportunities (DH-01 through DH-06) recorded in detection-engineering.md. No production rules claimed.
+
+**Phase 2:** Will begin from this verified Phase 1 baseline. Not implemented in this update.
+

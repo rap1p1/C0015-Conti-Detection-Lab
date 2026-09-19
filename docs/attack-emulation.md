@@ -10,43 +10,119 @@ The lab does not execute original Bazar, Cobalt Strike, or Conti binaries. Each 
 
 ## 1. Initial Execution / Bootstrap
 
+**Phase 1 status:** PASS
+
 ### Historical Evidence
 
 C0015 began with user execution of a document or script that triggered an HTA/script-based bootstrap chain. This chain wrote artifacts to user-writable locations and loaded a DLL through proxy execution mechanisms, leading into the Bazar stage.
 
 **Evidence classification:** OBSERVED (document execution → DLL loading chain documented in campaign reports)
 
-### Lab Implementation
+### Lab Implementation — SAFE SUBSTITUTE
+
+This is a benign Bazar-stage reconstruction. No real Bazar malware was executed. The bootstrap chain uses a controlled document, benign HTA, benign DLL, and a marker-file execution proof — preserving process relationships, user context, file-path class, and DLL load mechanism while substituting all malicious payloads with safe equivalents.
+
+**Lab execution note:** The macro in `test.docm` was manually triggered during controlled testing. This is not a realistic victim interaction. Historical C0015 delivery relied on social-engineering-driven macro execution; the controlled lab trigger must not be conflated with that.
+
+#### Observed causal chain
 
 ```text
-document → user execution → HTA/script bootstrap → user-writable artifact
-  → proxy execution / DLL loading → benign DLL → outbound callback
+explorer.exe
+  │
+  ▼
+WINWORD.EXE (test.docm)                             [OBSERVED — Sysmon EID 1]
+  │
+  ▼
+cmd.exe                                               [OBSERVED — Sysmon EID 1]
+  │   PID 5564, Parent PID 2288 (WINWORD.EXE)
+  │   cmd.exe /c "C:\Windows\System32\mshta.exe C:\Users\Public\C0015\bootstrap.hta"
+  │
+  ▼
+mshta.exe                                             [OBSERVED — Sysmon EID 1]
+  │   PID 6592, Parent PID 5564 (cmd.exe)
+  │
+  ├──▶ HTTP retrieval from 192.168.50.100:8000        [OBSERVED — server-side HTTP 200]
+  │       │                                           [INFERRED — EID 3 PID correlation]
+  │       ├──▶ benign.txt / downloaded-marker.txt     [OBSERVED — Sysmon EID 11]
+  │       └──▶ c0015-marker.dll                       [OBSERVED — Sysmon EID 11]
+  │
+  ▼
+regsvr32.exe                                          [OBSERVED — Sysmon EID 1]
+  │   PID 5872, Parent PID 3604 (mshta.exe)
+  │   regsvr32.exe /s "C:\Users\Public\C0015\c0015-marker.dll"
+  │
+  ├──▶ ImageLoad: c0015-marker.dll                    [OBSERVED — Sysmon EID 7]
+  │       SHA-256: d9622f80c022133f2d060dfb758410413174dfbda69ecd370899c6a361b75544
+  │       Signed: false
+  │
+  ▼
+DllRegisterServer() executes                          [OBSERVED — marker file creation]
+  │
+  ▼
+dll-executed.txt created                              [OBSERVED — Sysmon EID 11]
 ```
 
-A controlled bootstrap chain will reproduce the parent/child process relationships, user context, file-path class, DLL load relationship, and process-to-network timing of the original chain.
+#### Lab endpoints
 
-### Expected Telemetry
+| Host | Role | Address |
+|---|---|---|
+| WS01 | Victim workstation | 192.168.50.20 |
+| Kali | HTTP server (TCP/8000) | 192.168.50.100 |
 
-- Process creation chain (Sysmon Event ID 1)
-- File creation in user-writable paths (Sysmon Event ID 11)
-- DLL/module load events
-- Network connection following DLL load (Sysmon Event ID 3)
+### Phase 1 Checkpoints
 
-### Detection Objective
+#### P1-A — Office → cmd → mshta (PASS)
 
-Build a causal analytic correlating: document/script execution → unusual artifact → proxy execution or DLL load → network activity.
+OBSERVED:
+- WINWORD.EXE spawned cmd.exe (PID 5564, parent PID 2288).
+- cmd.exe spawned mshta.exe (PID 6592, parent PID 5564).
+
+Telemetry source: Sysmon Event ID 1 on WS01.
+
+#### P1-B — Benign network retrieval (PASS)
+
+OBSERVED:
+- PID 6032 opened an outbound TCP connection to 192.168.50.100:8000 (Sysmon Event ID 3, 2026-09-19T01:23:48.766Z).
+- Kali independently recorded a successful `GET /benign.txt` → HTTP 200 from 192.168.50.20.
+- PID 6032 was identified as `mshta.exe` in the subsequent FileCreate event (Sysmon Event ID 11, 2026-09-19T01:23:52.680Z).
+- mshta.exe created `C:\Users\Public\C0015\downloaded-marker.txt`.
+
+INFERRED / CORRELATED:
+The Event ID 3 network connection belongs to the same mshta.exe execution based on matching PID, close temporal proximity, server-side HTTP evidence, and subsequent file creation. Event ID 3 itself contained `Image=<unknown process>` and a null ProcessGuid — it did **not** directly identify the process as mshta.exe.
+
+#### P1-C — Benign DLL + regsvr32 execution (PASS)
+
+OBSERVED:
+- mshta.exe (PID 3604, entity_id `{88E52A21-F5AB-6AAD-CF01-000000001500}`) created `C:\Users\Public\C0015\c0015-marker.dll` (Sysmon Event ID 11).
+- mshta.exe spawned regsvr32.exe (PID 5872, entity_id `{88E52A21-F5AB-6AAD-D001-000000001500}`, 2026-09-19T02:38:35.452Z) with command line `regsvr32.exe /s "C:\Users\Public\C0015\c0015-marker.dll"`.
+- regsvr32.exe loaded `c0015-marker.dll` (Sysmon Event ID 7, 2026-09-19T02:38:35.469Z). SHA-256: `d9622f80c022133f2d060dfb758410413174dfbda69ecd370899c6a361b75544`. The loaded DLL hash on WS01 matches the artifact hash calculated on Kali before delivery.
+- regsvr32.exe created `C:\Users\Public\C0015\dll-executed.txt` (Sysmon Event ID 11) as a consequence of the benign DLL's `DllRegisterServer()` implementation.
+- Kali independently recorded a successful `GET /c0015-marker.dll` → HTTP 200 from 192.168.50.20.
+- User: `C0015\duc.user`, Integrity: Medium.
+
+NOT OBSERVED / SENSOR GAP:
+No corresponding Sysmon Event ID 3 was found on WS01 for the final P1-C DLL retrieval. This does not invalidate P1-C because the remainder of the causal chain is independently supported by server-side HTTP evidence, FileCreate, ProcessCreate, ImageLoad, and the DLL execution marker.
+
+### Timing Limitation
+
+Windows/Sysmon UTC events for the P1-C execution cluster around 2026-09-19 02:38 UTC. The Kali Python HTTP server displayed approximately 18/Sep/2026 22:38. Cross-host timestamps are **not** precisely synchronized due to known Kali clock skew. Do not normalize or invent a corrected Kali timestamp.
 
 ### Fidelity
 
 - Parent/child relationships: preserved
 - User context: preserved
-- File-path class: preserved
-- DLL load mechanism: preserved
-- Actual malware payload: not used
+- File-path class: preserved (user-writable `C:\Users\Public\C0015\`)
+- DLL load mechanism: preserved (regsvr32 silent registration)
+- DLL hash continuity: verified (Kali → WS01)
+- Actual malware payload: **not used** — this is a SAFE SUBSTITUTE
 
 ### Limitations
 
-The bootstrap artifacts are benign. The DLL contains no malicious functionality. Detection must rely on behavioral relationships rather than payload signatures.
+- The bootstrap artifacts are benign. The DLL contains no malicious functionality. Detection must rely on behavioral relationships rather than payload signatures.
+- The macro was triggered manually, not through social engineering.
+- `CreationUtcTime` and event `@timestamp` may differ for files downloaded/overwritten during repeated controlled testing. Do not use `CreationUtcTime` alone as the authoritative execution timestamp.
+- No Sysmon Event ID 3 captured for the P1-C DLL network transfer (sensor gap).
+- Kali clock skew prevents precise cross-host timeline correlation.
 
 ---
 

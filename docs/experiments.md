@@ -213,3 +213,67 @@ Limitations:           [known gaps or constraints]
 | **Fidelity** | Discovery and collection mechanisms reproduced with documented C0015 procedures |
 | **Evidence** | One Medium Elastic Security alert generated after five atomic behavior families fired |
 | **Limitations** | Correlation does not yet mathematically join FS01 `source.ip` back to exact WS01 host identity |
+
+---
+
+## EXP-010: Office → cmd → mshta Bootstrap Chain (P1-A)
+
+| Field | Value |
+|---|---|
+| **Experiment ID** | EXP-010 |
+| **Historical hypothesis** | C0015 initial execution involved a document triggering an HTA/script-based bootstrap chain through proxy execution |
+| **ATT&CK mapping** | User Execution surrogate context; mshta proxy execution behavior |
+| **C0015 recorded** | YES (structural fidelity — benign surrogate, not exact malware) |
+| **Lab implementation** | `test.docm` macro → `cmd.exe /c mshta.exe C:\Users\Public\C0015\bootstrap.hta` on WS01 as `duc.user`. Macro was manually triggered — not a realistic victim interaction. |
+| **Expected telemetry** | Sysmon Event ID 1 — WINWORD.EXE → cmd.exe → mshta.exe process chain |
+| **Legitimate control** | Normal document open without macro execution |
+| **Target run** | Controlled macro trigger on WS01 |
+| **Variation** | None yet |
+| **Result** | DETECTED |
+| **Detection status** | Telemetry validated — detection hypothesis documented (no production rule yet) |
+| **Fidelity** | Parent/child relationships and user context preserved; benign SAFE SUBSTITUTE, not real Bazar execution |
+| **Evidence** | Sysmon EID 1: cmd.exe PID 5564 (parent WINWORD.EXE PID 2288); mshta.exe PID 6592 (parent cmd.exe PID 5564) |
+| **Limitations** | Macro was manually triggered (Alt+F8); does not replicate social-engineering delivery |
+
+---
+
+## EXP-011: Benign Network Retrieval via mshta (P1-B)
+
+| Field | Value |
+|---|---|
+| **Experiment ID** | EXP-011 |
+| **Historical hypothesis** | The bootstrap chain retrieved artifacts from a remote server over HTTP |
+| **ATT&CK mapping** | N/A (network retrieval behavior — structural fidelity only) |
+| **C0015 recorded** | YES (structural fidelity — benign surrogate) |
+| **Lab implementation** | mshta.exe on WS01 retrieved `benign.txt` from Kali HTTP server at 192.168.50.100:8000 |
+| **Expected telemetry** | Sysmon Event ID 3 (network connection), Event ID 11 (file creation), server-side HTTP log |
+| **Legitimate control** | N/A |
+| **Target run** | HTA-triggered HTTP download during bootstrap chain |
+| **Variation** | None yet |
+| **Result** | DETECTED |
+| **Detection status** | Telemetry validated — detection hypothesis documented (no production rule yet) |
+| **Fidelity** | Network retrieval mechanism preserved; artifact is benign text, not malware payload |
+| **Evidence** | Sysmon EID 3: PID 6032 → 192.168.50.100:8000 (2026-09-19T01:23:48.766Z), Image=`<unknown process>`, ProcessGuid=null. Sysmon EID 11: PID 6032 (mshta.exe) created `downloaded-marker.txt` (2026-09-19T01:23:52.680Z). Kali HTTP log: `GET /benign.txt` → HTTP 200 from 192.168.50.20. |
+| **Limitations** | Event ID 3 contained `Image=<unknown process>` — process attribution to mshta.exe is INFERRED from PID correlation, temporal proximity, server-side evidence, and subsequent FileCreate. This is not direct sensor identification. |
+
+---
+
+## EXP-012: Benign DLL Delivery and regsvr32 Execution (P1-C)
+
+| Field | Value |
+|---|---|
+| **Experiment ID** | EXP-012 |
+| **Historical hypothesis** | The bootstrap chain delivered a DLL and executed it via regsvr32 proxy execution |
+| **ATT&CK mapping** | regsvr32 proxy execution behavior |
+| **C0015 recorded** | YES (structural fidelity — benign surrogate, not exact Bazar DLL) |
+| **Lab implementation** | mshta.exe wrote `c0015-marker.dll` to `C:\Users\Public\C0015\`, then spawned `regsvr32.exe /s "C:\Users\Public\C0015\c0015-marker.dll"` on WS01 as `duc.user` |
+| **Expected telemetry** | Sysmon EID 1 (regsvr32 ProcessCreate), EID 7 (ImageLoad with hash), EID 11 (FileCreate for DLL and execution marker), EID 3 (network connection for DLL retrieval) |
+| **Legitimate control** | Normal regsvr32 COM registration of signed DLLs in system paths |
+| **Target run** | Controlled bootstrap chain on WS01 |
+| **Variation** | None yet |
+| **Result** | DETECTED |
+| **Detection status** | Telemetry validated — detection hypothesis documented (no production rule yet) |
+| **Fidelity** | DLL load mechanism and process chain preserved; DLL is benign SAFE SUBSTITUTE with marker-file proof of execution |
+| **Evidence** | Sysmon EID 11: mshta.exe (PID 3604, entity_id `{88E52A21-F5AB-6AAD-CF01-000000001500}`) created `c0015-marker.dll`. Sysmon EID 1: regsvr32.exe PID 5872 (entity_id `{88E52A21-F5AB-6AAD-D001-000000001500}`, parent mshta.exe PID 3604, 2026-09-19T02:38:35.452Z). Sysmon EID 7: regsvr32.exe loaded `c0015-marker.dll` SHA-256 `d9622f80c022133f2d060dfb758410413174dfbda69ecd370899c6a361b75544` (unsigned, 2026-09-19T02:38:35.469Z). Sysmon EID 11: regsvr32.exe created `dll-executed.txt`. Kali HTTP: `GET /c0015-marker.dll` → HTTP 200 from 192.168.50.20. |
+| **Limitations** | No Sysmon Event ID 3 found on WS01 for the P1-C DLL retrieval (SENSOR GAP — server-side evidence proves transfer occurred). `CreationUtcTime` and `@timestamp` may diverge for files overwritten during repeated testing. Kali clock skew prevents precise cross-host timestamp correlation. |
+

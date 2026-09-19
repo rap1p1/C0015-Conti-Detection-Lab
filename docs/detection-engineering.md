@@ -116,6 +116,124 @@ ATT&CK mapping: T1057, T1069.002, T1482, T1135, T1039
 
 ---
 
+## Phase 1 Detection Hypotheses
+
+The following analytic opportunities are supported by Phase 1 live telemetry evidence. These are detection hypotheses, **not** production rules. Each requires further validation, tuning, and false-positive analysis before promotion.
+
+### DH-01: Office Application Spawning cmd.exe
+
+**Behavior:** WINWORD.EXE → cmd.exe child process.
+
+**Required telemetry:** Sysmon Event ID 1 with parent-child relationship.
+
+**KQL sketch:**
+
+```kql
+event.code:"1" and
+process.name:"cmd.exe" and
+process.parent.name:("WINWORD.EXE" or "EXCEL.EXE" or "POWERPNT.EXE")
+```
+
+**False-positive considerations:**
+- Legitimate Office add-ins or automation may spawn cmd.exe.
+- Some enterprise document workflows use macro-driven shell commands.
+- Must distinguish controlled lab trigger from social-engineering delivery context.
+
+**Phase 1 evidence:** OBSERVED — WINWORD.EXE (PID 2288) → cmd.exe (PID 5564).
+
+### DH-02: cmd.exe → mshta.exe
+
+**Behavior:** cmd.exe launching mshta.exe, particularly with an HTA file argument.
+
+**Required telemetry:** Sysmon Event ID 1 with command-line arguments.
+
+**KQL sketch:**
+
+```kql
+event.code:"1" and
+process.name:"mshta.exe" and
+process.parent.name:"cmd.exe"
+```
+
+**False-positive considerations:**
+- Rare in enterprise environments, but legitimate HTA-based admin tools exist.
+- Low expected false-positive rate in most environments.
+
+**Phase 1 evidence:** OBSERVED — cmd.exe (PID 5564) → mshta.exe (PID 6592) with HTA argument.
+
+### DH-03: mshta.exe Spawning regsvr32.exe
+
+**Behavior:** mshta.exe launching regsvr32.exe, indicating proxy execution chaining.
+
+**Required telemetry:** Sysmon Event ID 1 with parent-child relationship and command-line arguments.
+
+**KQL sketch:**
+
+```kql
+event.code:"1" and
+process.name:"regsvr32.exe" and
+process.parent.name:"mshta.exe"
+```
+
+**False-positive considerations:**
+- Very rare in legitimate workflows. mshta.exe is not a typical parent for regsvr32.exe.
+- High signal-to-noise expected.
+
+**Phase 1 evidence:** OBSERVED — mshta.exe (PID 3604, entity_id `{88E52A21-F5AB-6AAD-CF01-000000001500}`) → regsvr32.exe (PID 5872, entity_id `{88E52A21-F5AB-6AAD-D001-000000001500}`).
+
+### DH-04: regsvr32 Loading Unsigned DLL from User-Writable Path
+
+**Behavior:** regsvr32.exe loading an unsigned DLL from a user-writable or public directory.
+
+**Required telemetry:** Sysmon Event ID 7 (ImageLoad) with signature status and file path.
+
+**KQL sketch:**
+
+```kql
+event.code:"7" and
+process.name:"regsvr32.exe" and
+file.path:("C:\\Users\\Public\\*" or "C:\\Users\\*\\AppData\\*" or "C:\\ProgramData\\*" or "C:\\Temp\\*") and
+file.code_signature.signed:false
+```
+
+**False-positive considerations:**
+- Legitimate software installers may use regsvr32 with unsigned DLLs during installation.
+- Path-based filtering requires tuning for the environment.
+- Hash-based allowlisting can reduce false positives for known legitimate DLLs.
+
+**Phase 1 evidence:** OBSERVED — regsvr32.exe loaded `C:\Users\Public\C0015\c0015-marker.dll` (unsigned, SHA-256 `d9622f80c022133f2d060dfb758410413174dfbda69ecd370899c6a361b75544`).
+
+### DH-05: Bootstrap Chain Correlation (Process + File + ImageLoad)
+
+**Behavior:** Correlated sequence: Office app → cmd.exe → mshta.exe → file creation in user-writable path → regsvr32.exe → ImageLoad of unsigned DLL → execution marker.
+
+**Required telemetry:** Sysmon Event IDs 1, 7, 11 with entity_id/ProcessGuid for reliable cross-event correlation.
+
+**Design note:** This is a candidate for the C2 correlation rule (see Correlation Roadmap). It requires multi-event correlation using process ancestry, not individual atomic signals.
+
+**False-positive considerations:**
+- The full chain is highly specific; false-positive rate is expected to be very low.
+- Individual components (DH-01 through DH-04) are more prone to false positives in isolation.
+
+**Phase 1 evidence:** Full chain OBSERVED across Sysmon EID 1, 7, and 11.
+
+### DH-06: Network Visibility Limitation (Event ID 3 Gap)
+
+**Observation:** The P1-C DLL retrieval was not captured by Sysmon Event ID 3 despite server-side HTTP evidence confirming the transfer occurred.
+
+**Detection implication:** Analytics that depend solely on Sysmon Event ID 3 for network transfer detection may miss real activity. Detection strategies should incorporate multiple telemetry sources:
+
+- Sysmon Event ID 3 (when available)
+- Sysmon Event ID 11 (FileCreate as downstream evidence)
+- Sysmon Event ID 7 (ImageLoad with hash verification)
+- Server-side/proxy/firewall logs (independent network evidence)
+
+**Required action:** Investigate why Event ID 3 was not generated for the P1-C transfer. Possible causes include Sysmon configuration filtering, event volume limits, or timing.
+
+
+
+---
+
 ## Correlation Roadmap
 
 ### C2 — Bootstrap / Foothold
