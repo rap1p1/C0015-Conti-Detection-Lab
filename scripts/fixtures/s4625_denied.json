@@ -1,0 +1,13 @@
+{
+  "fixture_kind": "security_4625",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry; S7 control: duc.user direct access denied",
+  "event": {
+    "@timestamp": "2026-10-01T02:59:00.000Z",
+    "event": { "code": "4625", "provider": "Microsoft-Windows-Security-Auditing", "outcome": "failure" },
+    "host": { "name": "fs01" },
+    "winlog": { "logon": { "type": "3" } },
+    "user": { "name": "duc.user", "domain": "C0015" },
+    "source": { "ip": "192.168.50.20" }
+  }
+}

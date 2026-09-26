@@ -1,141 +1,96 @@
-# C0015 Conti Detection Lab
+# C0015 Detection Lab
 
-An evidence-driven reconstruction of [MITRE ATT&CK Campaign C0015](https://attack.mitre.org/campaigns/C0015/) for detection engineering and incident-response training. The project rebuilds the documented intrusion chain — Bazar → Cobalt Strike → Conti — using controlled lab-safe surrogates while preserving the original campaign evidence as historical ground truth.
+Evidence-driven reconstruction of [MITRE ATT&CK Campaign C0015](https://attack.mitre.org/campaigns/C0015/)
+(Conti/Bazar intrusion, DFIR Report *CONTInuing the Bazar Ransomware Story*, 2021-11-29) for detection
+engineering and IR training on an owned homelab. Real Windows/AD/network/file telemetry, lab-safe surrogates,
+explicit handoffs between stages — never marker-only "PASS".
 
-## What Was C0015?
+## Status at a glance (2026-09-26)
 
-C0015 was a multi-stage intrusion documented by MITRE ATT&CK and The DFIR Report in which operators used **Bazar** for initial access and persistence, transitioned to **Cobalt Strike** for command-and-control and lateral movement, and deployed **Conti** ransomware for final impact. The campaign followed a structured lifecycle:
+| Layer | State |
+|---|---|
+| Attack-chain blueprint S1–S15 (single `run_id`, artifact handoffs) | ✅ design done — `docs/implementation-plan.md` |
+| Historical fidelity + canonical phase map 0–15 + OLD→NEW | ✅ — `docs/attack-chain-plan.md` §10–13 |
+| Evidence ledger (repo-verified vs narrative-only) | ✅ — `docs/evidence-matrix-v2.md` |
+| Offline components (run-ledger schema, C2-SIM v2, artifact/hash/receipt/scorecard, fixtures) | ✅ implemented, **15/15 offline tests OK** |
+| Benign payloads (macro / HTA / DLL / beacon / bounded impact), config-driven | ✅ implemented, offline-validated (parse, impact cycle + guard, beacon↔C2-SIM localhost) |
+| Live lab runs (S1–S15) | ⏳ **NOT RUN** — chain is **not end-to-end** until one continuous run has handoff evidence for every stage |
+| Legacy claims post-2026-09-19 (auth bridge, WMI canary, DET-008, T1018/1016) | ⚠️ `NOT VERIFIED IN REPO` — kept, not promoted to PASS |
 
-```text
-Bazar bootstrap and callback
-  → Cobalt Strike tasking and discovery
-  → WMI lateral movement to a file server
-  → data collection and exfiltration via Rclone
-  → RDP / secondary remote access
-  → Conti ransomware deployment
-```
-
-## What This Lab Reconstructs
-
-The lab reproduces the C0015 intrusion lifecycle on owned virtual machines using safe equivalents. Each campaign stage is mapped to its historical role, and the corresponding Windows, Active Directory, network, and file-system mechanisms are executed live to generate real telemetry.
-
-| Campaign Stage | Historical Software | Lab Surrogate | Fidelity |
-|---|---|---|---|
-| Initial execution / bootstrap | Bazar loader chain | Controlled document → script → DLL bootstrap | Role preserved; original malware not executed |
-| C2 tasking and discovery | Cobalt Strike Beacon | Apache CALDERA agent / controlled tasking surrogate | Role preserved; actual Cobalt Strike not used |
-| Lateral movement | WMI + rundll32 | Native WMI execution with benign DLL | Mechanism reproduced |
-| Collection / exfiltration | Rclone to cloud storage | Rclone or equivalent to internal destination | Partial — cloud destination not used |
-| Remote access | RDP / AnyDesk | Native RDP between lab hosts | RDP reproduced; AnyDesk documented only |
-| Impact | Conti ransomware | Bounded impact simulator on disposable corpus | Behavioral invariants preserved; no real encryption |
-
-## Lab Architecture
+## The chain
 
 ```text
-VMnet2 — 192.168.50.0/24 (host-only, no DHCP)
+S1 Word macro → S2 HTA (VBS+JS+base64) → DLL(.jpg) → regsvr32 → S3 session 1 (C2-SIM, public-IP mock)
+→ S4 discovery (exact DFIR commands) → S5 found_shares artifact → S6 orchestrator picks target
+→ S7 auth controls (it.admin, explicit credential) → S8 tool handoff (C$) + WMI remote process (rundll32)
+→ S9 session 2 (server-side receipt) → S10 collection/staging (manifest+hash)
+→ S11a transfer r1 → S12 RDP → S11b transfer r2 → S13 AnyDesk-like + LSASS telemetry study
+→ S14 bounded impact + restore/verify → S15 E2E (engineering + investigation, ground truth hidden)
 ```
+
+C2 channels (researched, install-verified): **C2-SIM v2** (foothold beacon) · **Apache CALDERA v5** (operator
+orchestration, primary) · Sliver optional under strict conditions · Havoc excluded. Details + AD 3-VM assessment:
+`docs/payloads-and-c2.md`.
+
+## Lab architecture (verified 2026-09-26)
+
+VMnet2 `192.168.50.0/24`, host-only, DHCP off. Domain `c0015.lab` / NetBIOS `C0015`.
 
 | Host | Role | Address |
 |---|---|---|
-| DC01 | Active Directory, DNS | 192.168.50.10 |
-| WS01 | Initial victim workstation | 192.168.50.20 |
-| FS01 | File server / lateral-movement target | 192.168.50.30 |
-| Kali | Operator host / Tailscale router | 192.168.50.100 |
-| ELASTIC01 | Elasticsearch, Kibana, Fleet Server | Tailscale network |
+| DC01 | AD DS + DNS (campaign never touches DC — telemetry only) | 192.168.50.10 |
+| WS01 | First victim (Win10, Word pending verify, `duc.user`) | 192.168.50.20 |
+| FS01 | File + backup-server role (Win10 Pro 19045; shares Finance→duc.user, IT→it.admin) | 192.168.50.30 |
+| Kali | Operator / C2 host (planned) | 192.168.50.100 |
+| ELASTIC01 | Elastic 9.5.3 / Kibana / Fleet (`https://100.77.46.126:8220`, policy `C0015-Windows-Endpoints`, ns `c0015`) | Tailscale |
 
-Domain: `c0015.lab` / NetBIOS: `C0015`
+Windows endpoints: Elastic Agent healthy; Sysmon 15.21 (schema 4.91) — live baseline EID 1,3,11–14,17–22 on,
+**7/10 off** (live config hash ≠ any repo version — reconcile in M-1 before S2/S9).
 
-Telemetry flows from Windows endpoints through Elastic Agent → Kali (Tailscale router) → ELASTIC01 → Elastic Security.
-
-## Detection Engineering Methodology
-
-The project evaluates detections through controls, variations, correlations, containment, and recovery.
-
-```text
-C0015 forensic evidence
-  → behavioral specification
-  → safe live reconstruction
-  → raw telemetry collection
-  → baseline detection
-  → controlled variation
-  → detection miss / sensor gap analysis
-  → improved analytic
-  → containment and recovery validation
-```
-
-Detection layers:
-
-```text
-Atomic analytics (low-confidence building blocks)
-  → behavioral correlations (cross-host, multi-signal)
-  → campaign-level investigation (full chain reconstruction)
-```
-
-## Planned Phases
-
-| Phase | Description | Status |
-|---|---|---|
-| 0 | Ground truth and sensor readiness | Partial |
-| 1 | Initial access / bootstrap reconstruction | Complete |
-| 2 | Bazar Stage Reconstruction | Planned |
-| 3 | Cobalt Strike Stage Reconstruction | Planned |
-| 4 | Discovery and target selection | Partial (atomics complete) |
-| 5 | Privileged-access lab prerequisite | Planned |
-| 6 | WMI lateral movement | Planned |
-| 7 | Controlled DLL injection reconstruction | Planned |
-| 8 | Collection and transfer | Planned |
-| 9 | RDP / secondary remote access | Planned |
-| 10 | Conti Impact Reconstruction | Planned |
-| 11 | Prevention, containment, and recovery | Planned |
-
-## Project Structure
+## Repository structure
 
 ```text
 C0015-Conti-Detection-Lab/
-├── README.md                  Project landing page
-├── docs/
-│   ├── plan.md                Primary build plan and source of truth
-│   ├── architecture.md        Infrastructure and telemetry documentation
-│   ├── attack-emulation.md    C0015 lifecycle reconstruction stages
-│   ├── detection-engineering.md  Detection architecture and analytics
-│   ├── investigation.md       Investigation methodology
-│   ├── experiments.md         Structured experiment ledger
-│   └── lab-journal.md         Major milestones
-├── detections/
-│   ├── atomic/                KQL building-block detections
-│   ├── correlations/          ES|QL cross-host correlations
-│   └── eql/                   EQL parent-child validation queries
-├── configs/
-│   ├── elastic/
-│   ├── fleet/
-│   └── sysmon/                Sysmon configuration
-├── diagrams/
-├── evidence/
-│   └── sanitized-screenshots/
-└── scripts/
+├── README.md
+├── docs/                       # blueprint, narrative, evidence, contracts
+├── detections/                 # atomic KQL · correlations ES|QL · EQL prototypes
+├── configs/sysmon/             # Sysmon config (committed baseline; working-tree variant uncommitted — M-1 decision)
+├── scripts/                    # c2sim_v2.py, lab_tools.py, tests/, fixtures/ (synthetic replay only)
+├── payloads/                   # benign config-driven payloads (docm/hta/dll/beacon/impact + config template)
+└── evidence/                   # phase1-evidence-index.md, run-ledger/ (schema + templates)
 ```
-
-## Evidence and Fidelity Philosophy
-
-Every campaign claim is classified as:
-
-| Classification | Meaning |
-|---|---|
-| **OBSERVED** | Directly supported by campaign sources |
-| **INFERRED** | Reasoned from evidence with documented uncertainty |
-| **UNKNOWN** | Insufficient evidence; gap remains unresolved |
-| **LAB ASSUMPTION** | Prerequisite introduced to make the lab executable |
-| **SUPPLEMENTAL** | Useful experiment not counted as core C0015 coverage |
 
 ## Documentation
 
-- [Build Plan](docs/plan.md) — primary project source of truth
-- [Architecture](docs/architecture.md)
-- [Attack Emulation](docs/attack-emulation.md)
-- [Detection Engineering](docs/detection-engineering.md)
-- [Investigation](docs/investigation.md)
-- [Experiments](docs/experiments.md)
-- [Lab Journal](docs/lab-journal.md)
+- [Attack-Chain Blueprint & Runbook](docs/implementation-plan.md) — single blueprint, stages, gates, milestones
+- [Attack-Chain Plan (narrative + fidelity + phase map)](docs/attack-chain-plan.md) — historical vs surrogate; canonical 0–15
+- [Evidence Matrix v2](docs/evidence-matrix-v2.md) — evidence ledger
+- [Phase Handoff & Artifact Contracts](docs/handoff-contracts.md)
+- [Correlation Architecture](docs/correlation-architecture.md)
+- [Payloads & C2 Decisions](docs/payloads-and-c2.md) — C2-SIM v2 design, CALDERA/Sliver/Havoc research, AD 3-VM verdict
+- [Architecture](docs/architecture.md) · [Detection Engineering](docs/detection-engineering.md) ·
+  [Investigation](docs/investigation.md) · [Experiments](docs/experiments.md) · [Lab Journal](docs/lab-journal.md) ·
+  [Original Build Plan 0–11](docs/plan.md) (historical)
 
-## Current Status
+## Evidence & fidelity
 
-The lab is in active development. Phase 1 (bootstrap/Bazar-stage benign reconstruction) is complete with live telemetry evidence on WS01. The discovery-to-collection detection milestone is complete. The project is preparing for Phase 2 (Bazar-stage callback and CALDERA integration) and the remaining C0015 lifecycle phases.
+Labels: `[OBSERVED-C0015]` · `[INFERRED-C0015]` · `[UNKNOWN-C0015]` (historical facts) · `[LAB-SURROGATE]` ·
+`[SUPPLEMENTAL-LAB-TECHNIQUE]` · `[NOT-VERIFIED-IN-REPO]`. Status vocabulary: `VERIFIED IN REPO`, `ARTIFACT
+VERIFIED`, `NARRATIVE ONLY`, `NOT VERIFIED`, `NOT RUN`, `PARTIAL`, `SENSOR GAP`, `DETECTED`, `CONTRADICTED`.
+Every historical gap is replaced by an executable lab technique with a label — no chain step stays "unknown".
+Correlation tiers: `DIRECT EVENT LINK` / `SUPPORTED HANDOFF` / `CONTEXTUAL ONLY` / `UNPROVEN` / `CONTRADICTED`.
+
+## Safety boundaries
+
+Owned VMs only. No real Bazar/Conti/Cobalt Strike, no injection into Winlogon/svchost/LSASS/system processes, no
+credential dumping, no public C2 or cloud exfiltration (internal allowlist sink), no general-purpose encryptor or
+propagation (bounded corpus + restore), no secrets in the repo.
+
+## Quick start (offline)
+
+```powershell
+python scripts/tests/test_offline.py            # 15/15 offline tests
+python scripts/c2sim_v2.py --ip 127.0.0.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log
+python scripts/lab_tools.py fixture-check scripts/fixtures
+# payloads build/run + code→technique map: payloads/README.md
+```

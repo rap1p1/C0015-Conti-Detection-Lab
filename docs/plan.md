@@ -1,5 +1,13 @@
 # C0015 Purple Lab — Project Build Plan
 
+> **Status note (2026-09-26+):** This file records the **original 0–11 build plan** and is kept for historical
+> traceability. The **canonical phase numbering is now 0–15**, defined in
+> [`docs/attack-chain-plan.md`](attack-chain-plan.md) (mục 10–13), with the OLD→NEW mapping table. Evidence status of every phase is tracked in
+> [`docs/evidence-matrix-v2.md`](evidence-matrix-v2.md); artifact handoff contracts in
+> [`docs/handoff-contracts.md`](handoff-contracts.md); correlation design in
+> [`docs/correlation-architecture.md`](correlation-architecture.md). This file is **not** updated to reflect the
+> revised numbering, to preserve history.
+
 ## Project Objective
 
 Build a threat-informed purple-team lab that reconstructs the publicly documented C0015 intrusion chain while preserving the campaign's three defining software stages:
@@ -875,7 +883,6 @@ C0015-Conti-Detection-Lab/
 ├── diagrams/
 ├── docs/
 │   ├── architecture.md
-│   ├── attack-emulation.md
 │   ├── detection-engineering.md
 │   ├── experiments.md
 │   ├── investigation.md

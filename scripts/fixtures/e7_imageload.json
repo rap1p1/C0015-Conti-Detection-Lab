@@ -1,0 +1,16 @@
+{
+  "fixture_kind": "sysmon_e7_imageload",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry",
+  "event": {
+    "@timestamp": "2026-10-01T02:38:35.469Z",
+    "event": { "code": "7", "provider": "Microsoft-Windows-Sysmon" },
+    "host": { "name": "ws01" },
+    "process": { "name": "regsvr32.exe", "pid": 5872, "entity_id": "{88E52A21-F5AB-6AAD-CF01-000000000004}" },
+    "file": {
+      "path": "C:\\Users\\Public\\C0015\\c0015-marker.dll",
+      "hash": { "sha256": "D9622F80C022133F2D060DFB758410413174DFBDA69ECD370899C6A361B75544" },
+      "code_signature": { "signed": false }
+    }
+  }
+}

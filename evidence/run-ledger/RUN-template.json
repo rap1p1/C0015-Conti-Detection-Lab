@@ -1,0 +1,20 @@
+{
+  "run_id": "RUN-YYYYMMDD-01",
+  "scenario_id": "C0015-LAB-1",
+  "created_utc": "0000-00-00T00:00:00Z",
+  "secrets_policy": "no-secrets-allowed",
+  "stages": [
+    {
+      "stage": "S1",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "NOT RUN",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [],
+      "rollback_status": null,
+      "notes": "Fill after run. Credential handles are referenced by placeholder only; never store passwords here."
+    }
+  ],
+  "artifact_index": []
+}

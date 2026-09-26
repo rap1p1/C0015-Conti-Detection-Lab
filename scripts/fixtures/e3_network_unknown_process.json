@@ -1,0 +1,14 @@
+{
+  "fixture_kind": "sysmon_e3_networkconnect",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry; models the observed P1-B attribution gap (Image unknown, null ProcessGuid) -> correlation must downgrade to CONTEXTUAL ONLY",
+  "event": {
+    "@timestamp": "2026-10-01T02:38:36.000Z",
+    "event": { "code": "3", "provider": "Microsoft-Windows-Sysmon" },
+    "host": { "name": "ws01" },
+    "process": { "pid": 6032, "entity_id": "00000000-0000-0000-0000-000000000000", "name": null },
+    "source": { "ip": "192.168.50.20", "port": 50039 },
+    "destination": { "ip": "192.168.50.100", "port": 8080 },
+    "network": { "protocol": "tcp", "direction": "egress" }
+  }
+}

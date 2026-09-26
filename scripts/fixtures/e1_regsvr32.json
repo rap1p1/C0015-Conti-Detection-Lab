@@ -1,0 +1,18 @@
+{
+  "fixture_kind": "sysmon_e1_processcreate",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry",
+  "event": {
+    "@timestamp": "2026-10-01T02:38:35.452Z",
+    "event": { "code": "1", "provider": "Microsoft-Windows-Sysmon" },
+    "host": { "name": "ws01" },
+    "process": {
+      "name": "regsvr32.exe",
+      "pid": 5872,
+      "command_line": "regsvr32.exe /s \"C:\\Users\\Public\\C0015\\c0015-marker.dll\"",
+      "entity_id": "{88E52A21-F5AB-6AAD-CF01-000000000004}",
+      "parent": { "name": "mshta.exe", "pid": 3604, "entity_id": "{88E52A21-F5AB-6AAD-CF01-000000000005}" }
+    },
+    "user": { "name": "duc.user", "domain": "C0015" }
+  }
+}

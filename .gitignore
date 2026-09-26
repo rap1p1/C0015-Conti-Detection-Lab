@@ -25,6 +25,10 @@ fleet-token*
 *.tmp
 *.bak
 
+# Python (offline lab components under scripts/)
+__pycache__/
+*.pyc
+
 # OS / editor files
 .DS_Store
 Thumbs.db

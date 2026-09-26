@@ -1,0 +1,12 @@
+{
+  "fixture_kind": "sysmon_e10_processaccess",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry; S13b C-LSASS detection-design branch (ANALYSIS/REPLAY ONLY). Models an access attempt to lsass.exe; the lab NEVER performs this against a real system process.",
+  "event": {
+    "@timestamp": "2026-10-01T05:00:00.000Z",
+    "event": { "code": "10", "provider": "Microsoft-Windows-Sysmon" },
+    "host": { "name": "fs01" },
+    "process": { "name": "lab-tool-fixture.exe", "pid": 9999, "entity_id": "{88E52A21-F5AB-6AAD-CF01-00000000AAAA}" },
+    "target": { "name": "lsass.exe", "path": "C:\\Windows\\System32\\lsass.exe", "entity_id": "{88E52A21-F5AB-6AAD-CF01-00000000BBBB}" }
+  }
+}

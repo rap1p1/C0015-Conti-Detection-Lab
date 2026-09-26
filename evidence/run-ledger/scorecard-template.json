@@ -1,0 +1,26 @@
+{
+  "artifact_id": "ART-15-01",
+  "run_id": "RUN-YYYYMMDD-01",
+  "schema_version": "1.0",
+  "producer_phase": 15,
+  "consumer_phase": 15,
+  "payload": {
+    "analyst": "TBD",
+    "run_type": "engineering | investigation",
+    "ground_truth_visible_during_run": false,
+    "stages_scored": [
+      {
+        "stage": "S1",
+        "found": false,
+        "handoff_linked": false,
+        "verdict": "MISSING",
+        "evidence_matches": [],
+        "notes": ""
+      }
+    ],
+    "total_score": 0,
+    "max_score": 0,
+    "chain_end_to_end": false,
+    "broken_handoffs": []
+  }
+}

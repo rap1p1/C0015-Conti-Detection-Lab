@@ -1,0 +1,12 @@
+{
+  "fixture_kind": "sysmon_e11_filecreate",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry",
+  "event": {
+    "@timestamp": "2026-10-01T02:38:30.000Z",
+    "event": { "code": "11", "provider": "Microsoft-Windows-Sysmon" },
+    "host": { "name": "ws01" },
+    "process": { "name": "mshta.exe", "pid": 3604, "entity_id": "{88E52A21-F5AB-6AAD-CF01-000000000005}" },
+    "file": { "path": "C:\\Users\\Public\\C0015\\c0015-marker.dll", "name": "c0015-marker.dll" }
+  }
+}

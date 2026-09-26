@@ -1,0 +1,13 @@
+{
+  "fixture_kind": "c1_correlation_alerts",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry; 6 synthetic alert docs that satisfy C1 conditions (>=4 behavior families, >=1 collection, >=2 hosts) for offline logic tests",
+  "alerts": [
+    { "kibana.alert.rule.name": "Windows Process Discovery via Tasklist", "behavior_family": "process_discovery", "collection_hit": 0, "host.name": "ws01", "user.name": "duc.user", "source.ip": "192.168.50.20" },
+    { "kibana.alert.rule.name": "Domain Groups Discovery via Net", "behavior_family": "account_group_discovery", "collection_hit": 0, "host.name": "ws01", "user.name": "duc.user", "source.ip": "192.168.50.20" },
+    { "kibana.alert.rule.name": "Domain Trust Discovery via NLTest", "behavior_family": "domain_trust_discovery", "collection_hit": 0, "host.name": "ws01", "user.name": "duc.user", "source.ip": "192.168.50.20" },
+    { "kibana.alert.rule.name": "Network Share Discovery via Net View", "behavior_family": "network_share_discovery", "collection_hit": 0, "host.name": "ws01", "user.name": "duc.user", "source.ip": "192.168.50.20" },
+    { "kibana.alert.rule.name": "Remote SMB File Read from Network Share", "behavior_family": "network_share_collection", "collection_hit": 1, "host.name": "fs01", "user.name": "duc.user", "source.ip": "192.168.50.20" },
+    { "kibana.alert.rule.name": "Remote SMB File Read from Network Share", "behavior_family": "network_share_collection", "collection_hit": 1, "host.name": "fs01", "user.name": "duc.user", "source.ip": "192.168.50.20" }
+  ]
+}

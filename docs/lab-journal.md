@@ -109,3 +109,21 @@ Phase 1 benign Bazar-stage reconstruction verified end-to-end on WS01.
 
 **Phase 2:** Will begin from this verified Phase 1 baseline. Not implemented in this update.
 
+---
+
+## 2026-09-26 — Attack-Chain Blueprint, Offline Tooling & Benign Payloads (không có run lab mới)
+
+Milestone tài liệu/công cụ (không có hoạt động lab mới, không claim PASS mới):
+
+- Chốt **attack-chain blueprint S1–S15** với handoff/artifact/rub ID (`docs/implementation-plan.md`), narrative +
+  fidelity + **canonical phase map 0–15 + OLD→NEW** (`docs/attack-chain-plan.md` §10–13), evidence ledger
+  (`docs/evidence-matrix-v2.md`), handoff contracts, correlation architecture.
+- Implement + test offline: run-ledger schema, `scripts/lab_tools.py` (artifact/hash/manifest/receipt/scorecard),
+  `scripts/c2sim_v2.py` (C2-SIM task allowlist + receipt), synthetic fixtures, **15/15 unit tests OK**.
+- Viết payloads benign config-driven (`payloads/`): macro/HTA/DLL/beacon/bounded-impact — offline-validated
+  (parse 0 lỗi; impact Prepare→Run→Verify→Rollback→Verify; guard từ chối root hệ thống; beacon↔C2-SIM localhost).
+- Quyết định C2 (`docs/payloads-and-c2.md`): C2-SIM v2 foothold; CALDERA v5 primary operator (chưa deploy);
+  Sliver tùy chọn có điều kiện; Havoc loại. Đánh giá AD: 3 VM đủ, BadBlood là nâng cấp tiếp theo.
+- **Chưa thay đổi:** Sysmon live config (hash `D30CD93C…` ≠ mọi bản repo; EID 7/10 đang tắt) — quyết định
+  deploy EID 7 scoped thuộc M-1. Claims post-09-19 (3B/4/5/6, DET-008, T1018/1016) giữ `NOT VERIFIED IN REPO`.
+

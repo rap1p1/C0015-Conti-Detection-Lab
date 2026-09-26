@@ -1,0 +1,18 @@
+{
+  "fixture_kind": "sysmon_e1_processcreate",
+  "synthetic": true,
+  "note": "SYNTHETIC FIXTURE - not real lab telemetry",
+  "event": {
+    "@timestamp": "2026-10-01T02:00:00.000Z",
+    "event": { "code": "1", "provider": "Microsoft-Windows-Sysmon" },
+    "host": { "name": "ws01" },
+    "process": {
+      "name": "cmd.exe",
+      "pid": 5564,
+      "command_line": "cmd.exe /c \"C:\\Windows\\System32\\mshta.exe C:\\Users\\Public\\C0015\\bootstrap.hta\"",
+      "entity_id": "{88E52A21-F5AB-6AAD-CF01-000000000001}",
+      "parent": { "name": "WINWORD.EXE", "pid": 2288, "entity_id": "{88E52A21-F5AB-6AAD-CF01-000000000002}" }
+    },
+    "user": { "name": "duc.user", "domain": "C0015" }
+  }
+}

@@ -146,3 +146,28 @@ Fleet Server and Elasticsearch are reached over TLS. Windows agents trust the la
 ## Operational Boundary
 
 The lab executes controlled behaviors only on owned virtual machines using benign commands, dummy data, and safe substitutes. Original Bazar/Conti malware, cracked Cobalt Strike, destructive encryption, credential theft from system processes, and uncontrolled external targeting are out of scope.
+
+---
+
+# Verified state & components (bổ sung 2026-09-26)
+
+## Verified infrastructure (handoff 2026-09-26)
+
+- **DC01** `.10`: AD DS + DNS + LDAP/Kerberos verified (`nltest /dsgetdc:c0015.lab` PASS từ WS01/FS01); OS edition `UNKNOWN`.
+- **WS01** `.20`: Win10, joined; Ethernet0 = NAT (192.168.106.136, gw 192.168.106.2 — dùng tải/cập nhật), Ethernet1 = VMnet2 (DNS 192.168.50.10, không gateway, metric ưu tiên domain). **Word install: pending verification** (ODT Word-only, O365HomePremRetail).
+- **FS01** `.30`: **Win10 Pro 19045**, joined. Shares: `Finance` (`C:\Shares\Finance`, Finance group = Change; `budget-q3.txt`, `payroll-notes.txt`), `IT` (`C:\Shares\IT`, IT-Admins = Change; `server-inventory.txt`). `duc.user` ∈ Finance; `it.admin` ∈ IT-Admins (không DA). it.admin local-admin trên FS01: `UNKNOWN` (gate M-1 cho WMI).
+- **Elastic:** 9.5.3, Fleet `https://100.77.46.126:8220/`, policy `C0015-Windows-Endpoints`, ns `c0015`, agents WS01/FS01 Healthy, CA riêng (`fleet-ca.crt` khi enroll).
+- **Sysmon live (WS01/FS01):** 15.21 / schema 4.91, binary `C:\Tools\sysmon64.exe`, config `C:\Tools\sysmon-c0015.xml`; EID 1,3,11–14,17–22 enabled, **7 và 10 disabled**; exclusions: EID3→`DC01:53`, EID11→Elastic/Edge/diag, Registry include (Run/RunOnce/Services/Classes/Environment), Registry exclude VMware Tcpip. **Live config hash `D30CD93C…` ≠ committed ≠ working-tree repo** → reconcile trong M-1 trước S2/S9 (S2/S9 cần EID 7 scoped).
+
+## Components trong repo
+
+| Component | Vị trí | Trạng thái |
+|---|---|---|
+| C2-SIM v2 (foothold beacon channel) | `scripts/c2sim_v2.py` | Implemented + 15/15 tests |
+| Artifact/hash/manifest/receipt/scorecard tooling | `scripts/lab_tools.py` | Implemented + tests |
+| Synthetic telemetry fixtures (replay-only) | `scripts/fixtures/` | 12 fixtures + checker |
+| Run ledger schema/templates | `evidence/run-ledger/` | Schema cấm secret |
+| Benign payloads (config-driven) | `payloads/` | Offline-validated (parse, impact cycle+guard, beacon↔C2-SIM) |
+| Operator C2 (quyết định) | CALDERA v5 primary / Sliver tùy chọn / Havoc loại | `docs/payloads-and-c2.md` — chưa deploy |
+
+Chi tiết blueprint/runbook: `docs/implementation-plan.md`.
