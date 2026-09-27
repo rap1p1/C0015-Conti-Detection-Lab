@@ -54,6 +54,40 @@ T1105/T1036/T1218.010 (download `.jpg`-named DLL + regsvr32) -> Bazar-like callb
    Record their PID file (stop later with `-Stop`). Verify: `http://<C2_IP>:8080` and
    `http://<C2_IP>:8000/c0015-comparefor.jpg`.
 
+## Lab AV configuration (recommended before the run)
+
+Windows Defender on WS01/FS01 will block parts of this benign chain (observed errors:
+"blocked by your antivirus software: 'Run'" and "Write to file failed"). This is expected
+behaviour for mshta + WScript.Shell.Run. For the lab to observe the chain, disable
+Defender's real-time protection on **both WS01 and FS01** as an explicit lab configuration
+(this is sensor configuration, NOT payload-evasion engineering; the campaign telemetry is
+preserved, and the Defender disable itself is observable via
+`Microsoft-Windows-Windows Defender/Operational` events 5001/5010/1151).
+
+On each VM (WS01, FS01), PowerShell **Run as administrator**:
+
+```powershell
+# 1. Windows Security > Virus & threat protection > Manage settings >
+#    turn OFF "Tamper Protection" first (otherwise Set-MpPreference is ignored).
+# 2. Disable real-time monitoring and download/write scanning:
+Set-MpPreference -DisableRealtimeMonitoring $true
+Set-MpPreference -DisableIOAVProtection $true
+Set-MpPreference -DisableBehaviorMonitoring $true
+Set-MpPreference -DisableBlockAtFirstSeen $true
+# 3. Verify:
+Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled, AMServiceEnabled
+# 4. Re-enable after the session:
+Set-MpPreference -DisableRealtimeMonitoring $false
+Set-MpPreference -DisableIOAVProtection $false
+Set-MpPreference -DisableBehaviorMonitoring $false
+Set-MpPreference -DisableBlockAtFirstSeen $false
+#    then re-enable Tamper Protection in the UI.
+```
+
+Record the Defender state (disabled on which host, timestamps) in the run ledger; a
+"PREVENTED" run caused by Defender is also a valid lab result worth keeping for the
+detection narrative.
+
 ## Part B - delivery to WS01
 
 4. Copy `stage\ws01\*` to WS01 (e.g. `\\WS01\C$\Users\Public\C0015\` via an admin share, or a shared
