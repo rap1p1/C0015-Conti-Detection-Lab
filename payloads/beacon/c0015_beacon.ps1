@@ -56,7 +56,12 @@ $taskMap = @{
 $tokenEnv = Get-IniValue $cfg 'c2sim' 'token_env'
 $token = $env:C0015_SESSION_TOKEN
 if (-not $token) {
-    $token = 'S1-' + ([BitConverter]::ToString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(8)) -replace '-','').ToLower()
+    # PowerShell 5.1 (Windows 10) has no static RandomNumberGenerator.GetBytes(int);
+    # use the instance API available on both .NET Framework 4.x and .NET Core.
+    $tokenBytes = New-Object 'System.Byte[]' 8
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($tokenBytes) } finally { $rng.Dispose() }
+    $token = 'S1-' + ([BitConverter]::ToString($tokenBytes) -replace '-','').ToLower()
 }
 
 # ---- T1016: public-IP style check against lab mock ----
