@@ -65,7 +65,7 @@ $lines = @(
     'public_ip_check_enabled=0'
     "beacon_cmd=powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PublicDir\c0015_beacon.ps1 -Config $PublicDir\config.ini"
     'task_T-DISCOVER-CORPUS=cmd.exe /c net view /all'
-    'task_T-BEACON-SLEEP=ping -n 2 127.0.0.1'
+    'task_T-BEACON-SLEEP=ping -n 2 127.0.0.1 >nul'
     'task_T-NOOP=cmd.exe /c ver'
     ''
     '[impact]'

@@ -32,8 +32,8 @@ TASKS = {
 }
 TASK_ALLOWLIST = {
     "T-DISCOVER-CORPUS": {"max_result_bytes": 1024},
-    "T-BEACON-SLEEP": {"max_result_bytes": 128},
-    "T-NOOP": {"max_result_bytes": 128},
+    "T-BEACON-SLEEP": {"max_result_bytes": 1024},
+    "T-NOOP": {"max_result_bytes": 1024},
 }
 STAGE_ALLOWLIST = {
     "phase3": {"hosts": {"WS01"}},
