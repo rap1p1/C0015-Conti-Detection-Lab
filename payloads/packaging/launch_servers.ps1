@@ -46,6 +46,17 @@ if ($Stop) {
 if (-not (Test-Path -LiteralPath $c2sim)) { throw "c2sim not found: $c2sim" }
 if (-not (Test-Path -LiteralPath $pub)) { throw "publish dir not found: $pub" }
 
+# ---- pre-flight cleanup: kill ANY existing listener on our ports ----
+# Repeated launches without -Stop leave old python servers bound to the same
+# ports (Python allows re-binding). New connections then land on stale
+# instances (old code, no dedup) and corrupt the run evidence.
+foreach ($port in @($C2Port, $HttpPort)) {
+    Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
+        ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+}
+Start-Sleep -Milliseconds 600
+Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
+
 $pids = New-Object System.Collections.Generic.List[int]
 
 $p1 = Start-Process python -ArgumentList ("$c2sim --ip $C2Ip --port $C2Port --ledger $LedgerDir --log $LogPath") -PassThru -WindowStyle Hidden
