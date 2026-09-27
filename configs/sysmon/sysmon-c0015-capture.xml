@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  C0015 telemetry profile: CAPTURE v1.0 / 2026-09-26
+  Newly authored configuration; NOT a recovery of the lost historical XML.
+  Repository reviewed: rap1p1/C0015-Conti-Detection-Lab @ f6e23f0
+  Target: existing Sysmon 15.21 with schema 4.91; verify acceptance on each VM.
+
+  Use on WS01 and FS01 during bounded observation sessions.
+  ImageLoad, ProcessAccess and RegistryEvent are deliberately unfiltered.
+  This can produce substantial CPU, disk and ingestion load: measure first.
+  For routine collection, use sysmon-c0015-balanced.xml and its documented gaps.
+
+  Empty exclude = collect all matching event types, with no exclusion rules.
+  Empty include = collect none for that event type.
+  No exclusion for DC DNS, Microsoft-signed files, Elastic or VMware.
+  Filtering is not detection: a logged event does not prove malicious activity.
+-->
+<Sysmon schemaversion="4.91">
+  <HashAlgorithms>SHA256,IMPHASH</HashAlgorithms>
+  <CheckRevocation/>
+  <!-- Disable reverse lookups for connection enrichment; E22 stays enabled. -->
+  <DnsLookup>false</DnsLookup>
+
+  <EventFiltering>
+    <RuleGroup name="C0015-CAPTURE-v1" groupRelation="or">
+
+      <!-- E1: Complete ancestry, including renamed tools and uncommon parents. -->
+      <ProcessCreate onmatch="exclude" />
+
+      <!-- E2: Creation-time changes; NOT ordinary writes, renames or encryption. -->
+      <FileCreateTime onmatch="exclude" />
+
+      <!-- E3: TCP/UDP endpoints on all interfaces, including NAT and lab NICs.
+           Keep DNS-to-DC and high RPC ports. No HTTP body, TLS fingerprint,
+           byte count, packet capture or ICMP visibility is supplied by E3. -->
+      <NetworkConnect onmatch="exclude" />
+
+      <!-- E4: Service state is emitted automatically; no filter tag. -->
+
+      <!-- E5: Process lifetime and PID reuse context. -->
+      <ProcessTerminate onmatch="exclude" />
+
+      <!-- E6: Driver telemetry, including tools with a kernel component. -->
+      <DriverLoad onmatch="exclude" />
+
+      <!-- E7: All module loads, regardless of extension, signature or process.
+           Covers .jpg masquerade and loads in rundll32, regsvr32, winlogon,
+           svchost, Office, script hosts and differently named lab executables.
+           ImageLoad alone is NOT proof of remote injection. -->
+      <ImageLoad onmatch="exclude" />
+
+      <!-- E8: Source/target thread relationships when Sysmon observes them.
+           Not every injection method generates CreateRemoteThread. -->
+      <CreateRemoteThread onmatch="exclude" />
+
+      <!-- E9: Raw device reads; supplemental visibility, not a C0015 claim. -->
+      <RawAccessRead onmatch="exclude" />
+
+      <!-- E10: All process access, without a GrantedAccess allowlist.
+           Preserve low-rights controls as well as suspicious access patterns.
+           LSASS access does not itself establish credential extraction. -->
+      <ProcessAccess onmatch="exclude" />
+
+      <!-- E11: Creation/overwrite artifacts, staging, downloads and notes.
+           Does not audit normal file reads or every individual write. -->
+      <FileCreate onmatch="exclude" />
+
+      <!-- E12-14: Registry modifications, including Classes/COM, services,
+           Office settings and persistence-related keys. No read auditing. -->
+      <RegistryEvent onmatch="exclude" />
+
+      <!-- E15: Alternate data streams, including Zone.Identifier if present.
+           Not every download, transfer or extraction preserves MOTW. -->
+      <FileCreateStreamHash onmatch="exclude" />
+
+      <!-- E16: Configuration changes are emitted automatically. -->
+
+      <!-- E17-18: All pipe names; do not rely on fixed beacon pipe patterns. -->
+      <PipeEvent onmatch="exclude" />
+
+      <!-- E19-21: WMI filter/consumer/binding events only.
+           For remote WMI process execution use E1 plus Windows auth logs. -->
+      <WmiEvent onmatch="exclude" />
+
+      <!-- E22: All DNS query results, including failed queries. -->
+      <DnsQuery onmatch="exclude" />
+
+      <!-- E23 off: E26 logs deletion without retaining every deleted file. -->
+      <FileDelete onmatch="include" />
+
+      <!-- E24 off: Clipboard capture is outside the selected campaign scope. -->
+      <ClipboardChange onmatch="include" />
+
+      <!-- E25: Additional process-tampering signal; not universal injection. -->
+      <ProcessTampering onmatch="exclude" />
+
+      <!-- E26: All observed deletions, without a copy-on-delete archive. -->
+      <FileDeleteDetected onmatch="exclude" />
+
+      <!-- E27/E28 off: These BLOCK operations and would change observation. -->
+      <FileBlockExecutable onmatch="include" />
+      <FileBlockShredding onmatch="include" />
+
+      <!-- E29: PE creation signal, useful even with a misleading extension. -->
+      <FileExecutableDetected onmatch="exclude" />
+
+      <!-- E255: Errors are emitted automatically; collect and investigate. -->
+    </RuleGroup>
+  </EventFiltering>
+</Sysmon>
