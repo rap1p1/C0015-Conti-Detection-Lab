@@ -44,6 +44,13 @@ TASKS = {
 }
 TASK_ALLOWLIST = {
     "T-DISCOVER-CORPUS": {"max_result_bytes": 1024},
+    "T-DISCOVER-SYSTEM": {"max_result_bytes": 1024},
+    "T-DISCOVER-DOMAINGROUPS": {"max_result_bytes": 1024},
+    "T-DISCOVER-LOCALGROUPS": {"max_result_bytes": 1024},
+    "T-DISCOVER-TRUSTS": {"max_result_bytes": 1024},
+    "T-DISCOVER-NETVIEWALL": {"max_result_bytes": 1024},
+    "T-DISCOVER-TIME": {"max_result_bytes": 1024},
+    "T-DISCOVER-PING": {"max_result_bytes": 1024},
     "T-BEACON-SLEEP": {"max_result_bytes": 1024},
     "T-NOOP": {"max_result_bytes": 1024},
 }
