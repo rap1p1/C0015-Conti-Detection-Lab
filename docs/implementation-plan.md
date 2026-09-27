@@ -92,10 +92,10 @@ standard run-id field.
 
 - Live config hash `D30CD93C83E3409F7AA1D45FEDEA2695B9F1481FF1D3DFF019AE2B8F01D99C18` differs from the committed
   repo config and from the working-tree variant — **the running config is a third variant not present in the repo**
-  (baseline plus exclusions; no EID 2/5/6/7/8/10/15/25/26/29). The committed repo config is the **routine
-  baseline**.
-- A **CAPTURE profile** was added at `configs/sysmon/sysmon-c0015-capture.xml`: it solves the E7 and E10 needs
-  (EID 7 scoped for the S2/S9 ImageLoad acceptance; EID 10 for the S13b fixtures).
+  (baseline plus exclusions; no EID 2/5/6/7/8/10/15/25/26/29). The committed repo profiles are
+  `sysmon-c0015-balanced.xml` (routine, scoped E7/E10/Registry) and `sysmon-c0015-capture.xml` (observation).
+- The **CAPTURE profile** solves the E7 and E10 needs (EID 7 scoped for the S2/S9 ImageLoad acceptance;
+  EID 10 for the S13b fixtures); the **BALANCED profile** is the routine, lower-volume default.
 - **Chain consequence:** EID 7 is currently off on the live machines, so the S2/S9 ImageLoad hash acceptance cannot
   be collected unless the scoped EID 7 profile is deployed. M-1 decides and deploys, then pulls the live file back
   into the repo for hash reconcile.
@@ -500,8 +500,9 @@ Full C2 role mapping and payload design: `docs/payloads-and-c2.md`.
 ## 12. Repository Rules
 
 - No commit, push, or deploy from this repository's working tree.
-- Do not touch `configs/sysmon/sysmon-c0015.xml` or the detection files; profile changes go through the separate
-  CAPTURE profile (`configs/sysmon/sysmon-c0015-capture.xml`) and an explicit M-1 decision.
+- Sysmon profile changes go through the two committed profiles under `configs/sysmon/`
+  (`sysmon-c0015-balanced.xml` routine, `sysmon-c0015-capture.xml` observation) and an explicit M-1 decision;
+  do not edit detection files outside that scope.
 - No secrets in the repo; run a secret scan before any future commit.
 - Statuses (`NOT RUN`, `NOT VERIFIED`, `NARRATIVE ONLY`, `DESIGN ONLY`, `ANALYSIS / REPLAY ONLY`, `PARTIAL`,
   `PREVENTED`, `SENSOR GAP`, `BLOCKED BY ENVIRONMENT`) are preserved as-is until a run produces evidence.

@@ -57,18 +57,18 @@ Host-only VMnet2 `192.168.50.0/24`, DHCP off. Domain `c0015.lab` / NetBIOS `C001
 | ELASTIC01 | Elastic 9.5.3 / Kibana / Fleet (`https://100.77.46.126:8220`, policy `C0015-Windows-Endpoints`, namespace `c0015`) | Tailscale |
 
 Windows endpoints run the Elastic Agent (healthy) with Sysmon 15.21 (schema 4.91). The live Sysmon
-configuration (hash `D30CD93C...`) is an unverified third variant with E7/E10 disabled. The committed
-`configs/sysmon/sysmon-c0015.xml` is the routine baseline, and a broad CAPTURE profile
-(`configs/sysmon/sysmon-c0015-capture.xml`, all events including unfiltered E7/E10 and Registry activity) is
-being added for bounded observation sessions. The live configuration differs from both committed files and
-must be reconciled before the S2/S9 observation runs.
+configuration (hash `D30CD93C...`) is an unverified third variant with E7/E10 disabled. Two profiles are
+committed under `configs/sysmon/`: the routine **BALANCED** profile (`sysmon-c0015-balanced.xml`, scoped
+E7/E10/Registry to keep volume low) and the **CAPTURE** profile (`sysmon-c0015-capture.xml`, unfiltered
+E7/E10/Registry for bounded observation sessions). Reconcile the live file with these before the S2/S9
+observation runs (E7 required).
 
 ## Repository Structure
 
 ```text
 C0015-Conti-Detection-Lab/
 ├── README.md
-├── configs/sysmon/          # Sysmon configurations: routine baseline + CAPTURE profile
+├── configs/sysmon/          # Sysmon profiles: BALANCED (routine, scoped) + CAPTURE (observation, broad)
 ├── detections/              # Atomic KQL, correlation ES|QL, EQL prototypes
 ├── docs/                    # Blueprint, narrative, fidelity, correlation, payload/C2 documents
 ├── evidence/run-ledger/     # Run ledger schema + templates

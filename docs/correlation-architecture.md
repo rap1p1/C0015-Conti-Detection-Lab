@@ -95,9 +95,9 @@ from the query + dataset.
 
 ### C5 — Injection suspicion (P7 analog — telemetry-only)
 - **Input:** E10 ProcessAccess (ProcessGuid source -> target) + E7 module load + target behavior. **Boundary:** only
-  track lab-owned targets (`lab-target.exe` in the working-tree sysmon); `winlogon.exe` is telemetry scope present in
-  the uncommitted config — no interaction permitted. **Status:** `NOT RUN` (E10 not deploy-verified; config not
-  committed).
+  track lab-owned targets (`lab-target.exe`) plus `lsass.exe` as a detection-study target (scoped in the committed
+  BALANCED profile) — telemetry observation only, no interaction with system processes. **Status:** `NOT RUN`
+  (E10 not deploy-verified).
 
 ### C6 — Impact (P13)
 - **Input:** E2/E26/E11 high-rate on the allowlist root + S5145 (SMB impact) + note creation. **Join:** process/account
@@ -162,8 +162,9 @@ validated when the items it depends on are at INGEST VERIFIED.
 2. E3: record the attribution status (ProcessGuid null? Image unknown?) — P1-B hit this; re-validate after config
    changes.
 3. E7 ImageLoad: path + hash + signature status — verified in P1-C; **EID 7 is currently disabled in the live config**,
-   so the CAPTURE profile (`configs/sysmon/sysmon-c0015-capture.xml`) must be loaded before any validation run that
-   depends on E7.
+   so the CAPTURE profile (`configs/sysmon/sysmon-c0015-capture.xml`, broad) or the BALANCED profile
+   (`configs/sysmon/sysmon-c0015-balanced.xml`, E7 scoped to lab paths) must be loaded before any validation run
+   that depends on E7.
 4. Logon fields: `winlog.logon.id`, `user.id` (SID), `source.ip`, `winlog.logon.type` mapping verified; 4624 <-> 4672
    joinable on FS01 by FS01 LogonId + host + boot/time anchor; never join 4648 <-> 4624 by LogonId; LogonGuid only when
    present, non-zero and verified.

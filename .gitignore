@@ -29,6 +29,12 @@ fleet-token*
 __pycache__/
 *.pyc
 
+# Generated / runtime artifacts (build output, staged deliveries, server pid)
+build/
+stage/
+*.pid
+c0015-comparefor.jpg
+
 # OS / editor files
 .DS_Store
 Thumbs.db

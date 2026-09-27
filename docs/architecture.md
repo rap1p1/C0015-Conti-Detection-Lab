@@ -87,17 +87,22 @@ WS01 and FS01 run Sysmon 15.21 (schema 4.91), installed at `C:\Tools\sysmon64.ex
 The configuration hashes do not line up:
 
 - Live configuration on the VMs: `D30CD93C...`
-- Committed repository file (`configs/sysmon/sysmon-c0015.xml`): `892EA3A1...` with LF line endings, `1E68381B...` with CRLF line endings.
 - Previously uncommitted working-tree variant: `42BC6998...`
 
-The live deployment is therefore a third variant (baseline plus exclusions, Event IDs 7 and 10 disabled) that matches neither the committed repository file nor the earlier uncommitted variant. This must be reconciled in M-1 before S2 and S9, which require scoped Event ID 7 coverage, and before the S13b study, which relies on Event ID 10.
+The live deployment is therefore a third variant (baseline plus exclusions, Event IDs 7 and 10 disabled) that matches neither the committed profiles nor the earlier uncommitted variant. This must be reconciled in M-1 before S2 and S9, which require scoped Event ID 7 coverage, and before the S13b study, which relies on Event ID 10.
 
-### CAPTURE profile
+### Committed Sysmon profiles
 
-A CAPTURE profile is committed to the repository at `configs/sysmon/sysmon-c0015-capture.xml`, derived from a user-provided configuration:
+Two complete, mutually exclusive profiles live under `configs/sysmon/`; never load both at once.
 
-- All event types are collected broadly; Event IDs 7 (ImageLoad), 10 (ProcessAccess), and 12-14 (RegistryEvent) are deliberately unfiltered.
-- Event ID 23 (FileDelete archive) and Event ID 24 (ClipboardChange) are disabled; the blocking rules Event ID 27 (FileBlockExecutable) and Event ID 28 (FileBlockShredding) are disabled because they would change the behavior under observation.
+- `sysmon-c0015-balanced.xml` — **BALANCED** (routine): Event IDs 1, 3, 11-14, 17-22 broad with the lab
+  exclusions; Event ID 7 (ImageLoad) scoped to lab staging/tooling paths; Event ID 10 (ProcessAccess)
+  scoped to the detection-study targets (`lab-target.exe`, `lsass.exe` — telemetry only, no interaction);
+  Registry scoped to Run/RunOnce/Services/Classes/Environment; Event IDs 23/24/27/28 disabled (archive /
+  clipboard / blocking features); E26 deletion logging on without archive.
+- `sysmon-c0015-capture.xml` — **CAPTURE** (bounded observation): all event types broad; Event IDs 7, 10
+  and 12-14 deliberately unfiltered; Event IDs 23/24/27/28 disabled as above; `DnsLookup=false`; hashes
+  SHA256+IMPHASH. Use only for short first-pass coverage checks, measure load, then switch back to BALANCED.
 - `DnsLookup` is false (reverse lookups disabled; Event ID 22 DNS queries remain enabled).
 - Hash algorithms: SHA256 and IMPHASH. Schema 4.91.
 - No IP, DLL-name, pipe-name, filename, or Microsoft-signature filtering.

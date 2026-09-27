@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  C0015 Sysmon — BALANCED profile (routine collection) / schema 4.91 / Sysmon 15.21
+  Narrowed from the CAPTURE profile: ImageLoad (E7), ProcessAccess (E10) and
+  RegistryEvent are SCOPED instead of unfiltered, to keep routine volume low.
+
+  Intent:
+    - E1/E3/E11 + E22 etc. broad (minus lab-noise exclusions) for process/network/file visibility.
+    - E7 ImageLoad: only lab staging / tooling paths (the DLL drops, not every module).
+    - E10 ProcessAccess: only targets of interest for the detection study
+      (lsass.exe + lab-target.exe). Telemetry-only; the lab NEVER injects into
+      or dumps these processes.
+    - Registry: only Run/RunOnce/Services/Classes/Environment + VMware exclusion.
+    - E23/E24/E27/E28 off (delete-archive / clipboard / BLOCKING features).
+
+  For first-pass coverage measurement use the CAPTURE profile
+  (configs/sysmon/sysmon-c0015-capture.xml) during bounded observation
+  sessions; switch back to this BALANCED profile for routine runs.
+  Deploy: sysmon64.exe -c configs/sysmon/sysmon-c0015-balanced.xml
+-->
+<Sysmon schemaversion="4.91">
+  <HashAlgorithms>SHA256,IMPHASH</HashAlgorithms>
+  <CheckRevocation/>
+  <DnsLookup>false</DnsLookup>
+
+  <EventFiltering>
+    <RuleGroup name="C0015-BALANCED" groupRelation="or">
+
+      <!-- E1: process ancestry, minus VMware lifecycle noise -->
+      <ProcessCreate onmatch="exclude">
+        <Rule groupRelation="and">
+          <ParentImage condition="end with">\vmtoolsd.exe</ParentImage>
+          <CommandLine condition="contains">\VMware\VMware Tools\</CommandLine>
+          <CommandLine condition="contains any">poweron-vm-default.bat;resume-vm-default.bat</CommandLine>
+        </Rule>
+      </ProcessCreate>
+
+      <!-- E2: creation-time changes -->
+      <FileCreateTime onmatch="exclude" />
+
+      <!-- E3: network connections, minus DNS to DC01 (still seen via E22) -->
+      <NetworkConnect onmatch="exclude">
+        <Rule groupRelation="and">
+          <DestinationIp condition="is">192.168.50.10</DestinationIp>
+          <DestinationPort condition="is">53</DestinationPort>
+        </Rule>
+      </NetworkConnect>
+
+      <!-- E5: process lifetime -->
+      <ProcessTerminate onmatch="exclude" />
+
+      <!-- E6: driver load -->
+      <DriverLoad onmatch="exclude" />
+
+      <!-- E7: module load, scoped to lab staging/tooling paths only -->
+      <ImageLoad onmatch="include">
+        <ImageLoaded condition="contains">C:\Users\Public\C0015\</ImageLoaded>
+        <ImageLoaded condition="contains">C:\C0015\</ImageLoaded>
+        <ImageLoaded condition="contains">C:\Tools\</ImageLoaded>
+        <ImageLoaded condition="contains">C:\Windows\Temp\</ImageLoaded>
+        <ImageLoaded condition="contains">C:\ProgramData\</ImageLoaded>
+      </ImageLoad>
+
+      <!-- E8: cross-process thread creation -->
+      <CreateRemoteThread onmatch="exclude" />
+
+      <!-- E9: raw device reads -->
+      <RawAccessRead onmatch="exclude" />
+
+      <!-- E10: process access, scoped to detection-study targets only.
+           Telemetry observation only; no interaction with system processes. -->
+      <ProcessAccess onmatch="include">
+        <TargetImage condition="end with">\lab-target.exe</TargetImage>
+        <TargetImage condition="end with">\lsass.exe</TargetImage>
+      </ProcessAccess>
+
+      <!-- E11: file create/overwrite, minus lab-infra noise -->
+      <FileCreate onmatch="exclude">
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Program Files\Elastic\Agent\elastic-agent.exe</Image>
+          <TargetFilename condition="contains">\Program Files\Elastic\Agent\data\</TargetFilename>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe</Image>
+          <TargetFilename condition="contains">\AppData\Local\Microsoft\Edge\User Data\</TargetFilename>
+        </Rule>
+      </FileCreate>
+
+      <!-- E12-14: registry, scoped to autostart/services/classes/environment -->
+      <RegistryEvent onmatch="include">
+        <TargetObject condition="contains">\Software\Microsoft\Windows\CurrentVersion\Run</TargetObject>
+        <TargetObject condition="contains">\Software\Microsoft\Windows\CurrentVersion\RunOnce</TargetObject>
+        <TargetObject condition="contains">\System\CurrentControlSet\Services\</TargetObject>
+        <TargetObject condition="contains">\Software\Classes\</TargetObject>
+        <TargetObject condition="contains">\Environment</TargetObject>
+      </RegistryEvent>
+      <RegistryEvent onmatch="exclude">
+        <Rule groupRelation="and">
+          <Image condition="is">C:\Program Files\VMware\VMware Tools\vmtoolsd.exe</Image>
+          <TargetObject condition="contains">\System\CurrentControlSet\Services\Tcpip\Parameters</TargetObject>
+        </Rule>
+      </RegistryEvent>
+
+      <!-- E15: alternate data streams (Zone.Identifier / MOTW) -->
+      <FileCreateStreamHash onmatch="exclude" />
+
+      <!-- E17-18: named pipes -->
+      <PipeEvent onmatch="exclude" />
+
+      <!-- E19-21: WMI filter/consumer/binding (subscription telemetry only) -->
+      <WmiEvent onmatch="exclude" />
+
+      <!-- E22: DNS queries -->
+      <DnsQuery onmatch="exclude" />
+
+      <!-- E23: file-delete archive OFF (use E26, no archive) -->
+      <FileDelete onmatch="include" />
+
+      <!-- E24: clipboard OFF (out of scope) -->
+      <ClipboardChange onmatch="include" />
+
+      <!-- E25: process tampering -->
+      <ProcessTampering onmatch="exclude" />
+
+      <!-- E26: file deletion (log only, no archive) -->
+      <FileDeleteDetected onmatch="exclude" />
+
+      <!-- E27/E28: BLOCKING features OFF (must not alter observed behavior) -->
+      <FileBlockExecutable onmatch="include" />
+      <FileBlockShredding onmatch="include" />
+
+      <!-- E29: PE creation signal -->
+      <FileExecutableDetected onmatch="exclude" />
+
+    </RuleGroup>
+  </EventFiltering>
+</Sysmon>
