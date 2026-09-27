@@ -179,9 +179,17 @@ class C2SimTests(unittest.TestCase):
 
     def test_task_sequence_and_allowlist(self):
         c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
-        self.assertEqual(c2.next_task("S1-0123456789abcdef"), "T-DISCOVER-CORPUS")
-        ok, _ = c2.result_ok("S1-0123456789abcdef", "T-DISCOVER-CORPUS", 100)
-        self.assertTrue(ok)
+        # the discovery batch is served once in order, then T-BEACON-SLEEP (idle)
+        expected = [
+            "T-DISCOVER-CORPUS", "T-DISCOVER-SYSTEM", "T-DISCOVER-DOMAINGROUPS",
+            "T-DISCOVER-LOCALGROUPS", "T-DISCOVER-TRUSTS", "T-DISCOVER-NETVIEWALL",
+            "T-DISCOVER-TIME", "T-DISCOVER-PING", "T-BEACON-SLEEP",
+        ]
+        for i, t in enumerate(expected):
+            self.assertEqual(c2.next_task("S1-0123456789abcdef"), t, f"step {i}")
+            ok, _ = c2.result_ok("S1-0123456789abcdef", t, 100)
+            self.assertTrue(ok)
+        # exhausted batch -> idle sleep
         self.assertEqual(c2.next_task("S1-0123456789abcdef"), "T-BEACON-SLEEP")
         self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-EVIL", 10)[0])   # not in allowlist
         self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-NOOP", 5000)[0])  # oversize

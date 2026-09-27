@@ -27,7 +27,19 @@ from lab_tools import envelope, sha256_bytes
 
 TOKEN_RE = re.compile(r"^S[12]-[0-9a-f]{16}$")
 TASKS = {
-    "phase3": ["T-DISCOVER-CORPUS", "T-BEACON-SLEEP"],
+    # S4 discovery batch (exact DFIR commands), served once each in order,
+    # then the beacon idles on T-BEACON-SLEEP until the next run.
+    "phase3": [
+        "T-DISCOVER-CORPUS",       # net view /all                       (T1135)
+        "T-DISCOVER-SYSTEM",       # tasklist /s                         (T1057)
+        "T-DISCOVER-DOMAINGROUPS", # net group "domain admins" /dom      (T1069.002)
+        "T-DISCOVER-LOCALGROUPS",  # net localgroup "administrator"      (T1069.001)
+        "T-DISCOVER-TRUSTS",       # nltest /domain_trusts /all_trusts   (T1482)
+        "T-DISCOVER-NETVIEWALL",   # net view /all /domain               (T1018)
+        "T-DISCOVER-TIME",         # net view /all time                  (T1124)
+        "T-DISCOVER-PING",         # ping -n 1 <target>                  (T1018)
+        "T-BEACON-SLEEP",
+    ],
     "phase7-session2": ["T-DISCOVER-CORPUS"],
 }
 TASK_ALLOWLIST = {
@@ -94,8 +106,13 @@ def next_task(token):
     if not s:
         return None
     seq = TASKS.get(s["stage"], [])
-    idx = len(s["tasks_done"]) % len(seq)
-    return seq[idx] if seq else "T-NOOP"
+    if not seq:
+        return "T-NOOP"
+    # serve the discovery batch once in order; afterwards stay on T-BEACON-SLEEP
+    idx = len(s["tasks_done"])
+    if idx >= len(seq):
+        return "T-BEACON-SLEEP"
+    return seq[idx]
 
 
 def result_ok(token, task, size):
