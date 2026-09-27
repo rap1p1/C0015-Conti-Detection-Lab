@@ -5,6 +5,10 @@ All payloads in this directory are benign surrogates. Every lab value (URL, host
 lab values are hardcoded in code. There is no malware, no injection, no credential extraction, and no real
 encryption.
 
+> Phase-1 packaging & delivery runbook (entry -> bootstrap -> beacon S1..S3) — how to build the DLL, generate the
+> per-run config, stage files onto WS01, install the macro into `test.docm`, and verify the beacon callback:
+> **`payloads/packaging/PHASE1_RUNBOOK.md`** (scripts in `payloads/packaging/`).
+
 ## Payload Files Mapped to the Original Campaign Technique
 
 | File | Role in the chain | Technique (ATT&CK) | Original campaign C0015 (DFIR/MITRE) | Expected telemetry |

