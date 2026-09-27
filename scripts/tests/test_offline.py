@@ -166,6 +166,17 @@ class C2SimTests(unittest.TestCase):
         self.assertFalse(c2.register_ok("evil-stage", "FS01", "S2-0123456789abcdef", None)[0])
         self.assertFalse(c2.register_ok("phase3", "WS01", "bad-token", None)[0])
 
+    def test_register_reuse_same_run(self):
+        ok, _ = c2.register_ok("phase3", "WS01", "S1-aaaaaaaaaaaaaaaa", None, run_id="RUN-20261001-01")
+        self.assertTrue(ok)
+        # same stage/host/run with a different token -> idempotent reuse
+        ok, msg = c2.register_ok("phase3", "WS01", "S1-bbbbbbbbbbbbbbbb", None, run_id="RUN-20261001-01")
+        self.assertFalse(ok)
+        self.assertEqual(msg, "reuse:S1-aaaaaaaaaaaaaaaa")
+        # different run_id -> new session allowed
+        ok, _ = c2.register_ok("phase3", "WS01", "S1-cccccccccccccccc", None, run_id="RUN-20261001-02")
+        self.assertTrue(ok)
+
     def test_task_sequence_and_allowlist(self):
         c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
         self.assertEqual(c2.next_task("S1-0123456789abcdef"), "T-DISCOVER-CORPUS")

