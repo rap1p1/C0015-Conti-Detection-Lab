@@ -61,6 +61,13 @@ $code = Get-Content -LiteralPath $MacroSource -Raw
 # strip VB_Name attribute / any module-attribute lines (invalid via AddFromString)
 $code = $code -replace '(?m)^Attribute\s+VB_Name.*$', ''
 
+# guard: the source must define RunEntry exactly once (a duplicated block causes
+# VBA "compile error: ambiguous name detected: RunEntry")
+$runEntryCount = ([regex]::Matches($code, '(?m)^\s*(Private|Public)?\s*Sub\s+RunEntry\b')).Count
+if ($runEntryCount -ne 1) {
+    throw "macro source must define RunEntry exactly once (found $runEntryCount in $MacroSource). Re-copy macro_payload.vba from the repository and retry."
+}
+
 $word = New-Object -ComObject Word.Application
 # visible helps the Word VBE work reliably during injection
 $word.Visible = $true
@@ -78,7 +85,9 @@ try {
     # AutoOpen) live here; no module creation/rename involved, which avoids
     # the "Project is unviewable" failure on the module rename step.
     $thisDoc = $proj.VBComponents('ThisDocument')
-    $thisDoc.CodeModule.AddFromString($code)
+    $cm = $thisDoc.CodeModule
+    if ($cm.CountOfLines -gt 0) { $cm.DeleteLines(1, $cm.CountOfLines) }   # clear leftovers / prior injection
+    $cm.AddFromString($code)
 
     # SaveAs FileFormat 13 = wdFormatXMLDocumentMacroEnabled (.docm)
     $doc.SaveAs([ref]$OutPath, [ref]13)
