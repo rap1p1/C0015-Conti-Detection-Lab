@@ -35,7 +35,9 @@ in `.internal.alerts-security.*` copy the source event's `record_id`/`entity_id`
 
 ## Rules (R01–R11)
 
-All rules: `enabled=false` (import disabled, preview only), tag `C0015`, MITRE ATT&CK v18, no actions.
+All rules: tag `C0015`, MITRE ATT&CK v18, no actions. Imported **disabled** (preview); **enabled for the
+2026-09-28 post-filter rerun** — the deployed state is captured in the committed export
+`eql/C0015-S1-S3-elastic-rules.ndjson` (11 rules, includes the R04 policy-test exclusion).
 **Building block ON** hides the alert from the default Alerts table (R01–R06, R10, R11);
 **building block OFF** rules are the alerting correlations (R07–R09).
 
@@ -100,7 +102,8 @@ Rule counts in this repo are presented post-filter (R04 matches the chain artifa
 
 ## Sources
 
-- Elastic rules preview/export: `C0015-S1-S3-elastic-rules.ndjson` (11 objects, imported **disabled**;
-  predates the R04 filter — repo `r04-*.eql` is the corrected source of truth).
-- Rerun alerts: `Alerts.csv` (46 docs; summary fields only — open in Kibana for uuid/RecordID/command line).
+- Elastic rules: committed export `eql/C0015-S1-S3-elastic-rules.ndjson` — 11 rules, **post-filter, enabled**
+  (the state that produced the 40-alert rerun; R04 includes the `__PSScriptPolicyTest_*` exclusion). The
+  pre-filter review export (disabled) lives with the review handoff, not in this repo.
+- Rerun alerts: `Alerts (1).csv` (40 docs; summary fields only — open in Kibana for uuid/RecordID/command line).
 - Review handoff: `HANDOFF-C0015-S1-S3.vi.md`; full phase-1 analysis: `../stage/analysis/s1-s4-detection-report.md`.
