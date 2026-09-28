@@ -2,64 +2,89 @@
 
 Detection rules for the C0015 Conti Detection Lab, organized by type and phase.
 
-## Directory Structure
+## Directory structure
 
-- `atomic/` — Low-confidence KQL building blocks. Each rule targets a single behavior family and is
-  intentionally broad to preserve recall (no notification actions; reusable signals).
-- `eql/` — Entity-aware EQL sequence prototypes that enforce parent-child ordering via ProcessGuid
-  ancestry (`process.entity_id` ↔ `process.parent.entity_id`), same-host only. Telemetry validation
-  and chain-level detection.
-- `correlations/` — (planned) Analyst-facing ES|QL chain alerts over the atomic/EQL signals.
+- `eql/` — the phase-1 rule set (11 rules, all Elastic EQL). Single-event predicates and
+  ProcessGuid-ancestry sequences. Import-ready for Elastic Security (rule type **EQL / Event correlation**,
+  index `logs-windows.sysmon_operational-c0015*`).
+- `atomic/` — removed in the review: unified into the single-event EQL rules below (R01–R06, R10, R11).
+- `correlations/` — (planned) analyst-facing ES|QL chain alert on top of these signals.
 
 ## Phase scope
 
-The current rule set covers **phase 1 — entry → bootstrap → session 1** (stage S1–S3; S4 boundary stays
-`PARTIAL`). All rules are grounded on the verified `RUN-20261001-01` telemetry in Elastic
-(`logs-windows.sysmon_operational-c0015-*`, host `ws01`, 2026-09-28T02:15Z).
+Phase 1 — entry → bootstrap → session 1 (S1–S3) plus the S4 boundary (R10/R11 task-loop). Grounded on
+`RUN-20261001-01` Discover export (WS01, `C0015\duc.user`, 2026-09-28T02:13–02:17Z) and cross-checked against
+the rerun alert export (`Alerts.csv`, 2026-09-28 ~11:26 UTC+7): **46 alert documents**, R01–R11 all firing
+(33 low / 4 medium / 9 high).
 
-The previous C1-era discovery/collection content was removed: it belongs to the operator/discovery phase
-(phase 2) and will be re-baselined against phase-2 telemetry when that phase runs.
+## Rules (R01–R11)
 
-## Phase-1 rules
+All rules: `enabled=false` (import disabled, preview only), tag `C0015`, MITRE ATT&CK v18, no actions.
+**Building block ON** hides the alert from the default Alerts table (R01–R06, R10, R11);
+**building block OFF** rules are the alerting correlations (R07–R09).
 
-Status: `NOT RUN` (drafts, not enabled) — TP verified on the run above; **validation gate pending**
-(control + variation runs required before any rule is called `validated` / `DETECTED`).
+| ID | File | Scope | Sev/risk | BBlock | Candidate (run export) | Alerts.csv (rerun) |
+|---|---|---|---|---|---|---|
+| R01 | `eql/r01-office-spawns-script-host-shell.eql` | S1: Office → script/shell/proxy | medium / 47 | ON | `217060` | 1 |
+| R02 | `eql/r02-script-host-spawning-proxy-loader.eql` | S2: mshta/wscript/cscript → regsvr32/rundll32 | medium / 47 | ON | `217082` | 1 |
+| R03 | `eql/r03-proxy-loader-loading-unsigned-module.eql` | S2: E7 unsigned module from staging path | medium / 47 | ON | `217090` | 1 |
+| R04 | `eql/r04-script-or-proxy-staging-file-write.eql` | S2–S3: E11 staging-path write (with `__PSScriptPolicyTest_*` filter) | low / 21 | ON | 22 docs (4 chain artifacts + noise) | 14 |
+| R05 | `eql/r05-proxy-loader-spawning-powershell.eql` | S3: regsvr32/rundll32 → PowerShell | medium / 47 | ON | `217088` | 1 |
+| R06 | `eql/r06-script-host-network-egress.eql` | S2–S3: E3 egress by script processes (no IP/port hardcode) | low / 21 | ON | mshta `:8000` + 7 PS `:8080` | 7 (all PS → `192.168.50.1`) |
+| R07 | `eql/r07-office-to-mshta-to-proxy-loader.eql` | S1–S2 sequence: Office→mshta→proxy loader (GUID join) | high / 73 | OFF | `[217060, 217082]` | 3 |
+| R08 | `eql/r08-unsigned-module-load-to-powershell.eql` | S2–S3 sequence: unsigned load → PowerShell child | high / 73 | OFF | `[217090, 217088]` | 3 |
+| R09 | `eql/r09-proxy-spawned-powershell-network-egress.eql` | S3 sequence: proxy-spawned PS → E3 egress | high / 73 | OFF | 7 candidates (E1 `217088` × E3) | 3 |
+| R10 | `eql/r10-powershell-spawning-nested-cmd.eql` | S3 task-loop / S4 boundary: PS → nested CMD | low / 21 | ON | 3 (`net view` + 2× `cmd /c ver`) | 9 |
+| R11 | `eql/r11-nested-cmd-launching-discovery-tool.eql` | S4 boundary (optional): nested CMD → discovery-capable tool | low / 21 | ON | `[217134, 217135]` (`net view /all`) | 3 |
 
-| Layer | File | Behavior (no IOC hardcode) | Verified TP (record_id, WS01) |
-|---|---|---|---|
-| Atomic | `atomic/phase1-office-spawns-script-shell.kql` | Office parent → {cmd, mshta, powershell, wscript, cscript, regsvr32, rundll32} | 217060 |
-| Atomic | `atomic/phase1-mshta-proxy-load.kql` | mshta/wscript/cscript → {regsvr32, rundll32} | 217082 |
-| Atomic | `atomic/phase1-unsigned-userwrite-load.kql` | E7 image from Public/Temp/ProgramData + `winlog.event_data.Signed:"false"` | 217090 |
-| Atomic | `atomic/phase1-public-staging-drop.kql` | E11 `C:\Users\Public\*` by script/proxy process | 217079/217080/217096/217086 |
-| Atomic | `atomic/phase1-nested-cmd-under-powershell.kql` | PS → cmd double-wrapped `cmd /c "cmd.exe /c …"` | 217129/217218/217240 |
-| Atomic | `atomic/phase1-c2-callback-lab.kql` | E3 → lab dest port 8000/8080 (lab-boundary) | 217143; ×7 :8080 |
-| EQL | `eql/phase1-bootstrap-chain.eql` | WINWORD → mshta → regsvr32, ProcessGuid ancestry, maxspan 2m | 217026→217060→217082 |
-| EQL | `eql/phase1-beacon-task-execution.eql` | PS → outer cmd (nested) → inner cmd → {net, tasklist, nltest, whoami, wmic}, maxspan 30s | 217129→217134→217135 |
+Notes:
+- CSV counts are **alert documents on the rerun**, not incidents. R07/R08/R09 show 3 docs each → verify
+  `kibana.alert.uuid`/sequence ancestors before calling them 3 sequences (building blocks OFF = correlation
+  alerting could aggregate constituent events). R10 has 9 docs around two time clusters (~1 min apart) —
+  check whether that is a second task round or scheduled-run duplication.
+- R06 in the rerun CSV shows 7 PowerShell egress to `192.168.50.1` and **no mshta `:8000` row** — unresolved
+  (rerun had no such event vs query/time window vs export); cross-check raw E3 before concluding.
+- R11 fires on `net.exe` — in this run the command line was `net view /all` (T1135). `cmd /c ver` fallbacks
+  (T-NOOP) are **not** discovery; R10 catches them, R11 does not.
 
-## Design rules (derived from verified telemetry)
+## R04 noise filter
 
-- **No IOC hardcoding**: no filenames (`c0015-comparefor.jpg`, `bootstrap.hta`), no DLL sha256, no
-  `C:\Users\Public\C0015` folder inside conditions — path class + signature class + behavior only;
-  hashes/IPs are enrichment fields.
-- E7 signature check uses `winlog.event_data.Signed` — `file.code_signature.signed` is **not populated**
-  on this integration (verified).
-- E3: `network.protocol`/`Initiated` are not populated (verified) — do not filter on them; E3 timestamps
-  lag ~2–3 s vs E1/E11 in the same stream, so never order the chain by E3 time.
-- EQL joins by `host.id` only (ProcessGuid is host-local, never cross-host); use `like` for casing
-  robustness (`WINWORD.EXE` is uppercase on disk — verified).
-- RecordID alone is ambiguous (Sysmon channel reset between 2026-09-19 and 2026-09-28 reused values) —
-  rules rely on time windows and ancestry, never on RecordID alone.
+The review upload predates the fix; the repo version of `r04-script-or-proxy-staging-file-write.eql` includes:
 
-## Validation gate
+```eql
+  and not (process.name : ("powershell.exe", "pwsh.exe") and file.name : "__PSScriptPolicyTest_*")
+```
 
-`validated` only when: target run (done, see `stage/analysis/s1-s4-detection-report.md`) + **control**
-baseline (no-document run: atomics ≈ 0, EQL 0) + **≥1 variation** (missing hop, signed DLL in Public,
-task without discovery child) + reproducible from query + dataset.
+The rerun CSV had 6 `__PSScriptPolicyTest_*` alerts under R04 (14 total). This filter keeps ingest intact and
+reduces the built-in PowerShell policy-test noise.
 
-## Transition note
+## Validation status
 
-- Removed this commit: the C1-era discovery/SMB-collection atomics, cmd-sequence EQL prototypes, and
-  `correlations/discovery-to-smb-collection.esql` (phase-2 scope).
-  `docs/correlation-architecture.md` §C1 still references that correlation — stale until phase-2 rules land.
-- Next step: correlation layer (chain alert over phase-1 atomics + EQL, single-host, 10-minute window)
-  once the EQL rules are enabled and rule names are frozen (avoids C1's rule-name dependency issue).
+- `OFFLINE_CHECKED_ELASTIC_PREVIEW_PENDING` — predicates and ProcessGuid joins checked offline on the run export
+  (6 synthetic tilt cases passed: case change, broken parent GUID, signed module, bad E3 PS GUID, different host,
+  IP/port change). **Not** an Elastic EQL parser test and **not** a VM control/variation validation.
+- Next steps before enabling any rule: Kibana rule preview on `logs-windows.sysmon_operational-c0015*` (window
+  02:13–02:17Z / 09:13–09:17 UTC+7), then baseline/control benign run + variation, then `DETECTED`.
+- Do not treat candidate counts in `note` fields as alert counts.
+
+## Design rules (from verified telemetry)
+
+- No IOC hardcoding: no filenames, DLL sha256, `C:\Users\Public\C0015`, or lab IP/port in rule conditions.
+  Process/path **classes**, signature class, egress behavior, and ProcessGuid ancestry only.
+- E3 uses `network.direction == "egress"` + non-empty `process.entity_id` (ProcessGuid). `network.protocol`,
+  `Initiated`, and `file.code_signature.signed` are **not populated** on this integration — do not use them.
+  E3 timestamps lag ~2–3 s vs E1/E11 in the same stream (never order the chain by E3 time).
+- E7 signature check uses `winlog.event_data.Signed` (string `"false"`); `Signed=false` alone does **not**
+  warrant T1553.002.
+- EQL sequences join `by host.id` with `process.entity_id` ↔ `process.parent.entity_id` (ProcessGuid), never
+  PID and never cross-host. `:`/`like` operators for case-insensitive names (`WINWORD.EXE` is uppercase).
+- RecordID alone is ambiguous (Sysmon channel reset reused values 2026-09-19 vs 09-28) — always window-bound.
+- No rule asserts C2 registration/task success from E3 alone; the server-side `c2sim.log` receipt is the
+  independent confirmation source.
+
+## Sources
+
+- Elastic rules preview/export: `C0015-S1-S3-elastic-rules.ndjson` (11 objects, imported **disabled**;
+  predates the R04 filter — repo `r04-*.eql` is the corrected source of truth).
+- Rerun alerts: `Alerts.csv` (46 docs; summary fields only — open in Kibana for uuid/RecordID/command line).
+- Review handoff: `HANDOFF-C0015-S1-S3.vi.md`; full phase-1 analysis: `../stage/analysis/s1-s4-detection-report.md`.

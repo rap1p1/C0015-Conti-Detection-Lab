@@ -1,4 +1,0 @@
-sequence by host.id with maxspan=2m
-  [process where event.type == "start" and process.name like "winword*"] by process.entity_id
-  [process where event.type == "start" and process.name == "mshta.exe"] by process.parent.entity_id
-  [process where event.type == "start" and process.name == "regsvr32.exe"] by process.parent.entity_id

@@ -1,0 +1,6 @@
+network where event.code == "3"
+  and network.direction == "egress"
+  and destination.ip != null
+  and destination.port != null
+  and process.name : ("mshta.exe", "wscript.exe", "cscript.exe", "powershell.exe", "pwsh.exe")
+  and process.entity_id != null and not process.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")

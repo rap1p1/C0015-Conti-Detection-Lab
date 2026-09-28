@@ -1,4 +1,0 @@
-event.type : "start"
-and process.name : "cmd.exe"
-and process.parent.name : "powershell.exe"
-and process.command_line : *cmd.exe /c*

@@ -1,0 +1,4 @@
+file where event.code == "11"
+  and process.name : ("mshta.exe", "wscript.exe", "cscript.exe", "regsvr32.exe", "rundll32.exe", "powershell.exe", "pwsh.exe")
+  and file.path : ("?:\\Users\\Public\\*", "?:\\Windows\\Temp\\*", "?:\\Users\\*\\AppData\\Local\\Temp\\*", "?:\\Users\\*\\AppData\\Roaming\\*", "?:\\Users\\*\\Downloads\\*", "?:\\Users\\*\\Desktop\\*")
+  and not (process.name : ("powershell.exe", "pwsh.exe") and file.name : "__PSScriptPolicyTest_*")

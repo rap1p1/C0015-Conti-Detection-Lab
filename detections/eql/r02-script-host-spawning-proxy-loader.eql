@@ -1,0 +1,4 @@
+process where event.code == "1"
+  and event.type == "start"
+  and process.parent.name : ("mshta.exe", "wscript.exe", "cscript.exe")
+  and process.name : ("regsvr32.exe", "rundll32.exe")

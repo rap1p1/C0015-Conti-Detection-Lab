@@ -1,0 +1,13 @@
+sequence by host.id with maxspan=30s
+  [process where event.code == "1"
+     and event.type == "start"
+     and process.name : "cmd.exe"
+     and process.parent.name : ("powershell.exe", "pwsh.exe")
+     and process.entity_id != null and not process.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.entity_id
+  [process where event.code == "1"
+     and event.type == "start"
+     and process.name : "cmd.exe"
+     and process.parent.name : "cmd.exe"
+     and process.parent.entity_id != null and not process.parent.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.parent.entity_id

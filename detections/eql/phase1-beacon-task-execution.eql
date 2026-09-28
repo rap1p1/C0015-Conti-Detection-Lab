@@ -1,4 +1,0 @@
-sequence by host.id with maxspan=30s
-  [process where event.type == "start" and process.name == "cmd.exe" and process.command_line like "*cmd.exe /c*"] by process.entity_id
-  [process where event.type == "start" and process.name == "cmd.exe"] by process.parent.entity_id
-  [process where event.type == "start" and process.name in ("net.exe", "net1.exe", "tasklist.exe", "nltest.exe", "whoami.exe", "wmic.exe")] by process.parent.entity_id

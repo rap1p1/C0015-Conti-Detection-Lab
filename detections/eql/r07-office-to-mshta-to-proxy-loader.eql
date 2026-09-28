@@ -1,0 +1,13 @@
+sequence by host.id with maxspan=120s
+  [process where event.code == "1"
+     and event.type == "start"
+     and process.name : "mshta.exe"
+     and process.parent.name : ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe")
+     and process.entity_id != null and not process.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.entity_id
+  [process where event.code == "1"
+     and event.type == "start"
+     and process.name : ("regsvr32.exe", "rundll32.exe")
+     and process.parent.name : "mshta.exe"
+     and process.parent.entity_id != null and not process.parent.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.parent.entity_id

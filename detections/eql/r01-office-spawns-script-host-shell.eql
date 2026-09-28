@@ -1,0 +1,4 @@
+process where event.code == "1"
+  and event.type == "start"
+  and process.parent.name : ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe")
+  and process.name : ("cmd.exe", "mshta.exe", "wscript.exe", "cscript.exe", "powershell.exe", "pwsh.exe", "regsvr32.exe", "rundll32.exe")

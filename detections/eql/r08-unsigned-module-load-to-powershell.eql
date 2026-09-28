@@ -1,0 +1,13 @@
+sequence by host.id with maxspan=120s
+  [any where event.code == "7"
+     and process.name : ("regsvr32.exe", "rundll32.exe")
+     and winlog.event_data.Signed : "false"
+     and file.path : ("?:\\Users\\Public\\*", "?:\\Windows\\Temp\\*", "?:\\Users\\*\\AppData\\Local\\Temp\\*", "?:\\Users\\*\\AppData\\Roaming\\*", "?:\\Users\\*\\Downloads\\*", "?:\\Users\\*\\Desktop\\*")
+     and process.entity_id != null and not process.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.entity_id
+  [process where event.code == "1"
+     and event.type == "start"
+     and process.name : ("powershell.exe", "pwsh.exe")
+     and process.parent.name : ("regsvr32.exe", "rundll32.exe")
+     and process.parent.entity_id != null and not process.parent.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.parent.entity_id

@@ -1,0 +1,4 @@
+any where event.code == "7"
+  and process.name : ("regsvr32.exe", "rundll32.exe")
+  and winlog.event_data.Signed : "false"
+  and file.path : ("?:\\Users\\Public\\*", "?:\\Windows\\Temp\\*", "?:\\Users\\*\\AppData\\Local\\Temp\\*", "?:\\Users\\*\\AppData\\Roaming\\*", "?:\\Users\\*\\Downloads\\*", "?:\\Users\\*\\Desktop\\*")
