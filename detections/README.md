@@ -14,9 +14,24 @@ Detection rules for the C0015 Conti Detection Lab, organized by type and phase.
 
 Phase 1 — entry → bootstrap → session 1 (S1–S3) plus the S4 boundary (R10/R11 task-loop). Grounded on
 `RUN-20261001-01` Discover export (WS01, `C0015\duc.user`, 2026-09-28T02:13–02:17Z) and cross-checked against
-the rerun alert export (`Alerts.csv`, 2026-09-28 ~11:26 UTC+7): all rules R01–R11 fired. Rerun totals were
-46 docs (33 low / 4 medium / 9 high); **R04 is presented post-filter** (its PowerShell `__PSScriptPolicyTest_*`
-policy-test files are excluded).
+the rerun alert exports: pre-filter 46 docs (33 low / 4 medium / 9 high), **post-filter rerun (Alerts (1).csv)
+40 docs (27 low / 4 medium / 9 high)** — R04 dropped 14→8 with the PowerShell `__PSScriptPolicyTest_*` exclusion
+active; all other rules unchanged.
+
+## Post-filter validation notes (2026-09-28 rerun, cross-checked on raw Sysmon)
+
+| Item | Cross-check result |
+|---|---|
+| R01/R02/R03/R05 = 1 each | One true positive per rule (WINWORD→mshta `235024`; mshta→regsvr32 `235041`; E7 unsigned `235045`; regsvr32→PS `235048`). |
+| R04 = 8 | 4 staging writes (folder `C:\Users\Public\C0015` + config.ini/bootstrap.hta/c0015_beacon.ps1) + 4 chain artifacts (b64-marker, c0015-comparefor.jpg, dll-executed.txt, js-marker). The `file.name=C0015` row is the **staging folder create** (E11 TargetFilename = directory, producer = staging powershell) — expected staging evidence. |
+| R06 = 7 | Exactly the 7 beacon E3 egress to `192.168.50.1:8080` (register + 3 task/next + 3 result). **No mshta→`:8000` E3 exists in the rerun raw telemetry** even though the download-proving file write occurred — R06 is correct; this is a per-run E3 gap for mshta (record, don't treat as rule miss). |
+| R07/R08/R09/R11 = 3 docs each | One real sequence per rule (all 3 docs share one alert timestamp: the sequence's constituent events). Do not read "3" as three sequences. |
+| R10 = 9 | Three real nested-CMD sequences (`net view /all` + 2× `cmd /c ver` fallbacks) re-matched by two consecutive 1-min schedule ticks (alert timestamps 60 s apart) → **scheduled-rule duplication**. Enable alert suppression (by host/process GUID) or dedupe on `kibana.alert.uuid` at analysis. |
+
+These are reference counts on one rerun; `validated` still requires control/variation runs. For clean
+re-correlation, scope source queries to `winlog.channel : "Microsoft-Windows-Sysmon/Operational"` (alert docs
+in `.internal.alerts-security.*` copy the source event's `record_id`/`entity_id` but carry alert-time
+`@timestamp`).
 
 ## Rules (R01–R11)
 
