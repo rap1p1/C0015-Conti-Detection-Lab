@@ -1,5 +1,0 @@
-event.code : "5145"
-and event.outcome : "success"
-and event.type : "access"
-and file.name : *
-and source.ip : *

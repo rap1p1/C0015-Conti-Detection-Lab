@@ -1,0 +1,3 @@
+event.type : "start"
+and process.parent.name : ("WINWORD.EXE" or "EXCEL.EXE" or "POWERPNT.EXE" or "OUTLOOK.EXE")
+and process.name : ("cmd.exe" or "mshta.exe" or "powershell.exe" or "wscript.exe" or "cscript.exe" or "regsvr32.exe" or "rundll32.exe")

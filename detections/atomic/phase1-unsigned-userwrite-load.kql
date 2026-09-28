@@ -1,0 +1,3 @@
+event.code : "7"
+and file.path : ("*:\\Users\\Public\\*" or "*:\\Windows\\Temp\\*" or "*:\\ProgramData\\*")
+and winlog.event_data.Signed : "false"

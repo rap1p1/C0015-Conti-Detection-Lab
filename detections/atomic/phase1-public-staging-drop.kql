@@ -1,0 +1,3 @@
+event.code : "11"
+and file.path : "C:\\Users\\Public\\*"
+and process.name : ("mshta.exe" or "regsvr32.exe" or "powershell.exe" or "rundll32.exe" or "wscript.exe" or "cscript.exe")
