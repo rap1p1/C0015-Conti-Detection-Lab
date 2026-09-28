@@ -50,7 +50,7 @@
         { "kind": "c2sim-register", "utc": "2026-09-28T02:15:10Z", "detail": "register stage=phase3 host=WS01 token=3b18b753 ok=True (registered)" }
       ],
       "rollback_status": null,
-      "notes": "Session 1 registered. Dedup active (single token; no duplicate)."
+      "notes": "Session 1 registered. Dedup active (single token; no duplicate). Field-level handoff incl. ParentProcessGuid join keys: docs/evidence-handoff-s1-s4.md (structured WS01 export pending re-run with current collector)."
     },
     {
       "stage": "S4",

@@ -1,15 +1,23 @@
 <#
 .SYNOPSIS
-Run on WS01 after a phase-1 simulation to collect the evidence needed for the
-run ledger: Sysmon process/image/file/network events for the S1-S3 chain plus
-artifact hashes. READ-ONLY (Get-WinEvent / Get-FileHash / Get-Content). No
-secrets: config.ini is not designed to hold secrets (token is runtime only).
+Run on WS01 after a phase-1 simulation to collect STRUCTURED Sysmon evidence for the
+run ledger (S1-S4): Event XML is parsed so correlation fields are preserved
+(ProcessGuid, ParentProcessGuid, ParentProcessId, Image, CommandLine, User, LogonId,
+Hashes, TargetFilename, Source/Destination IP and port, plus RecordID and UTC timestamps).
+READ-ONLY (Get-WinEvent / Get-FileHash / Get-Content). No secrets: config.ini holds no
+secrets (the session token is runtime-only).
+
+Event families:
+  - E1  process create  : kept when Image or ParentImage is in the lab-chain set.
+  - E7  image load      : ImageLoaded under C:\Users\Public\C0015 / C:\C0015 / C:\Tools.
+  - E11 file create     : TargetFilename under C:\Users\Public\C0015.
+  - E3  network connect : DestinationIp 192.168.50.1 with port 8000/8080 (C2 channel).
 
 .PARAMETER ConfigPath  Path to the run config (default C:\Users\Public\C0015\config.ini).
-.PARAMETER SinceMinutes  Look-back window (default 30 minutes).
-.PARAMETER OutPath     JSON output path (default <repo>\evidence\run-ledger\ws01-evidence-<runid>.json).
+.PARAMETER SinceMinutes Look-back window (default 30).
+.PARAMETER OutPath     JSON output (default resolved under evidence\run-ledger\).
 .EXAMPLE
-powershell -ExecutionPolicy Bypass -File payloads/packaging/collect_ws01_evidence.ps1 -SinceMinutes 30
+powershell -ExecutionPolicy Bypass -File payloads/packaging/collect_ws01_evidence.ps1 -SinceMinutes 30 -OutPath C:\Users\Public\c0015-evidence.json
 #>
 param(
     [string]$ConfigPath = 'C:\Users\Public\C0015\config.ini',
@@ -19,9 +27,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $since = (Get-Date).AddMinutes(-$SinceMinutes)
 $pub = 'C:\Users\Public\C0015'
+$chainNames = 'WINWORD\.EXE|cmd\.exe|mshta\.exe|regsvr32\.exe|powershell\.exe|net\.exe|net1\.exe|nltest\.exe|tasklist\.exe|ping\.exe|conhost\.exe'
 
 function Get-IniValue {
-    param([string]$Path, [string]$Section, [string]$Key)
+    param([string]$Path,[string]$Section,[string]$Key)
     $cur=''; $val=$null
     foreach ($ln in Get-Content -LiteralPath $Path) {
         $t=$ln.Trim()
@@ -31,81 +40,88 @@ function Get-IniValue {
     return $val
 }
 
+function ConvertTo-FlatEvent {
+    param($ev)
+    [xml]$x = $ev.ToXml()
+    $sys = $x.Event.System
+    $data = @{}
+    if ($x.Event.EventData.Data) {
+        foreach ($d in $x.Event.EventData.Data) {
+            if ($d.Name) { $data[$d.Name] = ($d.'#text' -as [string]) } else { $data["_col$($data.Count)"] = ($d.'#text' -as [string]) }
+        }
+    }
+    return [pscustomobject]@{
+        timestamp_utc = ([string]$sys.TimeCreated.SystemTime)
+        event_code    = [int][string]$sys.EventID
+        record_id     = [uint64][string]$sys.EventRecordID
+        computer      = [string]$sys.Computer
+        fields        = $data
+    }
+}
+
 $run_id = Get-IniValue $ConfigPath 'lab' 'run_id'
 if (-not $run_id) { $run_id = 'UNKNOWN' }
 $dllName = Get-IniValue $ConfigPath 'bootstrap' 'dll_name'
 if (-not $dllName) { $dllName = 'c0015-comparefor.jpg' }
-if (-not $OutPath) { $OutPath = Join-Path $PSScriptRoot "../../evidence/run-ledger/ws01-evidence-$run_id.json" }
-# resolve '..' so the written path is unambiguous in the output
+if (-not $OutPath) { $OutPath = Join-Path $PSScriptRoot "../../evidence/run-ledger/ws01-evidence-$run_id-structured.json" }
 $OutPath = [IO.Path]::GetFullPath($OutPath)
 
 $ch = 'Microsoft-Windows-Sysmon/Operational'
-$sys = @(
-    @{ name='process_create'; id=1 }
-    @{ name='image_load';     id=7 }
-    @{ name='file_create';    id=11 }
-    @{ name='network';        id=3 }
-)
-$events = @{}
-foreach ($s in $sys) {
-    $found = @()
+$families = @{ 'process_create' = 1; 'image_load' = 7; 'file_create' = 11; 'network' = 3 }
+$result = @{}
+foreach ($name in $families.Keys) {
+    $id = $families[$name]
+    $keep = @()
     try {
-        $evs = Get-WinEvent -FilterHashtable @{LogName=$ch; Id=$s.id; StartTime=$since} -ErrorAction SilentlyContinue
-        foreach ($e in $evs) {
-            $msg = $e.Message
-            $keep = $false
-            if ($s.id -eq 1) {
-                $keep = ($msg -match 'WINWORD|cmd\.exe|mshta|regsvr32|powershell')
-            } elseif ($s.id -eq 7) {
-                $keep = ($msg -match [regex]::Escape($pub) -or $msg -match 'C:\\C0015' -or $msg -match 'C:\\Tools')
-            } elseif ($s.id -eq 11) {
-                $keep = ($msg -match [regex]::Escape($pub))
-            } elseif ($s.id -eq 3) {
-                # E3 message lists DestinationIp and DestinationPort on separate
-                # lines -> match IP and port independently.
-                $keep = ($msg -match '192\.168\.50\.1') -and ($msg -match '\b(8000|8080)\b')
+        $evs = Get-WinEvent -FilterHashtable @{LogName=$ch; Id=$id; StartTime=$since} -ErrorAction SilentlyContinue
+        foreach ($ev in $evs) {
+            $f = ConvertTo-FlatEvent $ev
+            $fields = $f.fields
+            $take = $false
+            if ($id -eq 1) {
+                $img   = [string]$fields['Image']
+                $pimg  = [string]$fields['ParentImage']
+                if (-not $img) { $img = [string]$fields['Image'] }
+                $take = ($img -match $chainNames) -or ($pimg -match $chainNames)
+            } elseif ($id -eq 7) {
+                $il = [string]$fields['ImageLoaded']
+                $take = ($il -match [regex]::Escape($pub)) -or ($il -match 'C:\\C0015') -or ($il -match 'C:\\Tools')
+            } elseif ($id -eq 11) {
+                $tf = [string]$fields['TargetFilename']
+                $take = ($tf -match [regex]::Escape($pub))
+            } elseif ($id -eq 3) {
+                $dip  = [string]$fields['DestinationIp']
+                $dport = [string]$fields['DestinationPort']
+                $take = ($dip -eq '192.168.50.1') -and ($dport -in @('8000','8080'))
             }
-            if ($keep) {
-                $found += [pscustomobject]@{
-                    TimeCreated = $e.TimeCreated.ToString('o')
-                    RecordId    = $e.RecordId
-                    Id          = $e.Id
-                    Msg         = ($msg -replace '`r|`n',' ').Substring(0, [Math]::Min(500, ($msg -replace '`r|`n',' ').Length))
-                }
-            }
+            if ($take) { $keep += $f }
         }
-    } catch { $found = @() }
-    $events[$s.name] = $found
+    } catch { $keep = @() }
+    $result[$name] = $keep
 }
 
 $artifacts = @()
 foreach ($f in (Get-ChildItem -LiteralPath $pub -File -ErrorAction SilentlyContinue)) {
-    $artifacts += [pscustomobject]@{
-        Name = $f.Name
-        Path = $f.FullName
-        Sha256 = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash
-        Size = $f.Length
-    }
+    $artifacts += [pscustomobject]@{ Name=$f.Name; Path=$f.FullName; Sha256=(Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash; Size=$f.Length }
 }
 
-$result = [pscustomobject]@{
-    run_id   = $run_id
-    host     = $env:COMPUTERNAME
+$out = [pscustomobject]@{
+    run_id        = $run_id
+    host          = $env:COMPUTERNAME
     collected_utc = (Get-Date).ToUniversalTime().ToString('o')
-    since_utc = $since.ToUniversalTime().ToString('o')
-    config   = @{
-        c2_url   = Get-IniValue $ConfigPath 'c2sim' 'c2_url'
-        stage    = Get-IniValue $ConfigPath 'c2sim' 'stage'
+    since_utc     = $since.ToUniversalTime().ToString('o')
+    config        = @{
+        c2_url     = Get-IniValue $ConfigPath 'c2sim' 'c2_url'
+        stage      = Get-IniValue $ConfigPath 'c2sim' 'stage'
         host_alias = Get-IniValue $ConfigPath 'c2sim' 'host_alias'
-        dll_name = $dllName
+        dll_name   = $dllName
     }
-    sysmon   = $events
-    artifacts = $artifacts
-    notes    = 'Sysmon refs are raw event summaries; verify in Elastic by host/channel/RecordID/time. E7 requires BALANCED/CAPTURE profile deployed.'
+    sysmon        = $result
+    artifacts     = $artifacts
+    notes         = 'Structured evidence: fields are raw Sysmon EventData names. Join keys: ProcessGuid=process.entity_id, ParentProcessGuid=process.parent.entity_id (same host only); use SystemTime/UtcTime (UTC) for cross-host windows. Verify ECS mapping in Elastic before asserting any field name.'
 }
-$json = $result | ConvertTo-Json -Depth 6
 $dir = Split-Path $OutPath -Parent
 if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-Set-Content -LiteralPath $OutPath -Value $json -Encoding UTF8
-Write-Output "evidence written: $OutPath"
-Write-Output "  run_id=$run_id  E1=$($events.process_create.Count) E7=$($events.image_load.Count) E11=$($events.file_create.Count) E3=$($events.network.Count)"
+Set-Content -LiteralPath $OutPath -Value ($out | ConvertTo-Json -Depth 8) -Encoding UTF8
+Write-Output "structured evidence written: $OutPath"
+Write-Output "  E1=$($('' + $result.process_create.Count)) E7=$($('' + $result.image_load.Count)) E11=$($('' + $result.file_create.Count)) E3=$($('' + $result.network.Count)) run_id=$run_id"
