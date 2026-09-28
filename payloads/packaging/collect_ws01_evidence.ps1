@@ -36,6 +36,8 @@ if (-not $run_id) { $run_id = 'UNKNOWN' }
 $dllName = Get-IniValue $ConfigPath 'bootstrap' 'dll_name'
 if (-not $dllName) { $dllName = 'c0015-comparefor.jpg' }
 if (-not $OutPath) { $OutPath = Join-Path $PSScriptRoot "../../evidence/run-ledger/ws01-evidence-$run_id.json" }
+# resolve '..' so the written path is unambiguous in the output
+$OutPath = [IO.Path]::GetFullPath($OutPath)
 
 $ch = 'Microsoft-Windows-Sysmon/Operational'
 $sys = @(
@@ -59,7 +61,9 @@ foreach ($s in $sys) {
             } elseif ($s.id -eq 11) {
                 $keep = ($msg -match [regex]::Escape($pub))
             } elseif ($s.id -eq 3) {
-                $keep = ($msg -match '192\.168\.50\.1:(8000|8080)')
+                # E3 message lists DestinationIp and DestinationPort on separate
+                # lines -> match IP and port independently.
+                $keep = ($msg -match '192\.168\.50\.1') -and ($msg -match '\b(8000|8080)\b')
             }
             if ($keep) {
                 $found += [pscustomobject]@{
