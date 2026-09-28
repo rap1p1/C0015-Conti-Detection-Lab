@@ -84,11 +84,11 @@
       { "step": "S2 bootstrap", "image": "C:\\Windows\\System32\\mshta.exe", "pid": 3532, "process_guid": "{88e52a21-cdad-6ab9-3908-000000001400}", "parent": "WINWORD {88e52a21-cdac-6ab9-3808-...}", "record_id": 217060, "utc": "2026-09-28T02:15:09.332Z" },
       { "step": "S3 dll load", "image": "C:\\Windows\\System32\\regsvr32.exe", "pid": 968, "process_guid": "{88e52a21-cdae-6ab9-3c08-000000001400}", "parent": "mshta {88e52a21-cdad-6ab9-3908-...}", "record_id": 217082, "utc": "2026-09-28T02:15:10.147Z" },
       { "step": "S3 beacon spawn", "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "pid": 288, "process_guid": "{88e52a21-cdae-6ab9-3d08-000000001400}", "parent": "regsvr32 {88e52a21-cdae-6ab9-3c08-...}", "record_id": 217088, "utc": "2026-09-28T02:15:10.188Z" },
-      { "step": "S4 net discovery child", "image": "C:\\Windows\\System32\\cmd.exe -> net.exe", "pid": 7504/1548/7264, "process_guid": "{88e52a21-cdae-6ab9-3f08-...}/{88e52a21-cdae-6ab9-4008-...}/{88e52a21-cdae-6ab9-4108-...}", "parent": "beacon powershell {88e52a21-cdae-6ab9-3d08-...}", "record_id": 217129/217134/217135, "utc": "2026-09-28T02:15:10.8Z" }
+      { "step": "S4 net discovery child", "image": "C:\\Windows\\System32\\cmd.exe -> net.exe", "pid": "7504/1548/7264", "process_guid": "{88e52a21-cdae-6ab9-3f08-...}/{88e52a21-cdae-6ab9-4008-...}/{88e52a21-cdae-6ab9-4108-...}", "parent": "beacon powershell {88e52a21-cdae-6ab9-3d08-...}", "record_id": "217129/217134/217135", "utc": "2026-09-28T02:15:10.8Z" }
     ],
     "network_callback": [
       { "record_id": 217143, "image": "mshta.exe", "destination": "192.168.50.1:8000", "utc": "2026-09-28T02:15:11.249Z" },
-      { "record_id": 217149/217151/217212/217232/217233/217249/217250, "image": "powershell.exe (beacon PID 288)", "destination": "192.168.50.1:8080", "utc": "2026-09-28T02:15:11.8Z-02:15:31.5Z" }
+      { "record_id": "217149/217151/217212/217232/217233/217249/217250", "image": "powershell.exe (beacon PID 288)", "destination": "192.168.50.1:8080", "utc": "2026-09-28T02:15:11.8Z-02:15:31.5Z" }
     ]
   },
   "artifact_index": [
