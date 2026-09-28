@@ -42,17 +42,23 @@ repo/ingest). Otherwise record **neutral logic + the list of sample events neede
 `validated` only when: target run + control run + at least 1 variation have been run, and the result is reproducible
 from the query + dataset.
 
-### C1 — Discovery -> SMB Collection (exists, `detections/correlations/discovery-to-smb-collection.esql`)
-- **Input:** alerts from 5 atomics (KQL). **Join:** `user.name` aggregation; 15 min lookback / 5 min freshness
-  (5-min schedule). **Conditions:** >= 4 behavior families, >= 1 collection, >= 2 hosts, >= 1 source IP.
-- **Known issues (keep `PARTIAL`):** depends on the exact `kibana.alert.rule.name` (a rename breaks it silently — needs
-  a rule UUID/map); `source_ip_count >= 1` is a tautology; no `source.ip -> host.id` join yet (EXP-009); dedup by
-  family can hide multiple instances (EXP-008); the `user.name` join only supports same-user aggregation and cannot
-  separate distinct users/instances.
-- **Improvement:** rule UUID map + `host.id` join from S5145 source-workstation; add variation tests (e.g., a spread
-  discovery window) and a control (discovery only, no collection -> must not fire).
-- **Status:** `DETECTED` (09-15 record) — validated on that dataset; reproduction from the stored query not yet done
-  (no dataset).
+Phase-2 (S4–S9) expected telemetry + verification skeletons per stage:
+`docs/phase2-detection-prep-s4-s9.md`.
+
+### C1 — Discovery -> SMB Collection (REMOVED — re-baseline pending phase-2 telemetry)
+- The correlation `detections/correlations/discovery-to-smb-collection.esql` and its 5 source atomics were
+  **removed** in `a8390e7` (phase-1 detections replacement, 2026-09-28). The design is kept here as reference and
+  must be **re-baselined against phase-2 S4/S5 telemetry** (operator/discovery phase) before any rule is rewritten.
+- **Reference design (as built):** input alerts from 5 atomics (KQL); join `user.name` aggregation; 15 min lookback /
+  5 min freshness; conditions >= 4 behavior families, >= 1 collection, >= 2 hosts, >= 1 source IP.
+- **Known issues to carry into the re-baseline (keep `PARTIAL`):** depends on the exact `kibana.alert.rule.name`
+  (needs a rule UUID/map); `source_ip_count >= 1` is a tautology; no `source.ip -> host.id` join yet (EXP-009);
+  dedup by family can hide multiple instances (EXP-008); the `user.name` join only supports same-user aggregation.
+- **Improvement to apply on re-baseline:** rule UUID map + `host.id` join from S5145 source-workstation; add
+  variation (spread discovery window) and control (discovery without collection -> must not fire).
+- **Status:** `NOT RUN` (awaiting phase-2 telemetry); the historical `DETECTED (09-15)` claim is no longer
+  reproducible (dataset + rule removed). Stage verification skeletons:
+  `docs/phase2-detection-prep-s4-s9.md`.
 
 ### C2 — Bootstrap/Foothold (roadmap — not implemented)
 - **Input:** E1 chain (WINWORD -> cmd -> mshta -> regsvr32), E7 ImageLoad unsigned (user-writable path), E3/E22
@@ -144,7 +150,7 @@ WMI process-creation evidence). Every correlation in Sections 3 and 5 must be re
 
 | Corr | Phase | Input signals | Join keys / window | Current evidence level | Gaps | Conditions to call `validated` |
 |---|---|---|---|---|---|---|
-| C1 | P4+P8 | 5 atomic alerts | user.name aggregation; 15 min lookback | `DETECTED` (09-15) — aggregation level only | rule-name dependency; source.ip -> host.id not joined; user.name aggregation limit; no control/variation evidence yet | control (discovery only) does not fire; variation (missed instance) improves the query; reproducible from query + dataset |
+| C1 | P4+P8 | 5 atomic alerts (removed `a8390e7`) | user.name aggregation; 15 min lookback | `REMOVED` — re-baseline pending phase-2 S4/S5 telemetry | rule+atomics removed; re-write after phase-2 run; same join cautions apply | see `docs/phase2-detection-prep-s4-s9.md` for stage queries |
 | C2 | P1–P2 | E1 chain + E7 + E3/E22 | ProcessGuid ancestry; 10 min | `UNPROVEN` (hypotheses DH only) | mshta hop not linked; E3 attribution | 1 P1 run with clean ProcessGuid + 1 control; EQL prototype runs |
 | C3 | P5–P6 | S4648/4624/4672 + S4688 + E1 (wmiprvse -> child) | FS01 LogonId (4624 <-> 4672) + host + boot/time anchor; 4648 <-> 4624 via account/IP/window/auth context; 10 min | `UNPROVEN` (narrative-only evidence) | no exports; field mapping unverified | exports of 1 run; LogonId join verified (never 4648 <-> 4624 by LogonId) |
 | C-SESSION2 | P7 | E1 + E7 + E3 + receipt | host + run_id + LogonId; 10 min | `UNPROVEN` | session 2 does not exist yet (target of a future run) | `ART-07-01` + callback telemetry in the same run |
