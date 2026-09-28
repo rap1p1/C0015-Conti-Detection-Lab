@@ -1,0 +1,51 @@
+{
+  "run_id": "RUN-20260927-01",
+  "scenario_id": "C0015-LAB-1",
+  "created_utc": "2026-09-27T13:30:00Z",
+  "secrets_policy": "no-secrets-allowed",
+  "stages": [
+    {
+      "stage": "S1",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PARTIAL",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "user-action", "note": "test.docm opened manually; macro Document_Open/AutoOpen -> mshta" }
+      ],
+      "rollback_status": null,
+      "notes": "Server-side only (reached via S3 register). WS01 Sysmon E1 (WINWORD -> cmd -> mshta) not yet exported; pending Sysmon/Elastic event refs."
+    },
+    {
+      "stage": "S2",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PARTIAL",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "artifact-observed", "note": "C:\\Users\\Public\\C0015\\b64-marker.txt / js-marker.txt / c0015-comparefor.jpg / dll-executed.txt confirmed by user on WS01" }
+      ],
+      "rollback_status": null,
+      "notes": "DLL download + dll-executed.txt observed (proves DLL executed). Sysmon E7 ImageLoad hash and E11 references pending (EID 7 requires BALANCED/CAPTURE profile deployed)."
+    },
+    {
+      "stage": "S3",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PARTIAL",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "c2sim-register", "utc": "2026-09-27T13:27:44Z", "detail": "register stage=phase3 host=WS01 token=132325f3 ok=True (registered); session S1-f4bdaca9132325f3" },
+        { "kind": "c2sim-register-duplicate-rejected", "utc": "2026-09-27T13:27:44Z", "detail": "second register ok=False (reuse:S1-f4bdaca9132325f3) - idempotent dedup confirmed" },
+        { "kind": "c2sim-task-result", "utc": "2026-09-27T13:27:44Z/13:27:59Z", "detail": "task/next T-DISCOVER-CORPUS -> result bytes=43 ok=True (accepted)" },
+        { "kind": "c2sim-task-result", "utc": "2026-09-27T13:28:01Z/13:28:03Z", "detail": "task/next T-BEACON-SLEEP -> result bytes=331 ok=True (accepted)" }
+      ],
+      "rollback_status": null,
+      "notes": "Server-side VERIFIED via c2sim.log (user-provided). WS01 Sysmon E1 parent chain (regsvr32 -> powershell/beacon) + E3 to 192.168.50.1:8080 not yet exported. The earlier debug run (13:16-13:17Z) created duplicate sessions (3 tokens) before the idempotent dedup was deployed; this run is the clean one."
+    }
+  ],
+  "artifact_index": []
+}
