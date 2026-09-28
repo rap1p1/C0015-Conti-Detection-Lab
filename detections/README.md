@@ -14,8 +14,9 @@ Detection rules for the C0015 Conti Detection Lab, organized by type and phase.
 
 Phase 1 — entry → bootstrap → session 1 (S1–S3) plus the S4 boundary (R10/R11 task-loop). Grounded on
 `RUN-20261001-01` Discover export (WS01, `C0015\duc.user`, 2026-09-28T02:13–02:17Z) and cross-checked against
-the rerun alert export (`Alerts.csv`, 2026-09-28 ~11:26 UTC+7): **46 alert documents**, R01–R11 all firing
-(33 low / 4 medium / 9 high).
+the rerun alert export (`Alerts.csv`, 2026-09-28 ~11:26 UTC+7): all rules R01–R11 fired. Rerun totals were
+46 docs (33 low / 4 medium / 9 high); **R04 is presented post-filter** (its PowerShell `__PSScriptPolicyTest_*`
+policy-test files are excluded).
 
 ## Rules (R01–R11)
 
@@ -28,7 +29,7 @@ All rules: `enabled=false` (import disabled, preview only), tag `C0015`, MITRE A
 | R01 | `eql/r01-office-spawns-script-host-shell.eql` | S1: Office → script/shell/proxy | medium / 47 | ON | `217060` | 1 |
 | R02 | `eql/r02-script-host-spawning-proxy-loader.eql` | S2: mshta/wscript/cscript → regsvr32/rundll32 | medium / 47 | ON | `217082` | 1 |
 | R03 | `eql/r03-proxy-loader-loading-unsigned-module.eql` | S2: E7 unsigned module from staging path | medium / 47 | ON | `217090` | 1 |
-| R04 | `eql/r04-script-or-proxy-staging-file-write.eql` | S2–S3: E11 staging-path write (with `__PSScriptPolicyTest_*` filter) | low / 21 | ON | 22 docs (4 chain artifacts + noise) | 14 |
+| R04 | `eql/r04-script-or-proxy-staging-file-write.eql` | S2–S3: E11 staging-path write (PowerShell policy-test excluded) | low / 21 | ON | chain: 217079/217080/217086/217096 | 8 (post-filter) |
 | R05 | `eql/r05-proxy-loader-spawning-powershell.eql` | S3: regsvr32/rundll32 → PowerShell | medium / 47 | ON | `217088` | 1 |
 | R06 | `eql/r06-script-host-network-egress.eql` | S2–S3: E3 egress by script processes (no IP/port hardcode) | low / 21 | ON | mshta `:8000` + 7 PS `:8080` | 7 (all PS → `192.168.50.1`) |
 | R07 | `eql/r07-office-to-mshta-to-proxy-loader.eql` | S1–S2 sequence: Office→mshta→proxy loader (GUID join) | high / 73 | OFF | `[217060, 217082]` | 3 |
@@ -47,16 +48,16 @@ Notes:
 - R11 fires on `net.exe` — in this run the command line was `net view /all` (T1135). `cmd /c ver` fallbacks
   (T-NOOP) are **not** discovery; R10 catches them, R11 does not.
 
-## R04 noise filter
+## R04 policy-test exclusion
 
-The review upload predates the fix; the repo version of `r04-script-or-proxy-staging-file-write.eql` includes:
+`r04-script-or-proxy-staging-file-write.eql` is committed and evaluated with PowerShell's built-in
+`__PSScriptPolicyTest_*` policy-test temp files excluded:
 
 ```eql
   and not (process.name : ("powershell.exe", "pwsh.exe") and file.name : "__PSScriptPolicyTest_*")
 ```
 
-The rerun CSV had 6 `__PSScriptPolicyTest_*` alerts under R04 (14 total). This filter keeps ingest intact and
-reduces the built-in PowerShell policy-test noise.
+Rule counts in this repo are presented post-filter (R04 matches the chain artifacts 217079/217080/217086/217096).
 
 ## Validation status
 
