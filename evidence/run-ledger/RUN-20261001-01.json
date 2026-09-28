@@ -16,7 +16,7 @@
         { "kind": "sysmon-e1", "record_id": 217060, "utc": "2026-09-28T02:15:09.332Z", "detail": "mshta.exe bootstrap.hta - ProcessGuid {88e52a21-cdad-6ab9-3908-...}, PID 3532" }
       ],
       "rollback_status": "test.docm + chain artifacts removed",
-      "notes": "Macro (Document_Open/AutoOpen) manually triggered; entry chain verified."
+      "notes": "Macro (Document_Open/AutoOpen) manually triggered; entry chain verified. [DE 2026-09-28] Elastic ingest VERIFIED: sysmon_operational-c0015 host ws01; rec 217026/217060 present; process.entity_id matches ProcessGuid exactly (WINWORD {88e52a21-cdac-6ab9-3808-...}); WINWORD->mshta DIRECT (no cmd hop) per E1 command_line/parent."
     },
     {
       "stage": "S2",
@@ -32,7 +32,7 @@
         { "kind": "sysmon-e3", "record_id": 217143, "utc": "2026-09-28T02:15:11.249Z", "detail": "mshta.exe -> 192.168.50.1:8000 (DLL download)" }
       ],
       "rollback_status": null,
-      "notes": "HTA VBScript base64-decode + JScript marker + HTTP download to C:\\Users\\Public\\C0015\\."
+      "notes": "HTA VBScript base64-decode + JScript marker + HTTP download to C:\\Users\\Public\\C0015\\. [DE 2026-09-28] Elastic VERIFIED: E11 217079/217080/217096 (mshta PID 3532), E3 217143 mshta->192.168.50.1:8000 with ProcessGuid {88e52a21-cdad-6ab9-3908-...} present (DIRECT attribution); E3 UtcTime lags ~2s vs E11 (see detection report G2)."
     },
     {
       "stage": "S3",
@@ -50,7 +50,7 @@
         { "kind": "c2sim-register", "utc": "2026-09-28T02:15:10Z", "detail": "register stage=phase3 host=WS01 token=3b18b753 ok=True (registered)" }
       ],
       "rollback_status": null,
-      "notes": "Session 1 registered. Dedup active (single token; no duplicate). Field-level handoff incl. ParentProcessGuid join keys: docs/evidence-handoff-s1-s4.md (structured WS01 export pending re-run with current collector)."
+      "notes": "Session 1 registered. Dedup active (single token; no duplicate). Field-level handoff incl. ParentProcessGuid join keys: docs/evidence-handoff-s1-s4.md (structured WS01 export pending re-run with current collector). [DE 2026-09-28] Elastic VERIFIED: E1 217082/217088 + E7 217090 (sha256 CEF7879F... MATCH, winlog.event_data.Signed=false) + E11 217086 (dll-executed.txt) + 7x E3 powershell->192.168.50.1:8080 (217149..217250) == c2sim.log 1 register + 3 task/next + 3 result; ProcessGuid anchors (regsvr32 ...3c08 -> powershell ...3d08) exact."
     },
     {
       "stage": "S4",
@@ -67,7 +67,7 @@
         { "kind": "c2sim-task-result", "utc": "2026-09-28T02:15:30S/30S", "detail": "T-DISCOVER-DOMAINGROUPS result bytes=47 ok=True (net group /dom)" }
       ],
       "rollback_status": null,
-      "notes": "Partial: 3 of 8 discovery tasks executed (log cut at DOMAINGROUPS). T-NOOP (cmd /c ver) events are normal beacon loop behavior. Full batch requires the run to continue to completion."
+      "notes": "Partial: 3 of 8 discovery tasks executed (log cut at DOMAINGROUPS). T-NOOP (cmd /c ver) events are normal beacon loop behavior. Full batch requires the run to continue to completion. [DE 2026-09-28] CORRECTION (CONTRADICTED detail): T-DISCOVER-SYSTEM/-DOMAINGROUPS executed the T-NOOP fallback cmd /c ver (E1 217218/217223/217240/217242; both results 47B = ver output), NOT tasklist/net group — deployed config.ini (ART-01-02, 590D812D...) maps only CORPUS/SLEEP/NOOP. Only T1135 net view /all executed (217129/217134/217135, result 43B). Handoff rec 217131 is Sysmon E9 (System raw-read), not cmd->net — removed from chain."
     }
   ],
   "chain": {

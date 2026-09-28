@@ -23,7 +23,7 @@ here beyond what is on the wire.
 | S1 entry | E1 | 217026 WINWORD->test.docm; 217060 mshta->bootstrap.hta | test.docm (macro) |
 | S2 bootstrap | E1,E3,E7,E11 | E11 217079 b64-marker; 217080 c0015-comparefor.jpg; E3 217143 mshta->:8000; E11 217096 js-marker | bootstrap.hta F76FBDA4...; config.ini 590D81...; b64-marker.txt F091FD97...; js-marker.txt F196A245... |
 | S3 session 1 | E1,E3,E7,E11 | E1 217082 regsvr32; E7 217090 ImageLoad dll; E11 217086 dll-executed.txt; E1 217088 beacon spawn; E3 217151/217212/217232/217233/217249/217250 beacon->:8080 | c0015-comparefor.jpg CEF7879F...; dll-executed.txt AC8E9396...; c0015_beacon.ps1 3C594543... |
-| S4 discovery (partial) | E1 | 217135 net view /all; 217129/217131 cmd->net; 217218/217223/217240/217242 cmd /c ver (T-NOOP) | - |
+| S4 discovery (partial, corrected) | E1 | REAL: 217135/217134/217129 net view /all (T1135). FALLBACK, not discovery: 217218/217223/217240/217242 cmd /c ver (T-NOOP; tasklist / net group never ran) | - |
 
 Raw artifacts: `evidence/run-ledger/RUN-20261001-01.json` (ledger) and the structured
 WS01 export `C:\Users\Public\c0015-evidence-structured.json` (from
@@ -54,7 +54,8 @@ WS01 export `C:\Users\Public\c0015-evidence-structured.json` (from
   current version (b9e30fc+/structured) on WS01; the earlier JSON stored truncated
   Message text only.
 - E22 DNS, E10 ProcessAccess: not collected (IPs used; E10 out of scope for S1-S4).
-- Full S4 batch: only 3 of 8 discovery tasks ran in this window.
+- Full S4 batch: only 1 real discovery command ran (net view /all). T-DISCOVER-SYSTEM/-DOMAINGROUPS executed the
+  `cmd /c ver` fallback (deployed config.ini maps only CORPUS/SLEEP/NOOP); the 5 remaining tasks were not issued.
 
 ## Handoff queries
 
@@ -77,7 +78,42 @@ strings match the ProcessGuid values above; for the E3 confirm
 
 ## Gaps / status
 
-- S1-S3 VERIFIED (machine + server log); S4 PARTIAL (3/8 tasks).
+- S1-S3 VERIFIED (machine + server log); S4 PARTIAL (1 real discovery command: net view /all; other issued tasks
+  fell back to T-NOOP `cmd /c ver` — see Addendum).
 - ParentProcessGuid join requires the structured export (or the Elastic EventData).
 - Clock: UTC asserted in this handoff; verify against host C2 log before timeline
   joins.
+
+## Addendum — Detection-engineering verification (2026-09-28, DE session; Elastic live check)
+
+All 25 anchor records are **PRESENT in Elastic** (data stream `.ds-logs-windows.sysmon_operational-c0015-2026.09.12-000001`,
+namespace `c0015`, host `ws01`, provider Microsoft-Windows-Sysmon). Windows also confirms 26 candidate indices including
+`logs-windows.windows_defender-c0015` and `logs-system.security-c0015`.
+
+**ECS mapping (verified on live docs):**
+- `process.entity_id` == Sysmon ProcessGuid (braces stripped) — 4/4 anchors exact
+  (WINWORD `...3808`, mshta `...3908`, regsvr32 `...3c08`, powershell `...3d08`); `process.parent.entity_id` == ParentProcessGuid.
+- E7 `217090`: `file.hash.sha256` = `CEF7879F239C7F3185C2C3FAE19D2D5D46C3497458F33FDC22677FA4F6FF2BEB` (MATCH),
+  signature in **`winlog.event_data.Signed` = "false"** and `winlog.event_data.SignatureStatus` = "Unavailable";
+  `file.code_signature.signed` is **not populated** on this integration.
+- E3 `217143` (mshta `:8000`) and the 7 beacon `:8080` events (`217149/217151/217212/217232/217233/217249/217250`)
+  carry `process.entity_id` **and** PID/Image -> attribution is DIRECT (no P1-B-style gap this run).
+
+**Record-ID reuse (NEW correlation caveat):** the Sysmon channel was reset between 2026-09-19 and 2026-09-28;
+the same `winlog.record_id` values (217090, 217131, 217129, 217135, 217143, 217149, 217151, 217212) also exist on
+09-19 as background E10/E3 events. **Never anchor RecordID without the run @timestamp window** (and ProcessGuid for re-runs).
+
+**E3 timestamp latency:** E3 UtcTime for short-lived connections lags ~2-3 s behind causally-dependent E1/E11 in the
+same stream (e.g. E11 217080 02:15:10.090 precedes E3 217143 02:15:12.309). Do not order the intra-host chain by E3 time.
+
+**Corrections to this doc:** (1) `217131` is Sysmon **E9** (RawAccessRead, `System`, `\Device\HarddiskVolume1`), NOT a
+cmd->net event — remove from the S4 cmd->net list (real cmd->net = 217129/217134/217135). (2) S4 T-DISCOVER-SYSTEM /
+T-DISCOVER-DOMAINGROUPS executed the `cmd /c ver` fallback (E1 217218/217223/217240/217242), not tasklist/net group,
+because the deployed config.ini (stage/ws01/config.ini, sha256 590D812D...) defines no task map for them; only
+T1135 (net view /all) really ran.
+
+**AV-disabled observable:** Defender/Operational `5001` @ 2026-09-27T13:05:16Z and `1151` @ 2026-09-28T02:07:33Z
+(pre-run) on ws01; `5010` not observed in a 14-day window. Label `[LAB CONFIG]`.
+
+Full detection report (per-event verify table, ATT&CK mapping, 6 DH with KQL, correlation, gaps):
+`stage/analysis/s1-s4-detection-report.md` (working-tree scratch, not committed).
