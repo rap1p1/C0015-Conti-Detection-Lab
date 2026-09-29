@@ -14,8 +14,9 @@ rejected, and stage/host/token validation + per-run dedup are unchanged.
 Endpoints:
   GET  /dl/<name>                 serve an allowlisted lab file (T1105 ingress analog)
   POST /session/register?stage=&host=&token=   register a lab session (S1/S2 tokens)
-  GET  /task/next?session=<token> next task for the session; {"task": name, "cmd": raw|null}
+  GET  /task/next?session=<token> next task for the session; {"task": name, "cmd": raw|null, "pause": sec}
   POST /cmd?session=<token>       enqueue a raw benign command (body = command string)
+  POST /runbook?session=<token>&name=<killchain>  enqueue an ordered kill-chain template (scripts/runbooks/)
   POST /result?session=&task=     task result (bounded by --max-result); server logs + receipt
   GET  /checkin?stage=&host=      legacy 1-shot checkin (phase4-rundll32), returns 204
 
@@ -60,7 +61,8 @@ MAX_CMD_BYTES = 4096        # cap for one operator-entered command string
 
 STATE = {"sessions": {}}  # token -> {stage, host, ip, registered_utc, tasks_done, queue}
 OPTS = {"ledger_dir": Path("evidence/run-ledger"), "dl_dir": Path("scripts/fixtures"),
-        "log": None, "max_result": MAX_RESULT_BYTES}
+        "log": None, "max_result": MAX_RESULT_BYTES, "runbook_dir": Path("scripts/runbooks"),
+        "max_queue": 64}
 
 
 def log(msg):
@@ -121,25 +123,48 @@ def enqueue_cmd(token, cmd):
     for bad in ("password=", " /password:", " -password ", " pass "):
         if bad in low:
             return False, "rejected: credential-like string on the command line"
-    s["queue"].append(cmd)
+    s["queue"].append({"cmd": cmd, "pause": 0})
+    return True, "queued"
+
+
+def enqueue_runbook(token, entries):
+    """v3.1: enqueue an ordered kill-chain template (list of {"cmd","pause"})."""
+    s = STATE["sessions"].get(token)
+    if not s:
+        return False, "unknown session"
+    if len(s["queue"]) + len(entries) > OPTS.get("max_queue", 64):
+        return False, "queue full"
+    for e in entries:
+        cmd = str(e.get("cmd", "")).strip()
+        if not cmd:
+            continue
+        low = cmd.lower()
+        if any(b in low for b in ("password=", " /password:", " -password ", " pass ")):
+            return False, "rejected: credential-like string in runbook"
+        try:
+            pause = max(0, int(e.get("pause", 0) or 0))
+        except Exception:
+            pause = 0
+        s["queue"].append({"cmd": cmd, "pause": pause})
     return True, "queued"
 
 
 def next_task(token):
-    """Returns (task_name, raw_cmd_or_None). Operator commands (OP-CMD) take
-    priority; otherwise the fixed discovery batch is served once, then idle."""
+    """Returns (task_name, raw_cmd_or_None, pause_sec). Operator commands (OP-CMD)
+    take priority; otherwise the fixed discovery batch is served once, then idle."""
     s = STATE["sessions"].get(token)
     if not s:
-        return None, None
+        return None, None, None
     if s["queue"]:
-        return "OP-CMD", s["queue"].pop(0)
+        it = s["queue"].pop(0)
+        return "OP-CMD", it["cmd"], it.get("pause", 0)
     seq = TASKS.get(s["stage"], [])
     idx = len(s["tasks_done"])
     if not seq:
-        return "T-NOOP", None
+        return "T-NOOP", None, 0
     if idx >= len(seq):
-        return "T-BEACON-SLEEP", None
-    return seq[idx], None
+        return "T-BEACON-SLEEP", None, 0
+    return seq[idx], None, 0
 
 
 def result_ok(token, task, size):
@@ -203,13 +228,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, b'{"error":"invalid checkin"}')
         if parsed.path == "/task/next":
             token = (q.get("session") or [""])[0]
-            t, cmd = next_task(token)
+            t, cmd, pause = next_task(token)
             if t is None:
                 return self._send(403, b'{"error":"unknown session"}')
             log(f"task/next session={token[-8:]} task={t}" + (f" cmd={cmd}" if cmd else ""))
             body = {"task": t}
             if cmd is not None:
                 body["cmd"] = cmd
+            if pause:
+                body["pause"] = pause
             return self._send(200, json.dumps(body).encode())
         return self._send(404, b'{"error":"not found"}')
 
@@ -251,6 +278,21 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 return self._send(403, json.dumps({"error": msg}).encode())
             return self._send(200, b'{"ok":true}')
+        if parsed.path == "/runbook":
+            token = (q.get("session") or [""])[0]
+            name = (q.get("name") or [""])[0].strip()
+            rb = Path(OPTS.get("runbook_dir", "scripts/runbooks")) / ("%s.json" % name)
+            if not rb.is_file():
+                return self._send(404, json.dumps({"error": "unknown runbook"}).encode())
+            try:
+                entries = json.loads(rb.read_text(encoding="utf-8")).get("entries", [])
+            except Exception as ex:
+                return self._send(500, json.dumps({"error": "runbook unreadable"}).encode())
+            ok, msg = enqueue_runbook(token, entries)
+            log(f"op-runbook session={token[-8:] if token else '-'} name={name} entries={len(entries)} ok={ok} ({msg})")
+            if not ok:
+                return self._send(403, json.dumps({"error": msg}).encode())
+            return self._send(200, json.dumps({"ok": True, "entries": len(entries)}).encode())
         if parsed.path == "/result":
             token = (q.get("session") or [""])[0]
             task = (q.get("task") or [""])[0]
@@ -273,11 +315,13 @@ def main():
     ap.add_argument("--dl-dir", default="scripts/fixtures")
     ap.add_argument("--log", default=None)
     ap.add_argument("--max-result", type=int, default=MAX_RESULT_BYTES)
+    ap.add_argument("--runbook-dir", default="scripts/runbooks")
     args = ap.parse_args()
     OPTS["ledger_dir"] = Path(args.ledger)
     OPTS["dl_dir"] = Path(args.dl_dir)
     OPTS["log"] = args.log
     OPTS["max_result"] = args.max_result
+    OPTS["runbook_dir"] = Path(args.runbook_dir)
     log(f"C2-SIM v3 listening on {args.ip}:{args.port} (max_result={args.max_result})")
     HTTPServer((args.ip, args.port), Handler).serve_forever()
 

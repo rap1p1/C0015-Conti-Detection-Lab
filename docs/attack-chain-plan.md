@@ -433,9 +433,11 @@ PASS, and the chain is not end-to-end.
 
 - No real malware; no Cobalt Strike or Bazar binaries; no public C2 frameworks (Sliver optional only under the
   conditions in `docs/payloads-and-c2.md`; Havoc excluded by default).
-- No credential acquisition or dumping; no LSASS memory reads. Operator-tasked benign commands through
-  C2-SIM v3 dynamic tasking (`POST /cmd`) are allowed; there is still no real-malware payload runner and secret
-  strings are rejected on the wire/logs.
+- No REAL credential acquisition or dumping and no LSASS memory READ: the Mimikatz-shaped surrogate
+  (`payloads/lsass/c0015_mimikatz_surrogate.c`) opens the lsass handle with an attack-like access mask
+  (real E10 telemetry) and writes a decoy dump (E11), never reading memory — nothing is harvested or stored.
+  Operator-tasked benign commands through C2-SIM v3 (`POST /cmd` / `POST /runbook`) are allowed; no
+  real-malware payload runner; secret strings are rejected on the wire/logs.
 - No injection into LSASS/Winlogon/svchost/system; no injection code or instructions in the project.
 - No public cloud/MEGA/Telegram; exfiltration stops at the internal sink; the MEGA relay is not used.
 - No general-purpose encryptor and no self-propagation; the impact surrogate is allowlist-root-capped with

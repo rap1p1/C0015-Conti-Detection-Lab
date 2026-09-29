@@ -186,13 +186,13 @@ class C2SimTests(unittest.TestCase):
             "T-DISCOVER-TIME", "T-DISCOVER-PING", "T-BEACON-SLEEP",
         ]
         for i, t in enumerate(expected):
-            task, cmd = c2.next_task("S1-0123456789abcdef")
+            task, cmd, _ = c2.next_task("S1-0123456789abcdef")
             self.assertEqual(task, t, f"step {i}")
             self.assertIsNone(cmd)
             ok, _ = c2.result_ok("S1-0123456789abcdef", t, 100)
             self.assertTrue(ok)
         # exhausted batch -> idle sleep
-        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("T-BEACON-SLEEP", None))
+        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("T-BEACON-SLEEP", None, 0))
         # v3: task names are no longer allowlisted, but the result cap applies
         self.assertTrue(c2.result_ok("S1-0123456789abcdef", "T-ANY", 128)[0])
         self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-NOOP", c2.MAX_RESULT_BYTES + 1)[0])
@@ -205,11 +205,11 @@ class C2SimTests(unittest.TestCase):
         c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
         ok, msg = c2.enqueue_cmd("S1-0123456789abcdef", "whoami /all")
         self.assertTrue(ok, msg)
-        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("OP-CMD", "whoami /all"))
+        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("OP-CMD", "whoami /all", 0))
         self.assertTrue(c2.result_ok("S1-0123456789abcdef", "OP-CMD", 512)[0])
         # queued op-command is served before the fixed batch continues
         c2.enqueue_cmd("S1-0123456789abcdef", "ipconfig")
-        task, cmd = c2.next_task("S1-0123456789abcdef")
+        task, cmd, _ = c2.next_task("S1-0123456789abcdef")
         self.assertEqual((task, cmd), ("OP-CMD", "ipconfig"))
         # guards: empty, credential-like, unknown session
         self.assertFalse(c2.enqueue_cmd("S1-0123456789abcdef", "  ")[0])
@@ -217,6 +217,26 @@ class C2SimTests(unittest.TestCase):
         self.assertFalse(c2.enqueue_cmd("S2-f000000000000000", "whoami")[0])
         # oversized raw command rejected
         self.assertFalse(c2.enqueue_cmd("S1-0123456789abcdef", "cmd" * 3000)[0])
+
+    def test_runbook_enqueue_v3(self):
+        # v3.1: ordered kill-chain template enqueues with per-command pause
+        c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
+        entries = [
+            {"cmd": "whoami /all", "pause": 2},
+            {"cmd": "net view /all"},
+            {"cmd": "C:\\Tools\\mimikatz.exe sekurlsa::logonpasswords /out:C:\\C0015\\lsass.dmp", "pause": 5},
+        ]
+        ok, msg = c2.enqueue_runbook("S1-0123456789abcdef", entries)
+        self.assertTrue(ok, msg)
+        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("OP-CMD", "whoami /all", 2))
+        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("OP-CMD", "net view /all", 0))
+        t, cmd, pause = c2.next_task("S1-0123456789abcdef")
+        self.assertEqual(t, "OP-CMD")
+        self.assertIn("mimikatz.exe", cmd)
+        self.assertEqual(pause, 5)
+        # guards: credential-like entry and unknown session rejected
+        self.assertFalse(c2.enqueue_runbook("S1-0123456789abcdef", [{"cmd": "net use /user:x password=secret"}])[0])
+        self.assertFalse(c2.enqueue_runbook("S2-f000000000000000", entries)[0])
 
     def test_session2_receipt_written(self):
         tok = "S2-0123456789abcdef"

