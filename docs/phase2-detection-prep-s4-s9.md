@@ -91,29 +91,33 @@ host.name : "fs01" and event.code : "4672"
 Run-time checks: `winlog.logon.id` mapping on FS01; S4625 present for the two denied controls; verify 4624↔4672
 join actually matches on FS01 LogonId. Record `ART-05-01` (evidence only — never control input for S8).
 
-## S7b — Credential-access simulation (LSASS; Mimikatz-shaped surrogate)
+## S7b — Credential access (REAL Mimikatz on WS01 lsass; operator-driven)
 
-Payload `payloads/lsass/c0015_mimikatz_surrogate.c` → `mimikatz.exe` on `C:\Tools\` (masquerade name =
-enrichment; T1036-adjacent, `[LAB-SURROGATE]`). Tasked via the beacon (v3.1 runbook entry):
-`mimikatz.exe sekurlsa::logonpasswords /out:C:\C0015\lsass.dmp`. It opens the lsass handle with
-`PROCESS_QUERY_INFORMATION|PROCESS_VM_READ` (real **E10**, high GrantedAccess) and writes a **decoy** dump (E11);
-it never reads memory and stores nothing. DFIR attributes the historical credential source to Process
-Hacker/LSASS `[INFERRED-C0015]`; provenance stays `[UNKNOWN-C0015]`, and the WMI identity at S8 remains the
-operator-provided prompt (the simulation harvests nothing).
+Payload: real Mimikatz ([ParrotSec/mimikatz](https://github.com/ParrotSec/mimikatz)) → `C:\Tools\mimikatz.exe`
+on WS01; `payloads/lsass/c0015_mimikatz_surrogate.c` is the **fallback** only. **Operator-driven via runas, not
+beacon-run** (an elevated token is required):
+`runas /user:C0015\it.admin "C:\Tools\mimikatz.exe sekurlsa::logonpasswords"`.
+Precondition: `it.admin` ∈ WS01 local Administrators (SeDebugPrivilege) and an **it.admin logon session anchored
+on WS01** — credential material lives in the lsass of the machine where the logon occurred, so S7 (net-use/runas)
+plants it before S7b harvests it (see playbook fidelity note).
 
 | Telemetry | Host | Key |
 |---|---|---|
-| E10 ProcessAccess: source = beacon child (`mimikatz.exe`), target `lsass.exe`, GrantedAccess ≈ 0x1FFFFF | WS01 | SourceProcessGUID ↔ beacon ParentProcessGuid (same host) |
-| E1 `mimikatz.exe` (`sekurlsa::logonpasswords` cmdline) + E11 decoy `lsass.dmp` | WS01 | parent = beacon powershell |
-| E3 | nothing expected (no network) | — |
+| S4648 (explicit credential, runas) | WS01 | account; password at prompt only |
+| E1 `mimikatz.exe` (parent = cmd via runas) | WS01 | parent chain runas → cmd → mimikatz |
+| E10 ProcessAccess target `lsass.exe` (real, elevated token, high GrantedAccess) | WS01 | SourceProcessGUID ↔ target lsass |
+| Output | WS01 console only — never to disk/logs/repo | guardrail |
 
 ```kql
 // E10 to lsass — verify ECS mapping first (process.target.* / winlog.event_data.GrantedAccess)
 host.name : "ws01" and event.code : "10"
 and (process.name : "mimikatz.exe" or winlog.event_data.TargetImage : "*lsass.exe")
+// explicit-credential logon that anchored it.admin on WS01 (runas/net use)
+host.name : "ws01" and event.code : "4648" and user.name : "duc.user"
 ```
-Note: E10 is collected under BALANCED (`TargetImage lsass.exe` include); verify its ECS mapping on live ingest.
-`C-LSASS` correlation (`correlation-architecture.md`) becomes runnable once E10 + E11 anchors exist.
+Notes: E10 collected under BALANCED (`TargetImage lsass.exe` include; verify mapping on live ingest).
+`C-LSASS` correlation (`correlation-architecture.md`) becomes runnable once the E10 anchors exist. The surrogate
+fallback path (no elevation) yields only failed access — record it as the negative control, not the chain step.
 
 ## S8 — WMI remote process (WS01 `it.admin` → FS01)
 
