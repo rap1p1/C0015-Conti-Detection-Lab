@@ -34,7 +34,7 @@ encryption.
 | `c0015_bootstrap_dll.c` — `CreateProcessA(beacon_cmd)` | Handoff S2 -> S3 | Beacon is spawned by the bootstrap (parent chain = source evidence of session 1) |
 | `c0015_beacon.ps1` — `Invoke-WebRequest` to `public_ip_check_url` | T1016 | Public-IP lookup through the internal mock (myexternalip analog) |
 | `c0015_beacon.ps1` — POST `/session/register` + GET `/task/next` + POST `/result` | T1071.001 (context) | HTTP callback loop; token `S1-<16 hex>` from env/generated — no secret stored |
-| `c0015_beacon.ps1` — `$taskMap` runs the config allowlisted commands | C2 role surrogate | No arbitrary shell — only fixed tasks |
+| `c0015_beacon.ps1` — executes operator-tasked raw commands (v3 `POST /cmd`) or allowlist fallback tasks | C2 role surrogate | benign command strings only; no real malware; credential-like strings rejected |
 | `c0015_impact.ps1` — `Test-AllowedRoot` + caps + `Rename-Item ... + $ext` + note | T1486 | Limited transform on the allowlisted corpus; rejects system roots/reparse points/drive roots |
 | `c0015_impact.ps1` — `Verify` (listing + `Get-FileHash` against backup) | T1083 | Post-impact verification + restore validation |
 

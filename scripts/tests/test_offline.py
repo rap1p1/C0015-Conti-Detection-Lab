@@ -177,7 +177,7 @@ class C2SimTests(unittest.TestCase):
         ok, _ = c2.register_ok("phase3", "WS01", "S1-cccccccccccccccc", None, run_id="RUN-20261001-02")
         self.assertTrue(ok)
 
-    def test_task_sequence_and_allowlist(self):
+    def test_task_sequence_and_cap(self):
         c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
         # the discovery batch is served once in order, then T-BEACON-SLEEP (idle)
         expected = [
@@ -186,13 +186,37 @@ class C2SimTests(unittest.TestCase):
             "T-DISCOVER-TIME", "T-DISCOVER-PING", "T-BEACON-SLEEP",
         ]
         for i, t in enumerate(expected):
-            self.assertEqual(c2.next_task("S1-0123456789abcdef"), t, f"step {i}")
+            task, cmd = c2.next_task("S1-0123456789abcdef")
+            self.assertEqual(task, t, f"step {i}")
+            self.assertIsNone(cmd)
             ok, _ = c2.result_ok("S1-0123456789abcdef", t, 100)
             self.assertTrue(ok)
         # exhausted batch -> idle sleep
-        self.assertEqual(c2.next_task("S1-0123456789abcdef"), "T-BEACON-SLEEP")
-        self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-EVIL", 10)[0])   # not in allowlist
-        self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-NOOP", 5000)[0])  # oversize
+        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("T-BEACON-SLEEP", None))
+        # v3: task names are no longer allowlisted, but the result cap applies
+        self.assertTrue(c2.result_ok("S1-0123456789abcdef", "T-ANY", 128)[0])
+        self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-NOOP", c2.MAX_RESULT_BYTES + 1)[0])
+        c2.OPTS["max_result"] = 2048
+        self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-NOOP", 4096)[0])
+        c2.OPTS["max_result"] = c2.MAX_RESULT_BYTES
+
+    def test_dynamic_op_cmd_v3(self):
+        # v3 dynamic tasking: operator-entered benign commands take priority
+        c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
+        ok, msg = c2.enqueue_cmd("S1-0123456789abcdef", "whoami /all")
+        self.assertTrue(ok, msg)
+        self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("OP-CMD", "whoami /all"))
+        self.assertTrue(c2.result_ok("S1-0123456789abcdef", "OP-CMD", 512)[0])
+        # queued op-command is served before the fixed batch continues
+        c2.enqueue_cmd("S1-0123456789abcdef", "ipconfig")
+        task, cmd = c2.next_task("S1-0123456789abcdef")
+        self.assertEqual((task, cmd), ("OP-CMD", "ipconfig"))
+        # guards: empty, credential-like, unknown session
+        self.assertFalse(c2.enqueue_cmd("S1-0123456789abcdef", "  ")[0])
+        self.assertFalse(c2.enqueue_cmd("S1-0123456789abcdef", "net use /user:x password=secret *")[0])
+        self.assertFalse(c2.enqueue_cmd("S2-f000000000000000", "whoami")[0])
+        # oversized raw command rejected
+        self.assertFalse(c2.enqueue_cmd("S1-0123456789abcdef", "cmd" * 3000)[0])
 
     def test_session2_receipt_written(self):
         tok = "S2-0123456789abcdef"

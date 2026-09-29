@@ -11,7 +11,7 @@ All steps are benign surrogates on owned VMs. Read `docs/implementation-plan.md`
 |---|---|---|
 | Victim / first foothold | WS01 (192.168.50.20, Win10, `C0015\duc.user`) | Word + Elastic Agent + Sysmon |
 | Lateral target / file+backup | FS01 (192.168.50.30, Win10 Pro 19045) | shares Finance/IT |
-| Attacker / C2 | host lab 192.168.50.1 (or Kali 192.168.50.100) | runs C2-SIM v2 + HTTP DLL server |
+| Attacker / C2 | host lab 192.168.50.1 (or Kali 192.168.50.100) | runs C2-SIM v3 + HTTP DLL server |
 | Identity / telemetry | DC01 (192.168.50.10) | AD/DNS; not an attack target |
 | SIEM | ELASTIC01 (Tailscale, Fleet 100.77.46.126:8220) | Elastic 9.5.3, namespace `c0015` |
 

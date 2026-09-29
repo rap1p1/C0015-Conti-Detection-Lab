@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
 Start (or stop) the phase-1 lab servers on the C2/attacker host:
-  - C2-SIM v2 (scripts/c2sim_v2.py) on C2Port
+  - C2-SIM v3 (scripts/c2sim_v2.py) on C2Port
   - a simple HTTP server (python http.server) serving a publish dir with the DLL
 Run this on Kali or the host LAN to the lab. The victim WS01 must reach both.
 

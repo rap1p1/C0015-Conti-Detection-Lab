@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""C0015 C2-SIM v2 — constrained C2 simulator for the lab (benign, stdlib only).
+"""C0015 C2-SIM v3 — lab C2 simulator for the operator phase (benign, stdlib only).
 
-Replaces the role of the C0015 Bazar/Cobalt Strike C2 infrastructure with an
-internal, fixed-purpose server. NEVER offers arbitrary shell, dynamic tasks or
-payload upload. Task set is a fixed allowlist.
+Operator-realistic: the C2 host can enqueue ARBITRARY BENIGN commands to a
+session via POST /cmd (dynamic tasking, like a real C2 operator); the beacon
+executes them and returns the result. The fixed discovery batch from the
+blueprint is still served as the default task stream while no operator command
+is queued.
+
+Safety retained (project hard lines): real malware/payload upload stays refused
+(/dl allowlist only), credentials/secret strings on the wire or in logs are
+rejected, and stage/host/token validation + per-run dedup are unchanged.
 
 Endpoints:
   GET  /dl/<name>                 serve an allowlisted lab file (T1105 ingress analog)
   POST /session/register?stage=&host=&token=   register a lab session (S1/S2 tokens)
-  GET  /task/next?session=<token> next fixed task for the session
-  POST /result?session=&task=     bounded task result; server logs + receipt
+  GET  /task/next?session=<token> next task for the session; {"task": name, "cmd": raw|null}
+  POST /cmd?session=<token>       enqueue a raw benign command (body = command string)
+  POST /result?session=&task=     task result (bounded by --max-result); server logs + receipt
   GET  /checkin?stage=&host=      legacy 1-shot checkin (phase4-rundll32), returns 204
 
 On a valid phase7-session2 registration the server writes ART-07-01 receipt
@@ -42,28 +49,18 @@ TASKS = {
     ],
     "phase7-session2": ["T-DISCOVER-CORPUS"],
 }
-TASK_ALLOWLIST = {
-    "T-DISCOVER-CORPUS": {"max_result_bytes": 1024},
-    "T-DISCOVER-SYSTEM": {"max_result_bytes": 1024},
-    "T-DISCOVER-DOMAINGROUPS": {"max_result_bytes": 1024},
-    "T-DISCOVER-LOCALGROUPS": {"max_result_bytes": 1024},
-    "T-DISCOVER-TRUSTS": {"max_result_bytes": 1024},
-    "T-DISCOVER-NETVIEWALL": {"max_result_bytes": 1024},
-    "T-DISCOVER-TIME": {"max_result_bytes": 1024},
-    "T-DISCOVER-PING": {"max_result_bytes": 1024},
-    "T-BEACON-SLEEP": {"max_result_bytes": 1024},
-    "T-NOOP": {"max_result_bytes": 1024},
-}
 STAGE_ALLOWLIST = {
     "phase3": {"hosts": {"WS01"}},
     "phase7-session2": {"hosts": {"FS01"}},
     "phase4-rundll32": {"hosts": {"FS01"}},
 }
 DL_ALLOWLIST = ["c0015_143_surrogate.dll"]
-MAX_RESULT_BYTES = 1024
+MAX_RESULT_BYTES = 262144   # v3: per-command result bound (configurable via --max-result)
+MAX_CMD_BYTES = 4096        # cap for one operator-entered command string
 
-STATE = {"sessions": {}}  # token -> {stage, host, ip, registered_utc, tasks_done}
-OPTS = {"ledger_dir": Path("evidence/run-ledger"), "dl_dir": Path("scripts/fixtures"), "log": None}
+STATE = {"sessions": {}}  # token -> {stage, host, ip, registered_utc, tasks_done, queue}
+OPTS = {"ledger_dir": Path("evidence/run-ledger"), "dl_dir": Path("scripts/fixtures"),
+        "log": None, "max_result": MAX_RESULT_BYTES}
 
 
 def log(msg):
@@ -104,31 +101,52 @@ def register_ok(stage, host, token, client_ip, run_id=None):
         "run": run_id,
         "registered_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "tasks_done": [],
+        "queue": [],  # operator-enqueued raw commands (v3 dynamic tasking)
     }
     return True, "registered"
 
 
-def next_task(token):
+def enqueue_cmd(token, cmd):
+    """v3: operator-entered benign command for the session (queued, executed by the beacon)."""
     s = STATE["sessions"].get(token)
     if not s:
-        return None
+        return False, "unknown session"
+    cmd = (cmd or "").strip()
+    if not cmd:
+        return False, "empty command"
+    if len(cmd.encode("utf-8")) > MAX_CMD_BYTES:
+        return False, "command too long"
+    # no-secrets rule: never push a credential-looking string onto the wire/logs
+    low = cmd.lower()
+    for bad in ("password=", " /password:", " -password ", " pass "):
+        if bad in low:
+            return False, "rejected: credential-like string on the command line"
+    s["queue"].append(cmd)
+    return True, "queued"
+
+
+def next_task(token):
+    """Returns (task_name, raw_cmd_or_None). Operator commands (OP-CMD) take
+    priority; otherwise the fixed discovery batch is served once, then idle."""
+    s = STATE["sessions"].get(token)
+    if not s:
+        return None, None
+    if s["queue"]:
+        return "OP-CMD", s["queue"].pop(0)
     seq = TASKS.get(s["stage"], [])
-    if not seq:
-        return "T-NOOP"
-    # serve the discovery batch once in order; afterwards stay on T-BEACON-SLEEP
     idx = len(s["tasks_done"])
+    if not seq:
+        return "T-NOOP", None
     if idx >= len(seq):
-        return "T-BEACON-SLEEP"
-    return seq[idx]
+        return "T-BEACON-SLEEP", None
+    return seq[idx], None
 
 
 def result_ok(token, task, size):
     s = STATE["sessions"].get(token)
     if not s:
         return False, "unknown session"
-    if task not in TASK_ALLOWLIST:
-        return False, "task not in allowlist"
-    if size > TASK_ALLOWLIST[task]["max_result_bytes"]:
+    if size > OPTS.get("max_result", MAX_RESULT_BYTES):
         return False, "result too large"
     s["tasks_done"].append(task)
     return True, "accepted"
@@ -185,18 +203,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, b'{"error":"invalid checkin"}')
         if parsed.path == "/task/next":
             token = (q.get("session") or [""])[0]
-            t = next_task(token)
+            t, cmd = next_task(token)
             if t is None:
                 return self._send(403, b'{"error":"unknown session"}')
-            log(f"task/next session={token[-8:]} task={t}")
-            return self._send(200, json.dumps({"task": t}).encode())
+            log(f"task/next session={token[-8:]} task={t}" + (f" cmd={cmd}" if cmd else ""))
+            body = {"task": t}
+            if cmd is not None:
+                body["cmd"] = cmd
+            return self._send(200, json.dumps(body).encode())
         return self._send(404, b'{"error":"not found"}')
 
     def do_POST(self):
         parsed = urlsplit(self.path)
         q = parse_qs(parsed.query)
         length = int(self.headers.get("Content-Length") or 0)
-        if length > 2048:
+        if length > OPTS.get("max_result", MAX_RESULT_BYTES) + 8192:
             return self._send(413, b'{"error":"body too large"}')
         body = self.rfile.read(length) if length else b""
         if parsed.path == "/session/register":
@@ -219,6 +240,17 @@ class Handler(BaseHTTPRequestHandler):
             if receipt:
                 resp["receipt_artifact"] = receipt["path"]
             return self._send(200, json.dumps(resp).encode())
+        if parsed.path == "/cmd":
+            token = (q.get("session") or [""])[0]
+            try:
+                cmd = body.decode("utf-8", "replace")
+            except Exception:
+                cmd = ""
+            ok, msg = enqueue_cmd(token, cmd)
+            log(f"op-cmd session={token[-8:] if token else '-'} cmd={(cmd or '')[:80]} ok={ok} ({msg})")
+            if not ok:
+                return self._send(403, json.dumps({"error": msg}).encode())
+            return self._send(200, b'{"ok":true}')
         if parsed.path == "/result":
             token = (q.get("session") or [""])[0]
             task = (q.get("task") or [""])[0]
@@ -240,11 +272,13 @@ def main():
     ap.add_argument("--ledger", default="evidence/run-ledger")
     ap.add_argument("--dl-dir", default="scripts/fixtures")
     ap.add_argument("--log", default=None)
+    ap.add_argument("--max-result", type=int, default=MAX_RESULT_BYTES)
     args = ap.parse_args()
     OPTS["ledger_dir"] = Path(args.ledger)
     OPTS["dl_dir"] = Path(args.dl_dir)
     OPTS["log"] = args.log
-    log(f"C2-SIM v2 listening on {args.ip}:{args.port} (tasks={sorted(TASK_ALLOWLIST)})")
+    OPTS["max_result"] = args.max_result
+    log(f"C2-SIM v3 listening on {args.ip}:{args.port} (max_result={args.max_result})")
     HTTPServer((args.ip, args.port), Handler).serve_forever()
 
 

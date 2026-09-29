@@ -19,7 +19,7 @@ between stages:
 ```text
 S1  Word macro
   -> S2  HTA (VBS + JS + base64) -> DLL (.jpg) loaded via regsvr32
-  -> S3  Session 1 (C2-SIM v2, public-IP mock)
+  -> S3  Session 1 (C2-SIM v3 dynamic tasking, public-IP mock)
   -> S4  Discovery (exact DFIR commands)
   -> S5  found_shares artifact
   -> S6  Orchestrator target decision
@@ -35,7 +35,8 @@ S1  Word macro
   -> S15 End-to-end engineering + investigation runs (ground truth hidden)
 ```
 
-C2 channels (researched and install-verified): **C2-SIM v2** (foothold beacon), **Apache CALDERA v5** (operator
+C2 channels (researched and install-verified): **C2-SIM v3** (foothold beacon; operator-entered benign commands via
+dynamic tasking), **Apache CALDERA v5** (operator
 orchestration, primary), Sliver optional under strict conditions, Havoc excluded. Details and the AD three-VM
 assessment are in `docs/payloads-and-c2.md`.
 
@@ -81,7 +82,7 @@ C0015-Conti-Detection-Lab/
 - [Implementation Plan](docs/implementation-plan.md) — single blueprint, stages, gates, milestones, operator runbook
 - [Attack-Chain Plan](docs/attack-chain-plan.md) — narrative, historical fidelity, canonical phase map 0-15
 - [Correlation Architecture](docs/correlation-architecture.md) — detection correlation design
-- [Payloads & C2](docs/payloads-and-c2.md) — C2-SIM v2 design, CALDERA/Sliver/Havoc research, AD three-VM verdict
+- [Payloads & C2](docs/payloads-and-c2.md) — C2-SIM v3 design, CALDERA/Sliver/Havoc research, AD three-VM verdict
 - [Architecture](docs/architecture.md) — lab architecture
 
 ## Evidence & Fidelity

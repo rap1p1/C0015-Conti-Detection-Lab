@@ -9,7 +9,7 @@
 
 | Requested phase | C0015 source (DFIR/MITRE) | Alignment verdict |
 |---|---|---|
-| 1. Initial payload + macro in docm -> macro -> HTA -> benign bootstrap -> stop at beacon callback | Word macro (T1204.002) -> encoded HTA JS/VBS (T1059.005/.007, T1027) -> fetch `compareForfor.jpg` (T1036, T1105) -> REGSVR32 (T1218.010) -> Bazar callback + myexternalip (T1016) | **MATCH — 1:1**. Lab: the same chain, a benign DLL with a `.jpg` extension, callback into C2-SIM v2 (no real Bazar/Cobalt Strike). Fidelity HIGH for the chain mechanics; the phishing delivery `[INFERRED-C0015]` is replaced by a lab step that creates a password-protected ZIP + docm placed on WS01 (executable — see the policy list below) |
+| 1. Initial payload + macro in docm -> macro -> HTA -> benign bootstrap -> stop at beacon callback | Word macro (T1204.002) -> encoded HTA JS/VBS (T1059.005/.007, T1027) -> fetch `compareForfor.jpg` (T1036, T1105) -> REGSVR32 (T1218.010) -> Bazar callback + myexternalip (T1016) | **MATCH — 1:1**. Lab: the same chain, a benign DLL with a `.jpg` extension, callback into C2-SIM v3 (no real Bazar/Cobalt Strike). Fidelity HIGH for the chain mechanics; the phishing delivery `[INFERRED-C0015]` is replaced by a lab step that creates a password-protected ZIP + docm placed on WS01 (executable — see the policy list below) |
 | 2. Operator sessions: discovery -> target selection -> lab auth -> WMI + benign process/DLL -> collection -> transfer of dummy data to an internal sink; RDP next; AnyDesk + LSASS access must be studied | Operator from the runbook (copy-paste errors — S2) -> ShareFinder / found_shares -> WMIC -> rundll32 -> 143.dll (T1047/T1570) -> Rclone/MEGA twice (T1567.002/T1030) -> RDP day 2 (T1021.001) -> AnyDesk in `Videos\` (T1219.002) -> Process Hacker -> LSASS "likely" (T1003.001-adjacent, day 5) | **MATCH, source order preserved** (two transfer rounds with RDP in between). Safe deltas: MEGA -> internal sink; WMI uses pre-provisioned `it.admin` with explicit credentials (runas/CIM `-Credential` — fixed in `docs/implementation-plan.md` Section 2.2); **LSASS = safe telemetry study** (E10 access-mask, no dump — Section 4) |
 | 3. A different bounded payload on a separate dummy corpus + scope check + restore (still enough Conti telemetry) | Conti batch deploy domain-wide (T1486) + post-impact file listing (T1083); does not touch the DC | **MATCH on telemetry, different scope (safety-mandated)**: `c0015_impact.ps1` keeps the Conti observables (high-speed fan-out, rename/extension, note creation, breadth) on an allowlisted corpus + restore verification; no real encryption, no propagation, no DC touch (the campaign also did not touch the DC — fidelity +1) |
 
@@ -30,11 +30,13 @@ gaps are replaced by executed techniques carrying labels (no blanks, no "unknown
 
 ## 2. C2 decisions — foothold vs operator channel (researched, install-verified)
 
-### 2.1 Foothold automation (S1 -> S3): C2-SIM v2 (implemented + tested 15/15)
+### 2.1 Foothold automation (S1 -> S3): C2-SIM v3 (implemented + tested 17/17)
 
-Keep `scripts/c2sim_v2.py`: register/task/result with a **fixed task allowlist** and server-side receipts. Why: the
-macro -> HTA -> DLL -> beacon chain needs **deterministic telemetry** (parent chain, E7 hash, callback) to map 1:1 with
-the campaign; a real C2 framework would change the entire process signature (no more Bazar regsvr32/rundll32 chain).
+Keep `scripts/c2sim_v2.py` (v3): register/task/result with server-side receipts. **Dynamic tasking** (`POST /cmd`)
+lets the operator enqueue benign commands for the beacon (like a real C2 operator) while the fixed DFIR discovery
+batch remains the default stream when nothing is queued. Why keep the beacon path: the macro -> HTA -> DLL -> beacon
+chain needs **deterministic telemetry** (parent chain, E7 hash, callback) to map 1:1 with the campaign; a real C2
+framework would change the entire process signature (no more Bazar regsvr32/rundll32 chain).
 
 ### 2.2 Post-exploitation operator C2: CALDERA (primary) — Sliver (optional, conditional) — Havoc (not used by default)
 
@@ -45,17 +47,17 @@ the campaign; a real C2 framework would change the entire process signature (no 
 | Points to control | Server bound to the lab network only (no public exposure — per MITRE upstream guidance); RAM: install on **ELASTIC01 (Ubuntu 24.04, Azure)** instead of Kali if the Kali VM is tight on RAM | **Transport/tasking only**: never use its process migration/injection/token features (project boundary); the implant is a real agent -> needs a **Defender exclusion inside the lab** (lab configuration, not AV-bypass engineering); telemetry differs from Cobalt Strike (JA3) -> fidelity PARTIAL, recorded explicitly | **Demon agent ships evasion**: Ekko sleep obfuscation, indirect syscalls, AMSI/ETW patching via HW breakpoints — violates the no-EDR/AV-bypass boundary. Not used unless the user revisits with a separate benign custom agent |
 | Conclusion | **USE — primary operator C2** | **USE (optional, subject to the conditions above)** | **NOT USED (default)** |
 
-**Role map in the chain:** C2-SIM v2 = beacon channel of the Bazar/143.dll surrogate (S3/S9, signature close to the
+**Role map in the chain:** C2-SIM v3 = beacon channel of the Bazar/143.dll surrogate (S3/S9, signature close to the
 campaign); CALDERA = operator orchestration/tasking (S4-S13, mirroring "operator from the runbook"); Sliver (if chosen)
 = interactive channel replacing the Cobalt Strike operator session — the three layers do not replace each other; record
 the fidelity of each layer. **Hard conditions when using Sliver/CALDERA:** VMnet2 only, only to the WS01/FS01 VMs owned
-by the operator, no public exposure, no injection/evasion/credential features of these frameworks, and every task still
-follows the runbook allowlist.
+by the operator, no public exposure, no injection/evasion/credential features of these frameworks, and every tasked
+command stays a benign string (allowlist or operator-entered; secrets never on the wire/logs).
 
-## 3. C2-SIM v2 endpoint design
+## 3. C2-SIM v3 endpoint design (dynamic tasking)
 
 Constrained HTTP server running on the lab host / Kali, playing the C2 role for the surrogate beacon; implementation:
-`scripts/c2sim_v2.py` (tested 15/15 offline + end-to-end with `payloads/beacon/c0015_beacon.ps1`).
+`scripts/c2sim_v2.py` (tested 17/17 offline + end-to-end with `payloads/beacon/c0015_beacon.ps1`).
 
 | Endpoint | Method | Purpose | Conditions (allowlist) |
 |---|---|---|---|
