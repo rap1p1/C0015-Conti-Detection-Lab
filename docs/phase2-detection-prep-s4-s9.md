@@ -9,6 +9,12 @@ rule (`enabled=false` nothing), it is the verification skeleton + gap checklist.
 Phase map (from `docs/attack-chain-plan.md`): P3 session-1 discovery (S4) → P4 decision (S5/S6) → P5 auth (S7) →
 P6 WMI (S8) → P7 143.dll session-2 (S9).
 
+**Phase-1 ↔ phase-2 continuity:** the phase-2 pass re-runs S1–S3 under ONE run_id (playbook Step 1) so the beacon
+ProcessGuid (`…3d08`-equivalent) is the spine: S4 children link DIRECT to it; S5/S7/S7b/S8 are operator-driven and
+link via auth anchors (S4648/S4624/S4672, FS01 LogonId) + artifacts at `SUPPORTED`; S8→S9 is DIRECT on the FS01
+rundll32 ProcessGuid + hash + `ART-07-01` receipt. Events from the separate verified run `RUN-20261001-01` are
+**never merged** into this chain (ledger-level comparison only).
+
 ## Cross-cutting join rules (mandatory, from §4)
 
 - ProcessGuid ancestry (`process.entity_id` ↔ `process.parent.entity_id`) **within one host only**; never join PIDs

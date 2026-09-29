@@ -32,6 +32,7 @@ credentials only via prompt/runas — never on a command line or in logs.
 
 **Run identity:** use ONE new `run_id` (RUN-YYYYMMDD-NN) for this pass so S1→S9 share it (E2E continuity).
 Phase-1's session-1 beacon is closed — **re-establish session 1 under the new run_id first (Step 1)**.
+Replace every `RUN-20260928-02` placeholder below with this actual run_id (artifacts + c2sim `run=`).
 
 ## 1. Re-establish session 1 (S1→S3) with FULL discovery task map
 
@@ -96,6 +97,8 @@ Then on the C2 host, build the structured artifact (payload JSON lists readable 
 python scripts/lab_tools.py artifact-new ART-04-01 RUN-20260928-02 5 6 --payload stage/ws01/found_shares.json -o stage/ws01/art04_01.json
 ```
 Evidence: WS01 E1 (net/powershell), E11 `found_shares.txt`, FS01 S5145 (if probed), `ART-04-01` sha256.
+Optional (keeps a DIRECT beacon link): task `powershell -c Get-SmbShare` via `/cmd` → E1 parent = beacon powershell;
+otherwise correlate by user/host/window + artifact hash (see §8b map).
 Rollback: delete `C:\ProgramData\found_shares.txt`.
 
 ## 4. S6 — target decision → `ART-04-02` (C2 host, orchestration)
@@ -208,6 +211,27 @@ Elastic (FS01): E1 rundll32 (same ProcessGuid as S8b), **E7 ImageLoad `C:\C0015\
 `192.168.50.1:8080` (record ProcessGuid attribution).
 **Acceptance: server-side `ART-07-01` receipt + FS01 callback telemetry in the same run — a marker/DLL present is
 NOT sufficient.** Injection (S9b) is analysis/replay only; never performed.
+
+## 8b. Chain correlation map — S1→S9 (phase 1 + phase 2 in one pass)
+
+| Hop | Link points (same run_id) | Correlation tier |
+|---|---|---|
+| S1→S2→S3 (phase 1, re-run this pass) | WINWORD `…3808` → mshta `…3908` → regsvr32 `…3c08` → beacon `…3d08` (ProcessGuid, WS01) | DIRECT EVENT LINK |
+| S3→S4 | beacon `…3d08` → cmd/net/tasklist children `…3f08/4008/…` (OP-CMD or batch; verify `command_line`) | DIRECT EVENT LINK |
+| S4→S5 | net view/Get-SmbShare. **Beacon-run** (`/cmd`) → E1 parent = beacon (DIRECT); **operator-interactive** → correlate by `user.name`+host+window + `ART-04-01` hash (SUPPORTED) | DIRECT / SUPPORTED |
+| S5→S6 | orchestrator reads `ART-04-01` → `ART-04-02` (selection_reason from content) | SUPPORTED PHASE HANDOFF |
+| S6→S7 | `ART-04-02.auth.account` → S7 controls | SUPPORTED |
+| S7 (plant it.admin on WS01) | WS01 S4648 (explicit) → (next phase) FS01 S4624 T3 + S4672 on **FS01 LogonId** | DIRECT per key pair; never 4648↔4624 by LogonId |
+| S7b (harvest) | E10 lsass (elevated mimikatz, runas-parented). Correlate to S7/DFIR-line by S4648 + identity + window — NOT ProcessGuid-linked to the beacon | SUPPORTED / TEMPORAL-CONTEXTUAL |
+| S7b→S8 | same identity anchor (runas it.admin) → S4648 again + FS01 4624/4672 | SUPPORTED |
+| S8 (WMI) | WS01 S4648 → FS01 S4624/4672 (FS01 LogonId) + FS01 E1 `wmiprvse → rundll32` + DLL hash = `ART-06-01` (4-gate) | DIRECT per key pair |
+| S8→S9 | FS01 rundll32 **same ProcessGuid** → E7 (hash = ART-06-01) → E3 `:8080` → server `ART-07-01` receipt | DIRECT + SUPPORTED (receipt) |
+
+Continuity rules: **same `run_id` threads S1→S9** (ledger + every artifact + c2sim `run=`); ProcessGuid joins stay
+same-host; the phase-1-verified `RUN-20261001-01` is a SEPARATE run and is never merged with this pass's chain (per
+`docs/correlation-architecture.md` §4 — events from different runs are never merged; cross-run comparison is
+ledger-level only, e.g. E7 hash parity `CEF7879F…`/`ART-01-03`). Steps S5/S7/S7b/S8 are operator-driven and
+correlate at `SUPPORTED`/`DIRECT` via auth anchors + artifacts, not via a single ProcessGuid spine.
 
 ## 9. Verify the phase-2 run (detection side)
 
