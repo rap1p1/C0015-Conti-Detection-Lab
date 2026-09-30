@@ -86,6 +86,10 @@ python scripts/lab_tools.py artifact-new ART-04-02 RUN-20260928-02 6 8 --payload
 
 ## 8. S7 — auth controls (WS01; password at prompt only)
 
+**Why:** validate WHICH identity may reach FS01 before the WMI pivot, and (key) plant the
+it.admin logon SESSION on WS01 so S7b's lsass dump can find it. A `net use IPC$` logon proves share/logon
+rights but does NOT change the WS01 process token — the identity for S8 is re-supplied explicitly by runas.
+
 ```powershell
 net use \\FS01\IPC$ /user:C0015\duc.user *      # A. denied  (S4625)
 net use \\FS01\IPC$ /user:C0015\it.admin *      # B. allowed (S4624 T3 + S4672)  ← plants it.admin on WS01
