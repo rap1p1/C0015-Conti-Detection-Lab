@@ -64,6 +64,16 @@ on WS01 created **before the attack pass** ([LAB-SEED]; the attack narrative sim
 With this seed, the S7b mimikatz dump being self-consistent and finds it.admin in real lsass data — no need to
 pretend the operator already knew the password.
 
+> **What actually survives in lsass (why real machines DO hold admin creds):**
+> - **Live logon sessions** (RDP connected, admin service/Scheduled Task, open `runas`) — full NTLM+TGT; the seed
+>   models exactly this ("RDP admin session left open").
+> - **Kerberos TGTs** cached for their lifetime (~10 h default) even after logoff → `sekurlsa::tickets` /
+>   `kerberos::tickets` (overpass-the-hash material), no plaintext needed.
+> - Legacy **WDigest plaintext** after logoff (Win7/2008 default; removed-by-default on 8.1+/10).
+> - Outside lsass: registry **cached logons** (`cachedump`) — survives reboot, but is not the LSASS path.
+> In short: "admin cred in lsass" ≈ a session/ticket/token that is *still living at some level* at dump time —
+> never a fully-closed-and-rebooted session.
+
 WS01 (operator as IT; keep open until after S7b):
 ```powershell
 runas /user:C0015\it.admin "cmd /c ping -t 127.0.0.1"   # type-8 logon; password at prompt; Ctrl+C at cleanup
