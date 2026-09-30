@@ -18,6 +18,7 @@ Endpoints:
   POST /cmd?session=<token>       enqueue a raw benign command (body = command string)
   POST /runbook?session=<token>&name=<killchain>  enqueue an ordered kill-chain template (scripts/runbooks/)
   POST /result?session=&task=     task result (bounded by --max-result); server logs + receipt
+  GET  /sessions                   operator console: active lab sessions (full tokens, queue/task state)
   GET  /checkin?stage=&host=      legacy 1-shot checkin (phase4-rundll32), returns 204
 
 On a valid phase7-session2 registration the server writes ART-07-01 receipt
@@ -210,6 +211,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlsplit(self.path)
         q = parse_qs(parsed.query)
+        if parsed.path == "/sessions":
+            # operator console: active lab sessions (lab-internal; tokens are lab
+            # session tokens, never credentials). Nothing secret is echoed.
+            lst = [{"token": t, "stage": s.get("stage"), "host": s.get("host"),
+                    "ip": s.get("ip"), "registered_utc": s.get("registered_utc"),
+                    "queue_len": len(s.get("queue", [])), "tasks_done": len(s.get("tasks_done", []))}
+                   for t, s in STATE["sessions"].items()]
+            return self._send(200, json.dumps(lst).encode())
         if parsed.path.startswith("/dl/"):
             name = parsed.path.split("/dl/", 1)[1]
             if name not in DL_ALLOWLIST:
