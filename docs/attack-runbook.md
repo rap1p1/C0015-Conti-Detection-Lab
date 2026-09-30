@@ -35,6 +35,30 @@ All steps are benign surrogates on owned VMs. Read `docs/implementation-plan.md`
    Set-MpPreference -DisableIOAVProtection $true
    ```
    Re-enable after the run; record the disable as an observable (Defender Operational 5001/5010/1151).
+
+   **Permanent lab disable (all lab VMs, operator-chosen).** Order matters:
+   ```powershell
+   # 1) TAMPER PROTECTION OFF first (GUI: Windows Security > Virus & threat protection >
+   #    Manage settings > Tamper Protection = Off) — otherwise Defender resets the prefs.
+   # 2) Policy-level disable (survives reboot):
+   New-Item -Force -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender'
+   Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender' DisableAntiSpyware 1 -Type DWord
+   New-Item -Force -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'
+   Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' DisableRealtimeMonitoring 1 -Type DWord
+   Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' DisableBehaviorMonitoring 1 -Type DWord
+   Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' DisableOnAccessProtection 1 -Type DWord
+   Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' DisableScanOnRealtimeEnable 1 -Type DWord
+   Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender' DisableIOAVProtection 1 -Type DWord
+   # 3) Prefs level + cloud/scripting off:
+   Set-MpPreference -DisableRealtimeMonitoring $true -DisableIOAVProtection $true -DisableBehaviorMonitoring $true `
+     -DisableScriptScanning $true -DisableBlockAtFirstSeen $true -DisableCloudProtection $true -MAPSReporting 0 -SubmitSamplesConsent 0
+   # 4) Verify on every VM:
+   Get-MpComputerStatus | Select-Object AMRunningMode, RealTimeProtectionEnabled, AntivirusEnabled, IsTamperProtected
+   #    expect AMRunningMode=Passive/Off, RealTimeProtectionEnabled=False
+   ```
+   (Optional persistence if a policy refresh re-enables it: a Startup scheduled task running step 3 as SYSTEM.)
+   Re-enable for hygiene after the campaign: remove the policy keys, re-enable Tamper Protection,
+   `Update-MpSignature`. DC01: the campaign never touches it — disable only for uniform lab telemetry.
 5. Build toolchain on the attacker host: mingw (`apt install gcc-mingw-w64-x86-64` on Kali).
 6. Pull the latest repo (`git pull`); HEAD should match what you are about to run.
 

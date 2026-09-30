@@ -12,6 +12,7 @@ Event families:
   - E7  image load      : ImageLoaded under C:\Users\Public\C0015 / C:\C0015 / C:\Tools.
   - E11 file create     : TargetFilename under C:\Users\Public\C0015.
   - E3  network connect : DestinationIp 192.168.50.1 with port 8000/8080 (C2 channel).
+  - E10 process access  : TargetImage lsass.exe / lab-target.exe (S7b credential-access study).
 
 .PARAMETER ConfigPath  Path to the run config (default C:\Users\Public\C0015\config.ini).
 .PARAMETER SinceMinutes Look-back window (default 30).
@@ -27,7 +28,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $since = (Get-Date).AddMinutes(-$SinceMinutes)
 $pub = 'C:\Users\Public\C0015'
-$chainNames = 'WINWORD\.EXE|cmd\.exe|mshta\.exe|regsvr32\.exe|powershell\.exe|net\.exe|net1\.exe|nltest\.exe|tasklist\.exe|ping\.exe|conhost\.exe'
+$chainNames = 'WINWORD\.EXE|cmd\.exe|mshta\.exe|regsvr32\.exe|rundll32\.exe|powershell\.exe|net\.exe|net1\.exe|nltest\.exe|tasklist\.exe|ping\.exe|whoami\.exe|wmic\.exe|mimikatz\.exe|conhost\.exe'
 
 function Get-IniValue {
     param([string]$Path,[string]$Section,[string]$Key)
@@ -67,7 +68,7 @@ if (-not $OutPath) { $OutPath = Join-Path $PSScriptRoot "../../evidence/run-ledg
 $OutPath = [IO.Path]::GetFullPath($OutPath)
 
 $ch = 'Microsoft-Windows-Sysmon/Operational'
-$families = @{ 'process_create' = 1; 'image_load' = 7; 'file_create' = 11; 'network' = 3 }
+$families = @{ 'process_create' = 1; 'image_load' = 7; 'file_create' = 11; 'network' = 3; 'process_access' = 10 }
 $result = @{}
 foreach ($name in $families.Keys) {
     $id = $families[$name]
@@ -89,6 +90,9 @@ foreach ($name in $families.Keys) {
             } elseif ($id -eq 11) {
                 $tf = [string]$fields['TargetFilename']
                 $take = ($tf -match [regex]::Escape($pub))
+            } elseif ($id -eq 10) {
+                $ti = [string]$fields['TargetImage']
+                $take = ($ti -match 'lsass\.exe$') -or ($ti -match 'lab-target\.exe$')
             } elseif ($id -eq 3) {
                 $dip  = [string]$fields['DestinationIp']
                 $dport = [string]$fields['DestinationPort']
@@ -124,4 +128,4 @@ $dir = Split-Path $OutPath -Parent
 if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
 Set-Content -LiteralPath $OutPath -Value ($out | ConvertTo-Json -Depth 8) -Encoding UTF8
 Write-Output "structured evidence written: $OutPath"
-Write-Output "  E1=$($('' + $result.process_create.Count)) E7=$($('' + $result.image_load.Count)) E11=$($('' + $result.file_create.Count)) E3=$($('' + $result.network.Count)) run_id=$run_id"
+Write-Output "  E1=$($('' + $result.process_create.Count)) E7=$($('' + $result.image_load.Count)) E11=$($('' + $result.file_create.Count)) E3=$($('' + $result.network.Count)) E10=$($('' + $result.process_access.Count)) run_id=$run_id"
