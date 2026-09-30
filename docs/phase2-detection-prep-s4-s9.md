@@ -104,8 +104,9 @@ on WS01; `payloads/lsass/c0015_mimikatz_surrogate.c` is the **fallback** only. *
 beacon-run** (an elevated token is required):
 `runas /user:C0015\it.admin "C:\Tools\mimikatz.exe sekurlsa::logonpasswords"`.
 Precondition: `it.admin` ∈ WS01 local Administrators (SeDebugPrivilege) and an **it.admin logon session anchored
-on WS01** — credential material lives in the lsass of the machine where the logon occurred, so S7 (net-use/runas)
-plants it before S7b harvests it (see playbook fidelity note).
+on WS01 that is ALIVE at dump time** — the **[LAB-SEED]** step (playbook 1a) keeps a real it.admin session open
+(`runas ... ping -t`), so credential material is genuinely present in WS01's lsass when mimikatz runs; S7's
+net-use B can additionally refresh it. Never assume the operator "knew" the password — the dump is the source.
 
 | Telemetry | Host | Key |
 |---|---|---|

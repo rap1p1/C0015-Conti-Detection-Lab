@@ -56,6 +56,21 @@ powershell -ExecutionPolicy Bypass -File .\install_macro_docm.ps1 -MacroSource .
 Verify: `c2sim.log` shows `register stage=phase3 host=WS01 ok=True (registered)` (ONE, dedup otherwise);
 markers `b64-marker.txt`, `js-marker.txt`, `c0015-comparefor.jpg`, `dll-executed.txt`.
 
+## 1a. IT logon seed (S0) — "an admin logged into WS01 in the past" (mythbusts "how did the admin cred get in lsass?")
+
+Lab limitation: lsass only holds logon sessions that are ALIVE at dump time (a session ends when all its processes
+exit; nothing survives a reboot). So the "past admin logon" is materialised as a real, KEPT-ALIVE it.admin session
+on WS01 created **before the attack pass** ([LAB-SEED]; the attack narrative simply assumes IT logged on earlier).
+With this seed, the S7b mimikatz dump being self-consistent and finds it.admin in real lsass data — no need to
+pretend the operator already knew the password.
+
+WS01 (operator as IT; keep open until after S7b):
+```powershell
+runas /user:C0015\it.admin "cmd /c ping -t 127.0.0.1"   # type-8 logon; password at prompt; Ctrl+C at cleanup
+# or: RDP/interactive console session logged in as it.admin; or a scheduled task as it.admin
+```
+Verify: WS01 **S4648** + **E1 cmd.exe (parent = runas)**, process stays alive.
+
 ## 2. S4 — operator-driven discovery (WS01, parent = beacon session-1 PID)
 
 C2-SIM v3 lets the operator **drive the beacon like a real C2 operator**: enqueue any benign command via

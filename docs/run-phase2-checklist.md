@@ -39,6 +39,21 @@ Copy-Item payloads/beacon/c0015_beacon.ps1 stage\ws01\
 Copy-Item payloads/config/c0015-phase7.example.ini stage\ws01\config-phase7.ini   # edit run_id inside
 ```
 
+## 2b. IT logon seed (S0) — "an admin logged into WS01 in the past" (WS01)
+
+**Why:** lsass keeps only the logon sessions ALIVE at dump time. To let the later mimikatz dump genuinely find
+`it.admin` (no assumption we "know" the password), a real it.admin session must exist on WS01 and stay alive
+until S7b. This is the **[LAB-SEED]** the attack narrative assumes ("IT logged on before the operation");
+real sessions -> real `sekurlsa` output.
+
+WS01 (operator playing IT; **keep the window OPEN** until after S7b, Ctrl+C at cleanup):
+```powershell
+# keep-alive runas session (type-8 logon); password at prompt
+runas /user:C0015\it.admin "cmd /c ping -t 127.0.0.1"
+```
+Alternatives: leave an RDP/interactive console logged in as it.admin, or a scheduled task running as it.admin.
+Verify the seed (Elastic WS01): **S4648** (explicit credential) + **E1 cmd.exe (parent = runas)**; session PID alive.
+
 ## 3. Re-establish session 1 (WS01, duc.user)
 
 ```powershell
