@@ -11,6 +11,7 @@
     { "cmd": "net view /all /domain", "pause": 2 },
     { "cmd": "net view /all time", "pause": 2 },
     { "cmd": "ping -n 1 FS01", "pause": 3 },
-    { "cmd": "net view \\\\FS01", "pause": 2 }
+    { "cmd": "net view \\\\FS01", "pause": 2 },
+    { "cmd": "powershell -NoProfile -Command \"Get-SmbShare | Out-File C:\\ProgramData\\found_shares.txt\"", "pause": 2 }
   ]
 }

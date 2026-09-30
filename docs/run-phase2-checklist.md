@@ -75,19 +75,23 @@ $tok   # S1-<16hex> — used for /cmd and /runbook below
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri "http://192.168.50.1:8080/runbook?session=$tok&name=c0015-phase2"
-Get-Content c2sim.log -Tail 30      # watch 10x task=OP-CMD ... result ... ok=True (accepted)
+Get-Content c2sim.log -Tail 30      # watch 11x task=OP-CMD ... result ... ok=True (accepted)
 ```
 Optional micro-manage: `Invoke-RestMethod -Method Post -Uri ".../cmd?session=$tok" -Body "net view /all"`.
 Verify (Elastic): E1 children of the beacon powershell; each `process.command_line` matches the tasked command.
 Collect evidence: `powershell -ExecutionPolicy Bypass -File .\collect_ws01_evidence.ps1 -SinceMinutes 30 -OutPath C:\Users\Public\c0015-evidence.json`
 
-## 6. S5 — share artifact (WS01 + C2 host)
+## 6. S5 — share probe & artifact (BEACON-RUN from the C2 host; WS01 executes, like a real operator)
 
+The runbook already tasks `net view \\FS01` (entry 10) and the ShareFinder write (entry 11) — if you played it in
+step 5, `C:\ProgramData\found_shares.txt` already exists on WS01. Otherwise task them now (remote, from C2):
 ```powershell
-net view \\FS01
-Get-SmbShare | Out-File C:\ProgramData\found_shares.txt          # mirror path ([LAB ASSUMPTION])
-# optional DIRECT link: task it via /cmd instead ("powershell -c Get-SmbShare ...")
+Invoke-RestMethod -Method Post -Uri "http://192.168.50.1:8080/cmd?session=$tok" -Body "net view \\FS01"
+Invoke-RestMethod -Method Post -Uri "http://192.168.50.1:8080/cmd?session=$tok" -Body "powershell -NoProfile -Command `"Get-SmbShare | Out-File C:\ProgramData\found_shares.txt`""
 ```
+Verify (Elastic WS01): E1 with **parent = beacon powershell** (net.exe / powershell child) + E11
+`found_shares.txt` → DIRECT EVENT LINK. (Interactive fallback only if the beacon is unavailable — that drops the
+link tier to SUPPORTED.)
 ```powershell
 # C2 host
 python scripts/lab_tools.py artifact-new ART-04-01 RUN-20260928-02 5 6 --payload stage/ws01/found_shares.json -o stage/ws01/art04_01.json

