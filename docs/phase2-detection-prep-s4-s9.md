@@ -108,6 +108,11 @@ on WS01 that is ALIVE at dump time** — the **[LAB-SEED]** step (playbook 1a) k
 (`runas ... ping -t`), so credential material is genuinely present in WS01's lsass when mimikatz runs; S7's
 net-use B can additionally refresh it. Never assume the operator "knew" the password — the dump is the source.
 
+**Outcome:** the dump yields it.admin's **NTLM hash** (+ TGT) from the seeded live session. The pivot credential
+is then REALLY obtained from this dump: crack the NTLM to plaintext (`hashcat -m 1000` / `john --format=nt`) and
+use it at the S8 prompt, or Pass-the-Hash (`sekurlsa::pth`). Values stay in operator memory / transient
+attacker-host files (deleted); never in repo/ledger/logs.
+
 | Telemetry | Host | Key |
 |---|---|---|
 | S4648 (explicit credential, runas) | WS01 | account; password at prompt only |

