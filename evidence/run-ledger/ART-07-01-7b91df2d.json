@@ -14,9 +14,10 @@
       "T-DISCOVER-CORPUS"
     ],
     "evidence_expected": [
-      "FS01 E1 cmd/powershell (console-loader host) parent wmiprvse.exe (WMI pivot)",
-      "FS01 E7 ImageLoad c0015_143_surrogate.dll (loaded by console-loader; rundll32 GUI host cannot init in WMI session-0)",
-      "FS01 E3 callback to C2-SIM"
+      "FS01 E7 ImageLoad c0015_143_surrogate.dll by rundll32.exe pid=5872 (r=94752, sha == ART-06-01 cbcd2a8b...)",
+      "FS01 E1 powershell beacon pid=6616 parent.entity_id == rundll32 (E7) entity (rundll32 -> 143.dll -> LabEntry -> beacon)",
+      "FS01 E11 c0015_143-executed.txt (03:04:11) + E3 callback -> 192.168.50.1:8080 (03:04:15) + server receipt",
+      "FS01 E1 WmiPrvSE -> cmd/powershell diag + s8b_loader (WMI process-creation verified; WMI-created rundll32-with-DLL blocked, ReturnValue 9 - win-station)"
     ]
   },
   "payload_sha256": "DEC9F02F974FC9CA51409B7ED50571597D666B1CCE4B72E3A024C7EE15D58E0E"

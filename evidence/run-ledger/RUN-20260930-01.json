@@ -113,7 +113,7 @@
         { "kind": "c2sim-op-cmd", "detail": "WMI pivot enqueued on the WS01 elevated beacon; FS01 callback follows (see S9)" }
       ],
       "rollback_status": null,
-      "notes": "T1047 WMI process creation kept. ADAPTATION: rundll32.exe (GUI subsystem) returns ReturnValue=9 'Path not found' for ANY DLL when created via WMI process call create (session-0 has no interactive window station; proven with user32.dll,MessageBeep; rundll32.exe alone returns 0). Host adapted to a console-loader PowerShell script (P/Invoke kernel32 LoadLibrary/GetProcAddress) that loads the SAME c0015_143_surrogate.dll and calls LabEntry; launched by WMI 'cmd.exe /c powershell -File C:\\C0015\\s8b_loader.ps1'. Conditions: it.admin admin on FS01, WMI firewall inbound open (TCP 135 + RPC dynamic), C:\\C0015 ACL Everyone:F."
+      "notes": "T1047 WMI process creation executed + VERIFIED (E1 WmiPrvSE->cmd/powershell diag 03:03/03:06 + s8b_loader 03:11:36). WMI-created rundll32-with-DLL WAS blocked: rundll32 (GUI subsystem) returns ReturnValue=9 'Path not found' for ANY DLL via process call create in session-0 (proven user32.dll,MessageBeep=9; rundll32-alone=0) - window-station constraint. The working rundll32->143.dll (E7 r=94752, sha parity ART-06-01) ran interactively on the FS01 console (powershell pid=6700, open since 00:49) at 03:04:11 and produced the beacon/callback/receipt; the WMI console-loader (s8b_loader.ps1, LoadLibrary+LabEntry of the SAME 143.dll) is the WMI-side completion at 03:11:36. Conditions: it.admin admin FS01, WMI firewall inbound open (TCP 135 + RPC dynamic), C:\\C0015 ACL Everyone:F."
     },
     {
       "stage": "S9",
@@ -128,7 +128,7 @@
         { "kind": "receipt", "utc": "2026-10-01T03:04:13Z", "detail": "ART-07-01-7b91df2d.json written (run_id RUN-20260930-01, host FS01, token S1-0ec401bd7b91df2d, payload sha DEC9F02F...)" }
       ],
       "rollback_status": null,
-      "notes": "Second session established on FS01; server-side receipt written. Evidence expected: FS01 E1 cmd/powershell (console-loader) parent wmiprvse.exe; E7 ImageLoad c0015_143_surrogate.dll (by loader host; rundll32 GUI host cannot init in WMI session-0); E3 callback to 192.168.50.1:8080."
+      "notes": "Second session established on FS01. VERIFIED on Elastic: E7 ImageLoad c0015_143_surrogate.dll by rundll32.exe pid=5872 (r=94752, sha cbcd2a8b... == ART-06-01); beacon powershell pid=6616 parent.entity_id == rundll32 E7 entity; E11 c0015_143-executed.txt (03:04:11); E3 callback fs01 -> 192.168.50.1:8080 (03:04:15); server receipt ART-07-01-7b91df2d.json (03:04:13Z). WMI process-creation verified (diag + s8b_loader E1s); WMI-created rundll32-with-DLL blocked (ReturnValue 9, window-station)."
     }
   ],
   "chain": {
