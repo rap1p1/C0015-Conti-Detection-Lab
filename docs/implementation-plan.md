@@ -63,7 +63,7 @@ standard run-id field.
 | `art04_01` | Discovery result from S5: readable share list (`ART-04-01`), with file path and SHA-256. |
 | `art04_02` | Target manifest from S6 (`ART-04-02`): target host, account, allowed actions, selection reason derived from `art04_01`. |
 | `art05_01` | Auth evidence bundle from S7 (`ART-05-01`): S4648/S4624/4672 references + LogonId. **Evidence only — never control input.** |
-| `art06_01` | Remote-process evidence from S8 (`ART-06-01`): FS01 S4624/4672 + E1 `wmiprvse -> rundll32` + DLL hash + LogonId. |
+| `art06_01` | Remote-process evidence from S8 (`ART-06-01`): FS01 S4624/4672 + E1 `wmiprvse -> cmd -> powershell (console-loader)` + DLL hash + LogonId (rundll32 host not loadable via WMI session-0 — run `RUN-20260930-01`). |
 | `session2` | C2-SIM session-2 token and the `ART-07-01` **server-side** registration receipt from S9 (stage `phase7-session2`). |
 | `art08_01` | Staging manifest from S10 (`ART-08-01`): file list with SHA-256 and sizes. |
 | `art09_01[r1]` | Sink receipt for transfer round 1 from S11a (`ART-09-01`). |
@@ -128,13 +128,13 @@ presence on the lab builds; loopback S5145 behavior; Kali clock skew; post-2026-
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | S1 Entry | User-execution entry | WS01 `duc.user` Medium | `test.docm` benign macro (**Word install: pending verification -> M-1 gate**) | `run_id` | Manual macro trigger (Alt+F8) -> VBA `Shell()` -> cmd | E1 chain + file drop | S2 | E1 WINWORD -> cmd; E11 | ProcessGuid (WS01); run_id | Macro really runs (side-effect file) + E1 + run_id | Macro does not fire -> `BLOCKED BY ENVIRONMENT`, stop | Close document, delete drop files, restore Desktop |
 | S2 Bootstrap | HTA -> HTTP -> regsvr32 DLL | WS01 `duc.user` | mshta, regsvr32, HTTP host:8000; HTA benign **JS + VBS + base64** (T1027 / T1059.005 / T1059.007); DLL masqueraded `.jpg` (**T1036**) | S1 chain | HTA GET -> write DLL `c0015-comparefor.jpg` -> regsvr32 -> export runs (base64 decoded via MSXML `bin.base64`; HTA JScript has no `atob()`) | DLL + marker + hash continuity | S3 | E1 cmd -> mshta -> regsvr32; E7; E11; E3 (gap); server log | ProcessGuid; SHA-256 | E1 + E7 + E11 chain on same ProcessGuid; Kali<->WS01 hash matches; E3 gap recorded (**EID 7 needs scoped deploy — M-1**) | E7 missing -> `SENSOR GAP`, stop; mshta hop `UNRESOLVED` | Delete `C:\Users\Public\C0015\*`, stop HTTP service |
-| S3 Session 1 | Bazar-like foothold | WS01 `duc.user` (session1) | C2-SIM v3 + benign agent (produced by S2) | S2 bootstrap | Public-IP mock -> register session1 -> task loop (dynamic tasking v3) | `session1` token + server receipt S1 | S4 | E1 agent; E3/E22; server log | token; host; time | Server-side receipt + at least 1 callback cycle + run_id | No receipt -> `PARTIAL`, stop S4 | Kill agent, delete token file |
+| S3 Session 1 | Bazar-like foothold | WS01 `duc.user` (session1) | C2-SIM v3.2 + benign agent (produced by S2) | S2 bootstrap | Public-IP mock -> register session1 -> task loop (dynamic tasking; loop_count=0 = infinite beacon) | `session1` token + server receipt S1 | S4 | E1 agent; E3/E22; server log | token; host; time | Server-side receipt + at least 1 callback cycle + run_id | No receipt -> `PARTIAL`, stop S4 | Kill agent, delete token file |
 | S4 Discovery | Recon | WS01 session1 | cmd, net, nltest, tasklist, ping | `session1` | Exact DFIR commands (tasks from C2-SIM): `tasklist /s`; `net group "domain admins" /dom`; `net localgroup "administrator"`; `nltest /domain_trusts /all_trusts`; `net view /all /domain`; `net view /all time` (T1124); `ping` (T1018) | Discovery telemetry | S5 | E1 (parent = agent); E3 (connection) | parent ProcessGuid | At least 4 behavior families DETECTED (C1) + run_id | Empty command results (small lab) -> record limitation | — |
 | S5 Share artifact | Structured discovery output | WS01 session1 | net view / Get-SmbShare (read-only) | S4 | Enumerate shares -> `found_shares.txt` + `ART-04-01` | `art04_01` (hash) | S6 | E1 powershell; E11; S5145 (if probe) | file path + SHA-256 | Artifact exists, lists FS01\Finance readable + hash + run_id | No readable share -> S6 creates no manifest -> **chain stops** | Delete artifact |
 | S6 Decision | Target selection from artifact | Kali / host orchestrator | Orchestrator (script) | `art04_01` | **Reads `art04_01`** -> rule (readable + high-value) -> writes `ART-04-02` | `art04_02` (target = FS01, account, actions, reason) | S7 | Ledger step (no endpoint event) | run_id; artifact id | `art04_02.target.host` derived from `art04_01` content (log reason); no hard-code | No valid target -> downstream `NOT RUN` | Delete manifest |
 | S7 Auth controls | Determine permitted identity for WMI (validation only) | WS01 -> FS01 `it.admin` (per-run handle; **no secret recorded**) | Native logon controls (**explicit credential**) | `art04_02.auth` | Three controls with explicit credential: `duc.user` -> denied, `it.admin` -> allowed, revoked -> denied; **S7 grants no identity to any process** (`IPC$` / logon session != process token) | `art05_01` (LogonId + event refs — **EVIDENCE**, not control input for S8) | S8 (reads allowed account from `art04_02`; S8 uses explicit credential itself) | S4648; S4624 T3; S4672; S4625 | LogonId; user SID | denied/allowed/denied correct; LogonId linked; no secret in ledger/artifact/log | S4625 absent -> `INGEST/MAPPING GAP`, stop | Revoke account (control) |
-| S8 WMI exec + tool handoff | Remote process on target | WS01 -> FS01 `it.admin` | 8a: SMB `\\FS01\C$\C0015\` copy (T1570 surrogate, IPC$ session); 8b: **WMI with explicit credential** — `runas it.admin -> wmic` (keep wmic.exe) OR `Invoke-CimMethod -Credential` (**never current process token = duc.user**) | `art04_02` + **explicit credential** + DLL (C2-SIM `/dl` or staging) | 8a copy `c0015_143_surrogate.dll` -> FS01; 8b WMI under `it.admin` identity (S4648 explicit cred) -> rundll32 runs on FS01 (**requires it.admin local admin on FS01 — verify M-1**) | `art06_01` (FS01 E1 `wmiprvse -> child` + DLL hash + LogonId) | S9 | S4648 (explicit cred WS01); S5140/S5145 (C$); E11 FS01; S4624/4672; S4688; E1 `wmiprvse -> rundll32` | LogonId; ProcessGuid | 4-gate: process on FS01 / identity / which process + DLL hash / callback at S9, same run_id; **identity = S4648 + LogonId matching the selected account**; **transfer has its own evidence (8a), not inferred from process execution** | wmic/runas unavailable -> CIM `-Credential` recorded `PARTIAL` (different telemetry); FS01 E1 missing -> `SENSOR GAP`, stop | Delete DLL on FS01; revoke handle |
-| S9 Session 2 | Second foothold | FS01 `it.admin` (WMI context) | C2-SIM v3 (register/task/result) | `art06_01` | DLL (loaded by rundll32) registers session2 -> task `T-DISCOVER-CORPUS` -> result; register stage `phase7-session2` -> C2-SIM writes `ART-07-01` **server-side** receipt | `ART-07-01` receipt (server-side) | S10 | E1; E7; E11; E3; server receipt | token; host; LogonId | Receipt + callback telemetry on FS01 + S8 evidence; **marker alone NOT sufficient** | No valid receipt -> `PARTIAL`, **not called second foothold**, S10 changes context and records; **injection NOT performed — see S9b** | Kill rundll32, delete token |
+| S8 WMI exec + tool handoff | Remote process on target | WS01 -> FS01 `it.admin` | 8a: SMB `\\FS01\C$\C0015\` copy (T1570 surrogate, IPC$ session); 8b: **WMI with explicit credential** — `wmic process call create` under `it.admin` (**never current process token = duc.user**) | `art04_02` + **explicit credential** + DLL (staging) + console-loader `C:\C0015\s8b_loader.ps1` | 8a copy `c0015_143_surrogate.dll` -> FS01; 8b WMI `cmd.exe /c powershell -File C:\C0015\s8b_loader.ps1` -> loads the DLL + calls `LabEntry` on FS01. **rundll32 host is NOT loadable via WMI in session-0 (ReturnValue=9, verified run `RUN-20260930-01`); WMI pivot (T1047) preserved with the console-loader host. Requires it.admin local admin on FS01 (lab config), WMI firewall inbound open, ASR rule off (REQUIRED — no longer an M-1 'unknown')** | `art06_01` (FS01 E1 `wmiprvse -> cmd -> powershell` + DLL hash + LogonId) | S9 | S4648 (explicit cred WS01); S5140/S5145 (C$); E11 FS01; S4624/4672; S4688; E1 `wmiprvse -> cmd -> powershell (loader)` | LogonId; ProcessGuid | 4-gate: process on FS01 / identity / which process + DLL hash / callback at S9, same run_id; **identity = S4648 + LogonId matching the selected account**; **transfer has its own evidence (8a), not inferred from process execution** | FS01 E1 missing -> `SENSOR GAP`, stop | Delete DLL + loader on FS01; revoke handle |
+| S9 Session 2 | Second foothold | FS01 `it.admin` (WMI context) | C2-SIM v3.2 (register/task/result) | `art06_01` | DLL (loaded by the console-loader host) registers session2 -> task `T-DISCOVER-CORPUS` -> result; register stage `phase7-session2` -> C2-SIM writes `ART-07-01` **server-side** receipt | `ART-07-01` receipt (server-side) | S10 | E1; E7; E11; E3; server receipt | token; host; LogonId | Receipt + callback telemetry on FS01 + S8 evidence; **marker alone NOT sufficient** | No valid receipt -> `PARTIAL`, **not called second foothold**, S10 changes context and records; **injection NOT performed — see S9b** | Kill loader/beacon, delete token |
 | S9b Injection study | Telemetry study E10/E8 (no execution) | Toy `lab-target.exe` only if separately approved | Fixtures / replay | — | Historical analysis + fixture E10/E8; toy/replay only with per-use user approval | Analysis note | — | E10/E8 fixtures (synthetic) | — | No system process touched; **no injection code in repo** | — | — |
 | S10 Collection/staging | Collect corpus + manifest | FS01 session2 | Corpus read + manifest | `session2` + `art04_02.allowed_actions` | Read `\\FS01\IT` (session2 = it.admin — T1039) + local lab-owned file (T1005); Finance read by duc.user at S4/S5 (verified, S5145) -> `ART-08-01` (file / SHA-256 / bytes) | `art08_01` | S11a | S5145 (loopback verify M-1); E11; E1 | file hash; bytes | Manifest <-> corpus match (count/bytes/hash) + run_id | S5145 does not fire (loopback) -> downgrade C4 to `CONTEXTUAL`, record | Delete staged copies |
 | S11a Transfer r1 | Exfil round 1 (mirror day 1) | FS01 -> sink at 192.168.50.1:8081 | p5_sink (repo mirror) | `art08_01` | POST `/ingest/c0015-p5` of allowlisted file (**chunked <= 512 B = DESIGN ONLY — needs sink v2 to reassemble + hash; currently a single POST <= 1024 B = T1030 approximation**) | `art09_01[r1]` receipt | S12 | E3 (caveat); sink log; receipt | hash; client ip | `receipt.hash == manifest.hash == allowlist` | 403 -> `PREVENTED`, record | — |
@@ -256,9 +256,10 @@ the gate fails. Real consumption: the explicit credential is consumed by runas/C
 proves the credential was exercised.
 
 **S8 -> S9 (WMI exec + tool handoff -> session 2).**
-Output: `ART-06-01` (FS01 E1 `wmiprvse -> rundll32` + DLL hash + LogonId) plus the DLL now on FS01. Consumed: at S9
-the DLL loaded by rundll32 registers session 2. Proven: 8a (tool handoff) carries its own evidence (S5140/S5145 +
-E11); 8b (execution) carries E1 `wmiprvse -> child`; identity is proven by S4648/S4624/4672 LogonId, **not** by the
+Output: `ART-06-01` (FS01 E1 `wmiprvse -> cmd -> powershell (console-loader)` + DLL hash + LogonId) plus the DLL now
+on FS01. Consumed: at S9 the DLL loaded by the console-loader host registers session 2. Proven: 8a (tool handoff)
+carries its own evidence (S5140/S5145 + E11); 8b (execution) carries E1 `wmiprvse -> child`; identity is proven by
+S4648/S4624/4672 LogonId, **not** by the
 8a `IPC$` session. The 4-gate closes only together: process on FS01 / identity / which process + DLL hash /
 callback at S9, same run_id. T1570 (transfer facet) and T1047 (execution facet) are two separate evidence lines.
 Stop: FS01 E1 missing -> `SENSOR GAP`; no valid receipt at S9 -> `PARTIAL`. Real consumption: S9 register/task/
@@ -330,12 +331,12 @@ to the WS01-side S4648 explicit-credential event.
 { "artifact_id": "ART-06-01", "run_id": "RUN-...", "created_utc": "...",
   "producer_phase": 6, "consumer_phase": 7,
   "target": { "host": "FS01" },
-  "remote_process": { "image": "rundll32.exe",
-                      "command_line": "rundll32.exe C:\\C0015\\c0015_143_surrogate.dll,LabEntry",
-                      "dll_sha256": "<sha256>" },
+  "remote_process": { "image": "powershell.exe (console-loader; rundll32 host not loadable via WMI session-0)",
+                      "command_line": "cmd.exe /c powershell -NoProfile -ExecutionPolicy Bypass -File C:\\C0015\\s8b_loader.ps1",
+                      "dll_sha256": "<sha256 of c0015_143_surrogate.dll>" },
   "identity": { "logon_id": "<LogonId>", "account": "C0015\\it.admin" },
   "evidence_links": ["WS01 S4648 explicit credential", "FS01 S4624 Type 3", "FS01 S4672",
-                     "FS01 S4688", "FS01 E1 wmiprvse -> rundll32"] }
+                     "FS01 S4688", "FS01 E1 wmiprvse -> cmd -> powershell (loader)"] }
 ```
 
 ### `ART-07-01` session-2 registration receipt (server-side C2-SIM — mandatory)
@@ -343,8 +344,8 @@ to the WS01-side S4648 explicit-credential event.
 ```json
 { "artifact_id": "ART-07-01", "run_id": "RUN-...", "server": "192.168.50.1:8080",
   "client_ip": "192.168.50.30", "host": "FS01", "stage": "phase7-session2",
-  "session_token": "S2-<sha256-16hex>", "registered_utc": "...", "task_ids": ["T-DISCOVER-CORPUS"],
-  "evidence_links": ["FS01 E1 rundll32 (parent wmiprvse)", "FS01 E7 ImageLoad", "FS01 E3 -> 192.168.50.1:8080"] }
+  "session_token": "S1-<sha256-16hex>", "registered_utc": "...", "task_ids": ["T-DISCOVER-CORPUS"],
+  "evidence_links": ["FS01 E1 cmd/powershell (console-loader, parent wmiprvse)", "FS01 E7 ImageLoad", "FS01 E3 -> 192.168.50.1:8080"] }
 ```
 
 Closure of S9 requires this server-side receipt plus callback telemetry; a marker on FS01 is auxiliary and never
@@ -373,7 +374,7 @@ The accepted hash must equal the manifest hash and the sink allowlist; a mismatc
 | M | Scope | Input | Actions | Output | Gate (pass only on) |
 |---|---|---|---|---|---|
 | **M-0** | **Offline foundation** | Repo | Write run-ledger schema; `lab_tools` (artifact/manifest/receipt/scorecard); `c2sim_v2` (task allowlist + receipt); synthetic fixtures; tests | `evidence/run-ledger/*`, `scripts/lab_tools.py`, `scripts/c2sim_v2.py`, `scripts/fixtures/*`, `scripts/tests/test_offline.py` | `python scripts/tests/test_offline.py` green; fixtures all `synthetic: true`; schema forbids secrets |
-| **M-1** | **First lab slice: env verify + S1-S2 re-run** | VM access + user run approval | (1) Read-only env verify: **Word install state (gate S1)**; wmic presence + **explicit-credential WMI path confirmed working (runas it.admin / Invoke-CimMethod -Credential) — do not use the current token**; **it.admin local admin on FS01 (gate S8)**; audit policy (S4688/4778/4779); `winlog.logon.id` mapping; Sysmon version/config state + **pull live `C:\Tools\sysmon-c0015.xml` from WS01 for hash-reconcile against the repo + decide CAPTURE profile deployment (EID 7 needed for S2/S9)**; loopback S5145 behavior; clock Kali -> DC01; DC01 OS / FS01 NAT / Kali IP. (2) Re-run S1-S2 with run_id + ledger. (3) Resolve the mshta hop from raw E1 | `RUN-<id>` ledger (S1-S2) + env-verify checklist | E1 chain + **E7 hash (after scoped EID 7 deploy)** + run_id fully recorded; mshta hop resolved or `UNRESOLVED` with reason |
+| **M-1** | **First lab slice: env verify + S1-S2 re-run** | VM access + user run approval | (1) Read-only env verify: **Word install state (gate S1)**; wmic presence + **explicit-credential WMI path confirmed working (runas it.admin — do not use the current token)**; **it.admin local admin on FS01 AND WS01 (REQUIRED lab config, verified in run `RUN-20260930-01`)**; **ASR rule `d1e49aac-8f56-4280-b9aa-9936ba642ffc` OFF + realtime off + exclusions (C2/WS01/FS01); EnableLUA=0 on WS01 (+reboot); WMI firewall inbound on FS01**; audit policy (S4688/4778/4779); `winlog.logon.id` mapping; Sysmon version/config state + **pull live `C:\Tools\sysmon-c0015.xml` from WS01 for hash-reconcile against the repo + decide CAPTURE profile deployment (EID 7 needed for S2/S9)**; loopback S5145 behavior; clock Kali -> DC01; DC01 OS / FS01 NAT / Kali IP. (2) Re-run S1-S2 with run_id + ledger. (3) Resolve the mshta hop from raw E1 | `RUN-<id>` ledger (S1-S2) + env-verify checklist | E1 chain + **E7 hash (after scoped EID 7 deploy)** + run_id fully recorded; mshta hop resolved or `UNRESOLVED` with reason |
 | M-2 | S3 session 1 | C2-SIM (M-0) + benign agent | Deploy C2-SIM on the lab host; agent spawned by bootstrap; register/task loop | `session1` + receipt S1 | Receipt + at least 1 cycle + run_id |
 | M-3 | S4-S6 discovery -> decision | session1 | DFIR commands -> `ART-04-01` -> orchestrator -> `ART-04-02` | `art04_01/02` | Target derived from artifact (logged reason); C1 DETECTED |
 | M-4 | S7-S9 auth -> WMI -> session 2 | `art04_02` + credential handle | Controls x3 -> tool handoff C$ -> wmic/CIM -> register session2 | `art05_01`, `art06_01`, `ART-07-01` | 4-gate + receipt; NOT marker-only |
@@ -396,14 +397,11 @@ A `net use \\FS01\IPC$` session **does not change the WS01 process token**; it s
 must run under the `it.admin` identity:
 
 ```powershell
-# Primary — keeps wmic.exe telemetry (T1047); the password is entered at the prompt,
-# never on the command line or in logs:
-runas /user:C0015\it.admin "cmd /c wmic /node:FS01 process call create \"rundll32.exe C:\\C0015\\c0015_143_surrogate.dll,LabEntry\""
-
-# Alternate — explicit PSCredential (telemetry is powershell.exe, not wmic.exe -> record PARTIAL):
-$cred = Get-Credential C0015\it.admin
-Invoke-CimMethod -ClassName Win32_Process -MethodName Create -ComputerName FS01 -Credential $cred `
-  -Arguments @{ CommandLine = "rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry" }
+# WMI remote process (T1047). Direct rundll32+DLL via WMI is blocked by the session-0 window-station limit
+# (ReturnValue=9; verified run RUN-20260930-01) — load the SAME c0015_143_surrogate.dll via a console-loader:
+#   FS01: C:\C0015\s8b_loader.ps1 = P/Invoke kernel32 LoadLibrary/GetProcAddress -> LabEntry
+runas /user:C0015\it.admin "cmd /k wmic /node:FS01 process call create \"cmd.exe /c powershell -NoProfile -ExecutionPolicy Bypass -File C:\C0015\s8b_loader.ps1\""
+# (the password is entered at the prompt, never on the command line or in logs)
 ```
 
 Identity evidence: **WS01 S4648 (explicit credential) + FS01 S4624/4672 on the same LogonId matching the selected

@@ -140,20 +140,27 @@ under the explicit credential).
 |---|---|---|
 | S4648 explicit credential; E3 WS01→FS01 (DCOM 135/49396 etc.) | WS01 | E3 not proof of RPC; attribution record |
 | S4624 T3 + S4672 | FS01 | FS01 LogonId |
-| **S4688 (if audited) → E1 `wmiprvse.exe → rundll32.exe`** | FS01 | **primary process evidence** |
-| E7 (rundll32 load `C:\C0015\c0015_143_surrogate.dll`), E11 (staged DLL/token) | FS01 | hash = producer side |
+| **S4688 (if audited) → E1 `wmiprvse.exe → cmd.exe → powershell.exe` (console-loader host)** | FS01 | **primary process evidence** (run `RUN-20260930-01`: rundll32 host blocked by WMI session-0 — see §S8 note) |
+| E7 (loader-host load `C:\C0015\c0015_143_surrogate.dll`), E11 (staged DLL/token) | FS01 | hash = producer side |
 | S5140/5145 C$ copy (8a) | FS01 | transfer has its own evidence |
 
+> **S8 note (run `RUN-20260930-01`):** `rundll32.exe` (GUI subsystem) cannot load ANY DLL when created via WMI
+> `process call create` in a non-interactive session-0 (`ReturnValue=9`; no window station). The WMI pivot (T1047)
+> is kept but the SAME `c0015_143_surrogate.dll` is loaded by a **console-loader host** (`cmd /c powershell -File
+> C:\C0015\s8b_loader.ps1` → P/Invoke `LoadLibrary`/`GetProcAddress` → `LabEntry`). **Rules/EQL keyed on
+> `rundll32.exe` will NOT fire on this run** — the S8/S9 join keys are `wmiprvse → cmd → powershell` + E7
+> ImageLoad of the DLL (by the loader host).
+
 ```kql
-// KEY: FS01 E1 wmiprvse -> rundll32
+// KEY: FS01 E1 wmiprvse -> cmd -> powershell (console-loader)
 host.name : "fs01" and winlog.channel : "Microsoft-Windows-Sysmon/Operational" and event.code : 1
-and process.name : "rundll32.exe" and process.parent.name : "wmiprvse.exe"
+and process.name : ("cmd.exe" or "powershell.exe") and process.parent.name : "wmiprvse.exe"
 ```
 EQL skeleton (same host):
 ```eql
 sequence by host.id with maxspan=2m
   [process where event.type == "start" and process.name == "wmiprvse.exe"] by process.entity_id
-  [process where event.type == "start" and process.name == "rundll32.exe"] by process.parent.entity_id
+  [process where event.type == "start" and process.name == ("cmd.exe", "powershell.exe")] by process.parent.entity_id
 ```
 Closure (4-gate): process on FS01 / identity (S4648 + FS01 LogonId account match) / which process + DLL hash /
 callback at S9 — same run id; identity never proven by the 8a IPC$ session.
@@ -162,22 +169,22 @@ callback at S9 — same run id; identity never proven by the 8a IPC$ session.
 
 | Telemetry | Host | Key |
 |---|---|---|
-| E1 rundll32 (same ProcessGuid as S8 child) | FS01 | ProcessGuid continuity |
+| E1 cmd/powershell (console-loader; same ProcessGuid as S8 child) | FS01 | ProcessGuid continuity |
 | E7 ImageLoad `C:\C0015\c0015_143_surrogate.dll` (BALANCED E7 scope includes `C:\C0015\` → **should be collected**) | FS01 | sha256 = `ART-06-01` hash |
 | E11 token/lab file; E3 → `192.168.50.1:8080` (attribution record) | FS01 | entity_id on E3 |
-| Server-side `ART-07-01` receipt (stage `phase7-session2`, token `S2-…`) | host (C2-SIM) | receipt + same run id |
+| Server-side `ART-07-01` receipt (stage `phase7-session2`, token `S1-…`) | host (C2-SIM) | receipt + same run id |
 
 ```kql
 event.code : 7 and host.name : "fs01" and file.path : "C:\\C0015\\*"      // ImageLoaded scope check
 event.code : 3 and host.name : "fs01" and destination.ip : "192.168.50.1" and destination.port : 8080
 event.code : 11 and host.name : "fs01" and file.path : ("C:\\C0015\\*" or "C:\\Users\\Public\\*")
 ```
-EQL skeleton (rundll32 → E7 of the same process → egress):
+EQL skeleton (loader host → E7 of the same process → egress; rundll32-based rules do NOT match this run):
 ```eql
 sequence by host.id with maxspan=5m
-  [process where event.type == "start" and event.code == "1" and process.name == "rundll32.exe"] by process.entity_id
-  [any where event.code == "7" and process.name == "rundll32.exe"] by process.entity_id
-  [network where event.code == "3" and process.name == "rundll32.exe"] by process.entity_id
+  [process where event.type == "start" and event.code == "1" and process.name == "powershell.exe"] by process.entity_id
+  [any where event.code == "7" and process.name == "powershell.exe"] by process.entity_id
+  [network where event.code == "3" and process.name == "powershell.exe"] by process.entity_id
 ```
 Closure: receipt (`ART-07-01.host == FS01`) + callback telemetry + S8 evidence — marker alone is never sufficient.
 E7 requires the rule picture: verify E7 is CONFIGURED on FS01 (BALANCED) and INGEST VERIFIED before counting.
@@ -194,8 +201,8 @@ E7 requires the rule picture: verify E7 is CONFIGURED on FS01 (BALANCED) and ING
 
 [] `winlog.logon.id` / `user.id` mapping on FS01 (4624↔4672 joinable by FS01 LogonId)
 [] S4648 present for the explicit-credential path; S4625 on the denied controls
-[] S4688 (audit) available; otherwise FS01 E1 `wmiprvse → rundll32` is the process evidence
-[] FS01 E7 CONFIGURED (BALANCED `C:\C0015\`) + INGEST VERIFIED for `c0015_143_surrogate.dll`
+[] S4688 (audit) available; otherwise FS01 E1 `wmiprvse → cmd → powershell (loader)` is the process evidence
+[] FS01 E7 CONFIGURED (BALANCED `C:\C0015\`) + INGEST VERIFIED for `c0015_143_surrogate.dll` (loaded by the loader host)
 [] E3 attribution (Image/ProcessGuid) on FS01 callbacks — downgrade tier if empty
 [] wmic vs CIM variant (different telemetry — record `PARTIAL` if CIM)
 [] loopback S5145 behaviour; clock skew vs host before any cross-host window

@@ -10,7 +10,7 @@
 | Requested phase | C0015 source (DFIR/MITRE) | Alignment verdict |
 |---|---|---|
 | 1. Initial payload + macro in docm -> macro -> HTA -> benign bootstrap -> stop at beacon callback | Word macro (T1204.002) -> encoded HTA JS/VBS (T1059.005/.007, T1027) -> fetch `compareForfor.jpg` (T1036, T1105) -> REGSVR32 (T1218.010) -> Bazar callback + myexternalip (T1016) | **MATCH — 1:1**. Lab: the same chain, a benign DLL with a `.jpg` extension, callback into C2-SIM v3 (no real Bazar/Cobalt Strike). Fidelity HIGH for the chain mechanics; the phishing delivery `[INFERRED-C0015]` is replaced by a lab step that creates a password-protected ZIP + docm placed on WS01 (executable — see the policy list below) |
-| 2. Operator sessions: discovery -> target selection -> lab auth -> WMI + benign process/DLL -> collection -> transfer of dummy data to an internal sink; RDP next; AnyDesk + LSASS access must be studied | Operator from the runbook (copy-paste errors — S2) -> ShareFinder / found_shares -> WMIC -> rundll32 -> 143.dll (T1047/T1570) -> Rclone/MEGA twice (T1567.002/T1030) -> RDP day 2 (T1021.001) -> AnyDesk in `Videos\` (T1219.002) -> Process Hacker -> LSASS "likely" (T1003.001-adjacent, day 5) | **MATCH, source order preserved** (two transfer rounds with RDP in between). Safe deltas: MEGA -> internal sink; WMI uses pre-provisioned `it.admin` with explicit credentials (runas/CIM `-Credential` — fixed in `docs/implementation-plan.md` Section 2.2); **LSASS = safe telemetry study** (E10 access-mask, no dump — Section 4) |
+| 2. Operator sessions: discovery -> target selection -> lab auth -> WMI + benign process/DLL -> collection -> transfer of dummy data to an internal sink; RDP next; AnyDesk + LSASS access must be studied | Operator from the runbook (copy-paste errors — S2) -> ShareFinder / found_shares -> WMIC -> 143.dll side-load (T1047/T1570) -> Rclone/MEGA twice (T1567.002/T1030) -> RDP day 2 (T1021.001) -> AnyDesk in `Videos\` (T1219.002) -> Process Hacker -> LSASS "likely" (T1003.001-adjacent, day 5) | **MATCH, source order preserved** (two transfer rounds with RDP in between). Safe deltas: MEGA -> internal sink; WMI uses pre-provisioned `it.admin` with explicit credentials (runas/CIM `-Credential` — fixed in `docs/implementation-plan.md` Section 2.2). **S8 host adaptation (run `RUN-20260930-01`):** `rundll32` (GUI subsystem) cannot load any DLL via WMI `process call create` in session-0 (`ReturnValue=9`; proven with `user32.dll,MessageBeep`), so the **WMI pivot (T1047) is kept but the DLL is loaded by a console-loader host** (PowerShell `LoadLibrary`/`GetProcAddress` of the SAME `c0015_143_surrogate.dll`, export `LabEntry`) — technical note §3. **LSASS = safe telemetry study** (E10 access-mask, no dump — Section 4) |
 | 3. A different bounded payload on a separate dummy corpus + scope check + restore (still enough Conti telemetry) | Conti batch deploy domain-wide (T1486) + post-impact file listing (T1083); does not touch the DC | **MATCH on telemetry, different scope (safety-mandated)**: `c0015_impact.ps1` keeps the Conti observables (high-speed fan-out, rename/extension, note creation, breadth) on an allowlisted corpus + restore verification; no real encryption, no propagation, no DC touch (the campaign also did not touch the DC — fidelity +1) |
 
 **Policy: no technique stays unknown in the chain.** Every chain step has executable behavior in the lab. Historic
@@ -30,13 +30,26 @@ gaps are replaced by executed techniques carrying labels (no blanks, no "unknown
 
 ## 2. C2 decisions — foothold vs operator channel (researched, install-verified)
 
-### 2.1 Foothold automation (S1 -> S3): C2-SIM v3 (implemented + tested 17/17)
+### 2.1 Foothold automation (S1 -> S3): C2-SIM v3.2 (implemented + tested 20/20)
 
-Keep `scripts/c2sim_v2.py` (v3): register/task/result with server-side receipts. **Dynamic tasking** (`POST /cmd`)
-lets the operator enqueue benign commands for the beacon (like a real C2 operator) while the fixed DFIR discovery
-batch remains the default stream when nothing is queued. Why keep the beacon path: the macro -> HTA -> DLL -> beacon
-chain needs **deterministic telemetry** (parent chain, E7 hash, callback) to map 1:1 with the campaign; a real C2
-framework would change the entire process signature (no more Bazar regsvr32/rundll32 chain).
+Keep `scripts/c2sim_v2.py` (v3.2, the current C2-SIM revision): register/task/result with server-side receipts
+plus **dynamic tasking** (`POST /cmd`) and **output read-back** for the remote operator. v3.2 additions (all
+verified this session, run `RUN-20260930-01`):
+
+- **`GET /results?session=&n=` / `GET /last?session=`** — the server keeps each command's OUTPUT in memory (ring,
+  cap 32) so the operator at the C2 seat reads real results (`task/next -> cmd -> result`); bodies are **never**
+  written to `c2sim.log` (bytes only).
+- **Same-token RE-REGISTER** — a beacon may re-register its existing token from an ELEVATED process
+  (`register_ok` returns `re-registered`, queue/results preserved) → the operator hands the live session to the
+  elevated beacon for the admin steps (S7b/S8).
+- **`token_file` config key** — the beacon reads the session token from a file when the env var is unset (elevated
+  handoff without retyping), and it **adopts the server's canonical session token** from the register response on
+  reuse/re-register, so `/task/next` always lands on the live session.
+- **`loop_count=0` = infinite** beacon loop (default in `make_config.ps1`) — no more mid-run beacon death stranding
+  queued `/cmd` jobs.
+
+Why keep the beacon path: the macro -> HTA -> DLL -> beacon chain needs **deterministic telemetry** (parent chain,
+E7 hash, callback) to map 1:1 with the campaign; a real C2 framework would change the entire process signature.
 
 ### 2.2 Post-exploitation operator C2: CALDERA (primary) — Sliver (optional, conditional) — Havoc (not used by default)
 
@@ -54,27 +67,34 @@ the fidelity of each layer. **Hard conditions when using Sliver/CALDERA:** VMnet
 by the operator, no public exposure, no injection/evasion/credential features of these frameworks, and every tasked
 command stays a benign string (allowlist or operator-entered; secrets never on the wire/logs).
 
-## 3. C2-SIM v3 endpoint design (dynamic tasking)
+## 3. C2-SIM v3.2 endpoint design (dynamic tasking + remote output read-back)
 
 Constrained HTTP server running on the lab host / Kali, playing the C2 role for the surrogate beacon; implementation:
-`scripts/c2sim_v2.py` (tested 17/17 offline + end-to-end with `payloads/beacon/c0015_beacon.ps1`).
+`scripts/c2sim_v2.py` (tested 20/20 offline + end-to-end with `payloads/beacon/c0015_beacon.ps1`).
 
 | Endpoint | Method | Purpose | Conditions (allowlist) |
 |---|---|---|---|
-| `/dl/<name>` | GET | Deliver the surrogate DLL (T1105 ingress analog) | name in the DL allowlist; file staged in `--dl-dir` |
-| `/session/register?stage=&host=&token=&run=` | POST | Register a session (beacon check-in) | stage in `{phase3, phase7-session2, phase4-rundll32}`; host in the per-stage map; token `S[12]-<16 hex>` |
-| `/task/next?session=` | GET | Return the next fixed task | session already registered |
-| `/result?session=&task=` | POST | Accept a benign result (capped bytes) | task in the allowlist; size <= cap |
+| `/session/register?stage=&host=&token=&run=` | POST | Register a session (beacon check-in); same-(stage,host) same-token RE-register returns `re-registered` (keeps queue/results) | stage in `{phase3, phase7-session2, phase4-rundll32}`; host in the per-stage map; token `S[12]-<16 hex>` |
+| `/cmd?session=` | POST | Enqueue an operator command (body = raw benign string) — queue takes priority | token registered; body <= cap; credential-like strings rejected |
+| `/runbook?session=&name=` | POST | Enqueue the ordered kill-chain template (`scripts/runbooks/c0015-phase2.json`, 11 entries) | file `<name>.json` in `--runbook-dir` |
+| `/task/next?session=` | GET | Pop the next command (queue → fixed batch → `T-BEACON-SLEEP`) | session registered |
+| `/result?session=&task=` | POST | Accept a benign result; **body kept in memory** (ring 32) for operator read-back | size <= `--max-result` |
+| `/results?session=&n=` / `/last?session=` | GET | Return stored command OUTPUTS (list / last) — never logged to `c2sim.log` | session registered |
 | `/checkin` (legacy) | GET | One-shot phase4 callback | `stage=phase4-rundll32&host=FS01` |
 
-- **Task allowlist:** `T-DISCOVER-CORPUS`, `T-BEACON-SLEEP`, `T-NOOP` — **no task accepts a command string**.
+- **Tasking model:** the fixed discovery batch (`T-DISCOVER-CORPUS/SYSTEM/DOMAINGROUPS/LOCALGROUPS/TRUSTS/
+  NETVIEWALL/TIME/PING`) is the default stream; a queued **operator command** (`/cmd`/`/runbook`) takes priority and
+  is executed raw by the beacon (parent = beacon → DIRECT event link).
 - **Session/token:** the token is agent-generated (`S[12]-<16 hex>`), independent of credentials; the server stores
-  `{token, stage, host, ip, time}` and, on a valid `phase7-session2` registration, writes an **`ART-07-01` receipt**
-  (run-ledger artifact schema) — server-side evidence of session 2; endpoint markers are supplementary only.
+  `{token, stage, host, ip, time, tasks_done, queue, results}` and, on a valid `phase7-session2` registration, writes
+  an **`ART-07-01` receipt** (run-ledger artifact schema) — server-side evidence of session 2; the same token may
+  RE-REGISTER from an elevated process (`re-registered`) so the queue/results follow the elevated handoff.
 - **Not reproduced (fidelity partial):** Malleable C2 / JA3 / cert profile, sleep 60 s / jitter 37, injection into
   svchost/Winlogon (boundary) — replaced by bounded, logged sleep; detections must not rely on a fixed interval.
-- **Expected telemetry:** E1 rundll32 (parent wmiprvse), E7 ImageLoad (hash, unsigned), E11, E3 callback (ProcessGuid
-  caveat — P1-B lesson), server log + receipt.
+- **Expected telemetry:** beacon (powershell) on WS01 for session 1; for the S8/S9 pivot FS01 **E1 cmd/powershell
+  (console-loader host) parent wmiprvse.exe** + **E7 ImageLoad `c0015_143_surrogate.dll`** (by the loader host —
+  rundll32 as host is adapted, see below) + E11 + E3 callback (ProcessGuid caveat — P1-B lesson), server log +
+  receipt.
 
 ## 4. AnyDesk + LSASS in the lab (mandatory study, safe execution)
 

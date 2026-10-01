@@ -207,24 +207,28 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
 - **Telemetry/evidence:** S4648 (WS01), S4624 Type 3 + S4672 (FS01), S4625 (control). `ART-05-01` is EVIDENCE
   that a credential was used — it is not control input for S8; S8 executes with the explicit credential issued by
   the operator (pattern in `docs/implementation-plan.md`; secrets never enter command lines, logs, or artifacts).
-- **Gap:** it.admin local administration on FS01 (WMI `Win32_Process` Create requires admin on the target) is
-  UNKNOWN — an M-1 gate.
+- **Gap:** it.admin is a REQUIRED lab config — local Administrator on FS01 (WMI `Win32_Process` Create requires
+  admin on the target) AND on WS01 (SeDebugPrivilege for S7b); no longer an M-1 "unknown" (verified run
+  `RUN-20260930-01`).
 
 ### S8 — WMI remote process creation
 
 - **Historical:** WMIC remote process creation -> rundll32 -> `143.dll` on the backup server `[OBSERVED-C0015]`
   (S2; T1047, T1570, T1218.011).
-- **Live lab behavior:** from WS01 (session 1, explicit `it.admin` credential):
-  `wmic /node:FS01 /user:C0015\it.admin process call create "rundll32.exe C:\C0015\c0015_143_surrogate.dll,<export>"`
-  if `wmic` exists on that build; otherwise PowerShell `Invoke-CimMethod` (environment-dependent — telemetry
-  differs: different E1 parent, S4648 still present; record the environment). FS01 executes rundll32 in the
-  `it.admin` context.
-- **Surrogate behavior:** DLL benign; mechanism of WMI remote process + rundll32 proxy kept.
-- **Fidelity:** HIGH mechanism; build-dependent (wmic/CIM).
+- **Live lab behavior:** from the elevated WS01 session-1 beacon/console, explicit `it.admin` credential:
+  `wmic /node:FS01 process call create ...`. **Known lab constraint (verified):** `rundll32.exe` (GUI subsystem)
+  cannot load ANY DLL when created via WMI `process call create` in session-0 (`ReturnValue=9` "Path not found" —
+  no window station; proven with `user32.dll,MessageBeep`; `rundll32.exe` alone returns 0). The WMI pivot (T1047)
+  is kept; the **same `c0015_143_surrogate.dll`** is loaded by a console-loader host
+  (`cmd.exe /c powershell -File C:\C0015\s8b_loader.ps1` → P/Invoke `LoadLibrary`/`GetProcAddress` → `LabEntry`).
+- **Surrogate behavior:** DLL benign; mechanism of WMI remote process kept, rundll32 proxy replaced by the
+  console-loader host (documented adaptation, run `RUN-20260930-01`).
+- **Fidelity:** mechanism HIGH; load-host PARTIAL (rundll32 non-interactive load not reproducible in lab WMI).
 - **Telemetry (distinctions apply):** WS01 S4648, E3 connection WS01 -> FS01 (a network connection, not proof of
   RPC; attribution may be empty), S5156 optional; FS01 S4624 Type 3 + S4672 + S4688 (if audit) + E1
-  `wmiprvse.exe -> rundll32.exe` (key evidence) + E7 + E11. E19-21 are NOT expected (WMI subscription telemetry;
-  see Section 6.2).
+  `wmiprvse.exe -> cmd.exe -> powershell.exe` (console-loader) (key evidence) + E7 (ImageLoad of
+  `c0015_143_surrogate.dll` by the loader) + E11. E19-21 are NOT expected (WMI subscription telemetry; see Section
+  6.2).
 - **Gap:** event/field availability is Windows-version dependent — verify on the environment rather than asserting
   identical events on every build.
 
@@ -233,17 +237,18 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
 - **Historical:** `143.dll` is a Cobalt Strike beacon injected into
   `svchost.exe -k UnistackSvcGroup -s CDPUserSvc`; callback checkauj.com; ~9 hours later RDP `[OBSERVED-C0015]`
   (S2).
-- **Live lab behavior (injection separated):** the benign DLL loaded by rundll32 on FS01 (S8): (1) POST
-  `/session/register` {host=FS01, stage=phase7-session2, self-generated token} to C2-SIM, (2) GET `/task/next`
-  -> fixed benign task (`T-DISCOVER-CORPUS`), (3) execute the task (reads a corpus file list — metadata only),
-  (4) POST `/result` -> C2-SIM writes the server-side `ART-07-01` receipt.
-- **Surrogate behavior:** injection-into-svchost replaced by load + register. Kept: rundll32 -> DLL -> callback ->
-  session register. Not kept: injection into svchost/system.
+- **Live lab behavior (injection separated):** the benign DLL loaded by the console-loader host on FS01 (S8):
+  (1) POST `/session/register` {host=FS01, stage=phase7-session2, self-generated token} to C2-SIM, (2) GET
+  `/task/next` -> fixed benign task (`T-DISCOVER-CORPUS`), (3) execute the task (reads a corpus file list —
+  metadata only), (4) POST `/result` -> C2-SIM writes the server-side `ART-07-01` receipt.
+- **Surrogate behavior:** injection-into-svchost replaced by load + register. Kept: loader -> DLL -> callback ->
+  session register. Not kept: injection into svchost/system; rundll32 as the load host (see S8 note).
 - **Analysis/replay-only:** historical injections (143 -> svchost; D8B3 -> Winlogon) are not executed; the
   telemetry study is S9b.
 - **Fidelity:** mechanism HIGH; inject target PARTIAL (not reproduced).
-- **Telemetry:** E1 (rundll32 child of wmiprvse), E7 (DLL hash), E11 (token file — supplementary), E3 (callback
-  to 192.168.50.1:8080; attribution caveat), server-side receipt `ART-07-01` + server log.
+- **Telemetry:** E1 (cmd/powershell console-loader child of wmiprvse), E7 (DLL hash, loaded by the loader host),
+  E11 (token file — supplementary), E3 (callback to 192.168.50.1:8080; attribution caveat), server-side receipt
+  `ART-07-01` + server log.
 - **Evidence rule:** a marker or DLL existence alone is NOT sufficient; the server-side receipt plus callback
   telemetry from FS01 plus S8 evidence, under one run_id.
 

@@ -70,8 +70,8 @@ Phase-2 (S4–S9) expected telemetry + verification skeletons per stage:
   control (a normal document).
 - **Status:** `NOT RUN` (DH-01..06 are hypotheses).
 
-### C3 — Identity/WMI Pivot (P5/P6) — designed, no evidence yet
-- **Input:** WS01 S4648 (explicit cred), FS01 S4624 (Type 3) + S4672 + S4688 (if audited), FS01 E1 wmiprvse -> rundll32,
+### C3 — Identity/WMI Pivot (P5/P6) — designed; run `RUN-20260930-01` produced evidence
+- **Input:** WS01 S4648 (explicit cred), FS01 S4624 (Type 3) + S4672 + S4688 (if audited), FS01 E1 wmiprvse -> cmd -> powershell (console-loader; rundll32 host not loadable in WMI session-0, see chain-plan §S8),
   E7, session register (H6). **Join:** 4624 <-> 4672 on FS01 by FS01 LogonId + host + boot/time anchor; WS01 4648 ->
   FS01 4624 correlated via target account, source/destination IP, time window (<= 10 minutes) and auth context — never
   by LogonId.
@@ -80,17 +80,18 @@ Phase-2 (S4–S9) expected telemetry + verification skeletons per stage:
   creation is evidenced by FS01 E1 wmiprvse -> child + Windows auth logs.
 - **Logic:** count the sequence `[WS01 4648] -> [FS01 4624/4672 joined on FS01 LogonId] -> [FS01 E1 parent=wmiprvse] ->
   [session register receipt]`; maximum level `SUPPORTED PHASE HANDOFF`. **Needed before writing the query:** sample
-  exports of one 3B/WMI run (currently `NARRATIVE ONLY`) + verify the `winlog.logon.id` mapping.
-- **Status:** `NOT RUN`.
+  exports of the S8 WMI run + verify the `winlog.logon.id` mapping.
+- **Status:** `NOT VERIFIED` (Elastic export/join validation pending after run `RUN-20260930-01`).
 
 ### C-SESSION2 — 143.dll surrogate -> second session (P7)
-- **Input:** FS01 E1 rundll32 (parent wmiprvse), E7 (DLL hash = hash of `c0015_143_surrogate.dll` from `ART-06-01`),
-  E11 token file, E3 -> `192.168.50.1:8080`, server `ART-07-01` receipt. **Join:** host = FS01, run_id (via ledger),
-  LogonId (from C3), window <= 10 minutes.
-- **Logic (neutral):** any rundll32 on FS01 whose parent is wmiprvse.exe + ImageLoad of an unsigned DLL from
-  `C:\C0015\` + a callback to `192.168.50.1:8080` within 10 minutes -> cross-check receipt `ART-07-01.host == FS01`.
-- **Boundary:** the DLL filename / `C:\C0015\` path are enrichment only; the conditions must be behavior (rundll32 from
-  wmiprvse + outbound callback + receipt). **Status:** `NOT VERIFIED` (awaits a new run).
+- **Input:** FS01 E1 cmd/powershell (console-loader, parent wmiprvse), E7 (DLL hash = hash of
+  `c0015_143_surrogate.dll` from `ART-06-01`), E11 token file, E3 -> `192.168.50.1:8080`, server `ART-07-01`
+  receipt. **Join:** host = FS01, run_id (via ledger), LogonId (from C3), window <= 10 minutes.
+- **Logic (neutral):** any cmd/powershell on FS01 whose parent is wmiprvse.exe + ImageLoad of an unsigned DLL from
+  `C:\C0015\` + a callback to `192.168.50.1:8080` within 10 minutes -> cross-check receipt `ART-07-01.host == FS01`
+  (receipt exists for run `RUN-20260930-01`; Elastic join pending).
+- **Boundary:** the DLL filename / `C:\C0015\` path are enrichment only; the conditions must be behavior (loader host under
+  wmiprvse + outbound callback + receipt). **Status:** `NOT VERIFIED` (Elastic export/join validation pending).
 
 ### C4 — Collection/Transfer (P8/P9)
 - **Input:** S5145 (FS01) + E11 staging + sink receipt (`ART-09-01`). **Join:** user.name/host (session 2), run_id,
