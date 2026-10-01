@@ -17,9 +17,9 @@ Run this on Kali or the host LAN to the lab. The victim WS01 must reach both.
 pwsh -File payloads/packaging/launch_servers.ps1 -C2Ip 192.168.50.100 -PublishDir build/out -Start
 #>
 param(
-    [Parameter(Mandatory=$true)][string]$C2Ip,
+    [string]$C2Ip,
     [int]$C2Port = 8080,
-    [Parameter(Mandatory=$true)][string]$PublishDir,
+    [string]$PublishDir,
     [int]$HttpPort = 8000,
     [string]$LedgerDir = 'evidence/run-ledger',
     [string]$LogPath = 'c2sim.log',
@@ -27,6 +27,7 @@ param(
     [string]$PidFile = '.phase1-servers.pid'
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Stop -and (-not $C2Ip -or -not $PublishDir)) { throw '-C2Ip and -PublishDir are required unless -Stop' }
 $repo = (Get-Item (Join-Path $PSScriptRoot '..\..')).FullName   # repo root (two up from payloads\packaging)
 $c2sim = Join-Path $repo 'scripts/c2sim_v2.py'
 $pub = [IO.Path]::GetFullPath((Join-Path $repo $PublishDir))

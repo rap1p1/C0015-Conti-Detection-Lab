@@ -161,7 +161,11 @@ class C2SimTests(unittest.TestCase):
     def test_register_rules(self):
         ok, msg = c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", "192.168.50.20")
         self.assertTrue(ok, msg)
-        self.assertFalse(c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", "x")[0])  # duplicate
+        # same token re-registers (elevated beacon handoff) and keeps the session
+        ok, msg = c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", "192.168.50.20")
+        self.assertTrue(ok, msg)
+        self.assertEqual(msg, "re-registered")
+        self.assertFalse(c2.register_ok("phase3", "FS01", "S1-0123456789abcdef", None)[0])  # same token, wrong host
         self.assertFalse(c2.register_ok("phase7-session2", "WS01", "S2-0123456789abcdef", None)[0])  # wrong host
         self.assertFalse(c2.register_ok("evil-stage", "FS01", "S2-0123456789abcdef", None)[0])
         self.assertFalse(c2.register_ok("phase3", "WS01", "bad-token", None)[0])
