@@ -44,6 +44,21 @@ function Get-Phase3Token {
     ((Invoke-RestMethod "$C2/sessions") | Where-Object { $_.stage -eq 'phase3' } | Select-Object -First 1).token
 }
 
+function Wait-Listeners {
+    # Pre returns only once BOTH ports are actually listening (avoids the
+    # kill-<->restart bind race on :8080/:8000).
+    foreach ($port in 8080, 8000) {
+        $deadline = (Get-Date).AddSeconds(15)
+        $ok = $null
+        do {
+            $ok = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue
+            if (-not $ok) { Start-Sleep -Milliseconds 500 }
+        } until ($ok -or (Get-Date) -gt $deadline)
+        if ($ok) { Step ("LISTENER OK: {0}:{1}" -f (($ok | Select-Object -First 1).LocalAddress), $port) }
+        else { Step "LISTENER MISSING: port $port - kiem tra http.server / c2sim" }
+    }
+}
+
 function Start-Phase {
     Step '== Pre: config + servers =='
     $cfg = Join-Path $repo "$Staging/config.ini"
@@ -53,6 +68,7 @@ function Start-Phase {
     Copy-Item (Join-Path $repo 'payloads/config/c0015-phase7.example.ini') (Join-Path $repo "$Staging/config-phase7.ini") -Force
     Step "HOAN TAT BANG TAY: sua run_id trong $Staging\config-phase7.ini = $RunId"
     & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir 'build/out' | Out-Null
+    Wait-Listeners
     Step '== WS01 (MANUAL): stage_ws01.ps1 + install_macro_docm.ps1 + mo test.docm (Enable Content) =='
     Step 'Sau khi mo xong, chay -Action P1 / P2.'
 }

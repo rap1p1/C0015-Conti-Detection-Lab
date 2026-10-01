@@ -54,7 +54,7 @@ foreach ($port in @($C2Port, $HttpPort)) {
     Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
         ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 }
-Start-Sleep -Milliseconds 600
+Start-Sleep -Milliseconds 1500   # let the killed listeners fully release the ports (bind race)
 Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
 
 $pids = New-Object System.Collections.Generic.List[int]
