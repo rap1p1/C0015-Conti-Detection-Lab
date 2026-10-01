@@ -59,7 +59,7 @@ $lines = @(
     "token_file=$PublicDir\token.txt"
     ''
     '[beacon]'
-    'loop_count=60'
+    'loop_count=0'
     'loop_sleep_sec=2'
     'loop_sleep_jitter_sec=2'
     'result_cap_bytes=262144'

