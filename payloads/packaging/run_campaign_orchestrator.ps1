@@ -23,7 +23,7 @@ Usage:
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$RunId,
+    [string]$RunId = '',
     [string]$C2Ip = '192.168.50.1',
     [int]$C2Port = 8080,
     [int]$HttpPort = 8000,
