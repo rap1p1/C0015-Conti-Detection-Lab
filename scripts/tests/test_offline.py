@@ -238,6 +238,21 @@ class C2SimTests(unittest.TestCase):
         self.assertFalse(c2.enqueue_runbook("S1-0123456789abcdef", [{"cmd": "net use /user:x password=secret"}])[0])
         self.assertFalse(c2.enqueue_runbook("S2-f000000000000000", entries)[0])
 
+    def test_result_output_ring_v32(self):
+        # v3.2: command OUTPUT is stored in memory so the C2 operator can read it remotely
+        c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
+        self.assertTrue(c2.result_ok("S1-0123456789abcdef", "OP-CMD", 11, body=b"net view OK")[0])
+        r = c2.results_for("S1-0123456789abcdef", 5)
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[-1]["output"], "net view OK")
+        self.assertEqual(r[-1]["task"], "OP-CMD")
+        for i in range(40):  # ring is bounded
+            c2.result_ok("S1-0123456789abcdef", "T-%d" % i, 2, body=b"x")
+        self.assertLessEqual(len(c2.results_for("S1-0123456789abcdef", 100)), 32)
+        self.assertIsNone(c2.results_for("S2-f000000000000000"))
+        # size cap still enforced
+        self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-NOOP", c2.MAX_RESULT_BYTES + 1)[0])
+
     def test_session2_receipt_written(self):
         tok = "S2-0123456789abcdef"
         c2.register_ok("phase7-session2", "FS01", tok, "192.168.50.30")

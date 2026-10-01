@@ -63,7 +63,7 @@ MAX_CMD_BYTES = 4096        # cap for one operator-entered command string
 STATE = {"sessions": {}}  # token -> {stage, host, ip, registered_utc, tasks_done, queue}
 OPTS = {"ledger_dir": Path("evidence/run-ledger"), "dl_dir": Path("scripts/fixtures"),
         "log": None, "max_result": MAX_RESULT_BYTES, "runbook_dir": Path("scripts/runbooks"),
-        "max_queue": 64}
+        "max_queue": 64, "results_max": 32}
 
 
 def log(msg):
@@ -104,7 +104,8 @@ def register_ok(stage, host, token, client_ip, run_id=None):
         "run": run_id,
         "registered_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "tasks_done": [],
-        "queue": [],  # operator-enqueued raw commands (v3 dynamic tasking)
+        "queue": [],      # operator-enqueued raw commands (v3 dynamic tasking)
+        "results": [],    # v3.2: last command OUTPUTS (operator reads them at C2) -- never logged
     }
     return True, "registered"
 
@@ -168,14 +169,34 @@ def next_task(token):
     return seq[idx], None, 0
 
 
-def result_ok(token, task, size):
+def result_ok(token, task, size, body=None):
     s = STATE["sessions"].get(token)
     if not s:
         return False, "unknown session"
     if size > OPTS.get("max_result", MAX_RESULT_BYTES):
         return False, "result too large"
     s["tasks_done"].append(task)
+    # v3.2: keep the command OUTPUT in memory (ring) so the C2 operator can read
+    # results remotely. Bodies are NEVER written to c2sim.log (bytes only).
+    if body is not None:
+        try:
+            out = body.decode("utf-8", "replace")
+        except Exception:
+            out = ""
+        s["results"].append({"task": task,
+                             "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                             "bytes": size, "output": out})
+        m = OPTS.get("results_max", 32)
+        if len(s["results"]) > m:
+            del s["results"][:len(s["results"]) - m]
     return True, "accepted"
+
+
+def results_for(token, n=10):
+    s = STATE["sessions"].get(token)
+    if not s:
+        return None
+    return s.get("results", [])[-n:]
 
 
 def make_session2_receipt(run_id, token, client_ip):
@@ -247,6 +268,18 @@ class Handler(BaseHTTPRequestHandler):
             if pause:
                 body["pause"] = pause
             return self._send(200, json.dumps(body).encode())
+        if parsed.path == "/results" or parsed.path == "/last":
+            token = (q.get("session") or [""])[0]
+            try:
+                n = max(1, min(50, int((q.get("n") or ["10"])[0])))
+            except Exception:
+                n = 10
+            r = results_for(token, n)
+            if r is None:
+                return self._send(403, b'{"error":"unknown session"}')
+            if parsed.path == "/last":
+                return self._send(200, json.dumps(r[-1] if r else None).encode())
+            return self._send(200, json.dumps(r).encode())
         return self._send(404, b'{"error":"not found"}')
 
     def do_POST(self):
@@ -305,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/result":
             token = (q.get("session") or [""])[0]
             task = (q.get("task") or [""])[0]
-            ok, msg = result_ok(token, task, len(body))
+            ok, msg = result_ok(token, task, len(body), body=body)
             log(f"result session={token[-8:] if token else '-'} task={task} bytes={len(body)} ok={ok} ({msg})")
             if not ok:
                 return self._send(403, json.dumps({"error": msg}).encode())
