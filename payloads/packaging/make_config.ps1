@@ -58,7 +58,7 @@ $lines = @(
     'token_env=C0015_SESSION_TOKEN'
     ''
     '[beacon]'
-    'loop_count=12'
+    'loop_count=60'
     'loop_sleep_sec=2'
     'loop_sleep_jitter_sec=2'
     'result_cap_bytes=262144'
