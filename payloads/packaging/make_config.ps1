@@ -56,6 +56,7 @@ $lines = @(
     'stage=phase3'
     'host_alias=WS01'
     'token_env=C0015_SESSION_TOKEN'
+    "token_file=$PublicDir\token.txt"
     ''
     '[beacon]'
     'loop_count=60'

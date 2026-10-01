@@ -55,9 +55,15 @@ $taskMap = @{
     'T-NOOP'            = Get-IniValue $cfg 'beacon' 'task_T-NOOP'
 }
 
-# ---- session token: env or generated per run (never stored) ----
-$tokenEnv = Get-IniValue $cfg 'c2sim' 'token_env'
+# ---- session token: env -> config token_file -> generated (never a secret) ----
+$tokenEnv  = Get-IniValue $cfg 'c2sim' 'token_env'
+$tokenFile = Get-IniValue $cfg 'c2sim' 'token_file'
 $token = $env:C0015_SESSION_TOKEN
+if (-not $token) {
+    # optional token file (handy for the elevated beacon handoff without retyping)
+    $tf = if ($tokenFile) { [Environment]::ExpandEnvironmentVariables($tokenFile) } else { '' }
+    if ($tf -and (Test-Path -LiteralPath $tf)) { $token = (Get-Content -LiteralPath $tf -Raw).Trim() }
+}
 if (-not $token) {
     # PowerShell 5.1 (Windows 10) has no static RandomNumberGenerator.GetBytes(int);
     # use the instance API available on both .NET Framework 4.x and .NET Core.
