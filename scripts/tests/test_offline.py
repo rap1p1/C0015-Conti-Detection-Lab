@@ -253,6 +253,18 @@ class C2SimTests(unittest.TestCase):
         # size cap still enforced
         self.assertFalse(c2.result_ok("S1-0123456789abcdef", "T-NOOP", c2.MAX_RESULT_BYTES + 1)[0])
 
+    def test_register_reregister_same_token_v32(self):
+        # v3.2: the SAME token may re-register (elevated beacon handoff) keeping queue/results
+        tok = "S1-aaaaaaaaaaaaaaaa"
+        self.assertTrue(c2.register_ok("phase3", "WS01", tok, "192.168.50.20")[0])
+        c2.enqueue_cmd(tok, "whoami /all")
+        ok, msg = c2.register_ok("phase3", "WS01", tok, "192.168.50.20")
+        self.assertTrue(ok, msg)
+        self.assertEqual(msg, "re-registered")
+        self.assertEqual(c2.next_task(tok), ("OP-CMD", "whoami /all", 0))  # queue preserved across re-register
+        # different host under the same token is still rejected
+        self.assertFalse(c2.register_ok("phase3", "FS01", tok, "192.168.50.30")[0])
+
     def test_session2_receipt_written(self):
         tok = "S2-0123456789abcdef"
         c2.register_ok("phase7-session2", "FS01", tok, "192.168.50.30")

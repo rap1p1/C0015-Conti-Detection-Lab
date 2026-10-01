@@ -89,6 +89,15 @@ def register_ok(stage, host, token, client_ip, run_id=None):
     if client_ip is not None:
         pass  # IP allowlist enforced via CLI --allow-ip if provided
     if token in STATE["sessions"]:
+        ex = STATE["sessions"][token]
+        if ex.get("stage") == stage and ex.get("host") == host:
+            # v3.2: allow a beacon to RE-REGISTER the same token from an
+            # ELEVATED process (S7b/S8b need admin). Keep queue/results/dedup;
+            # refresh the peer IP / registered time. Lets the operator hand the
+            # live session over to an elevated beacon for the admin steps.
+            ex["ip"] = client_ip
+            ex["registered_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            return True, "re-registered"
         return False, "token already registered"
     # Idempotency: reuse the existing session for the same (stage, host, run).
     # A repeated open of the entry document (or both Word auto macros firing)
