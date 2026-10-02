@@ -168,3 +168,17 @@ Telemetry kỳ vọng S1–S3 (không đổi): E1 `WINWORD→mshta→regsvr32` +
 - S7b: rule E10 lsass (0x1010/0x1fffff, non-system) — nguồn mới là chain wmiprvse→powershell→mimikatz.
 - S7/S8a: khi G1 xong → rule S4624 T3 it.admin→FS01 + S5145 C$ write + join LogonId.
 - G5/G6: mọi count-rule gắn `process.entity_id` (dedup), không raw count.
+## 9. Điều tra mục tiêu #3 — macro self-write files (2026-10-02, kết quả)
+
+**Mục tiêu**: trước khi victim mở file, WS01 không có tool — macro trong test.docm tự viết config.ini + bootstrap.hta + c0015_beacon.ps1 (base64 nhúng VBA) vào %PUBLIC%\C0015.
+
+**Phương pháp**: dựng 3 docm chẩn đoán (diag1 COM / diag2 chunked-const / diag3 native-I/O Open/Put) mở qua scheduled-task interactive; test clean-slate (xoá seed → mở test.docm thật).
+
+**Kết quả (verified Elastic + guest + Application log)**:
+- Word qua VIX (vmrun) → KHÔNG bao giờ chạy macro (0 event kể cả native-I/O).
+- Word qua scheduled-task interactive → chạy lúc được, lúc không (E1 WINWORD→mshta thấy ở 02:25/03:20/03:45/03:53; d6 03:56 mở mà 0 action). Macro execution **phụ thuộc instance Word** — lỗi không nằm ở code WriteFiles.
+- Application log không có lỗi Word (không crash/dialog được log); VBAWarnings/AccessVBOM/ProtectedView đều đã set.
+- d5 (test.docm + pub wiped) → beacon register 03:53:36 — gợi ý WriteFiles có thể chạy ở clean-slate nhưng chưa tái lập ổn định.
+- diag3 native I/O cũng 0 output ở instance không chạy ⇒ vấn đề ở tầng "macro có chạy không", không phải write-code.
+
+**Kết luận**: mode tin cậy hiện tại = seed fallback (đã chứng minh nhiều lần). Để "entry 100% từ macro": cần quan sát console UI của Word trong session duc.user (bắt dialog ẩn/first-run) hoặc dùng manual open; WriteFiles code đã được viết lại hướng native-I/O (chống COM-fail) sẵn sàng re-validate.
