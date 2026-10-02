@@ -31,6 +31,6 @@ if [ -n "$REPO" ]; then
   echo "--- relics ---"
   ls -la /tmp/c0015_143_surrogate.dll build/out/c0015-comparefor.jpg 2>/dev/null
 else
-  echo "NO REPO ON KALI - need: git clone repo (payloads build chain) hoac scp source tu C2 host"
+  echo "NO REPO ON KALI - need: git clone repo (payloads build chain) or scp the source from the C2 host"
 fi
 echo "== kali preflight end =="

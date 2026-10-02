@@ -85,7 +85,7 @@ if (-not $SkipWindows) {
             Write-Host "  rebooting WS01 (EnableLUA=0)..." -ForegroundColor Yellow
             & $Vmrun -T ws -gu $winUser -gp $winPass reset $Ws01 2>&1
             Start-Sleep 12
-            Write-Host "  WS01 rebooting - cho boot xong roi kiem tra (ping). (icon: VM da reset)" -ForegroundColor Yellow
+            Write-Host "  WS01 rebooting - wait for boot to finish, then check (ping). (icon: VM has been reset)" -ForegroundColor Yellow
         }
     }
 }

