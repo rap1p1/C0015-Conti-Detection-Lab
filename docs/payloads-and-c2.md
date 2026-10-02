@@ -2,7 +2,7 @@
 
 > Answers three questions: (1) how the three requested phases map to the source campaign, (2) the C2 decision
 > (foothold + operator) based on researched, install-verified options, and (3) whether the 3-VM AD model is
-> sufficient. The chain blueprint remains `docs/implementation-plan.md`; this document locks in the payload and C2
+> sufficient. The chain blueprint remains `docs/attack-chain-plan.md`; this document locks in the payload and C2
 > infrastructure.
 
 ## 1. Alignment of the three phases with the source campaign
@@ -10,7 +10,7 @@
 | Requested phase | C0015 source (DFIR/MITRE) | Alignment verdict |
 |---|---|---|
 | 1. Initial payload + macro in docm -> macro -> HTA -> benign bootstrap -> stop at beacon callback | Word macro (T1204.002) -> encoded HTA JS/VBS (T1059.005/.007, T1027) -> fetch `compareForfor.jpg` (T1036, T1105) -> REGSVR32 (T1218.010) -> Bazar callback + myexternalip (T1016) | **MATCH — 1:1**. Lab: the same chain, a benign DLL with a `.jpg` extension, callback into C2-SIM v3 (no real Bazar/Cobalt Strike). Fidelity HIGH for the chain mechanics; the phishing delivery `[INFERRED-C0015]` is replaced by a lab step that creates a password-protected ZIP + docm placed on WS01 (executable — see the policy list below) |
-| 2. Operator sessions: discovery -> target selection -> lab auth -> WMI + benign process/DLL -> collection -> transfer of dummy data to an internal sink; RDP next; AnyDesk + LSASS access must be studied | Operator from the runbook (copy-paste errors — S2) -> ShareFinder / found_shares -> WMIC -> 143.dll side-load (T1047/T1570) -> Rclone/MEGA twice (T1567.002/T1030) -> RDP day 2 (T1021.001) -> AnyDesk in `Videos\` (T1219.002) -> Process Hacker -> LSASS "likely" (T1003.001-adjacent, day 5) | **MATCH, source order preserved** (two transfer rounds with RDP in between). Safe deltas: MEGA -> internal sink; WMI uses pre-provisioned `it.admin` with explicit credentials (runas/CIM `-Credential` — fixed in `docs/implementation-plan.md` Section 2.2). **S8 host adaptation (run `RUN-20260930-01`):** `rundll32` (GUI subsystem) cannot load any DLL via WMI `process call create` in session-0 (`ReturnValue=9`; proven with `user32.dll,MessageBeep`), so the **WMI pivot (T1047) is kept but the DLL is loaded by a console-loader host** (PowerShell `LoadLibrary`/`GetProcAddress` of the SAME `c0015_143_surrogate.dll`, export `LabEntry`) — technical note §3. **LSASS = safe telemetry study** (E10 access-mask, no dump — Section 4) |
+| 2. Operator sessions: discovery -> target selection -> lab auth -> WMI + benign process/DLL -> collection -> transfer of dummy data to an internal sink; RDP next; AnyDesk + LSASS access must be studied | Operator from the runbook (copy-paste errors — S2) -> ShareFinder / found_shares -> WMIC -> 143.dll side-load (T1047/T1570) -> Rclone/MEGA twice (T1567.002/T1030) -> RDP day 2 (T1021.001) -> AnyDesk in `Videos\` (T1219.002) -> Process Hacker -> LSASS "likely" (T1003.001-adjacent, day 5) | **MATCH, source order preserved** (two transfer rounds with RDP in between). Safe deltas: MEGA -> internal sink; WMI uses pre-provisioned `it.admin` with explicit credentials (runas/CIM `-Credential` — fixed in `docs/attack-chain-plan.md` Section 2.2). **S8 host adaptation (run `RUN-20260930-01`):** `rundll32` (GUI subsystem) cannot load any DLL via WMI `process call create` in session-0 (`ReturnValue=9`; proven with `user32.dll,MessageBeep`), so the **WMI pivot (T1047) is kept but the DLL is loaded by a console-loader host** (PowerShell `LoadLibrary`/`GetProcAddress` of the SAME `c0015_143_surrogate.dll`, export `LabEntry`) — technical note §3. **LSASS = safe telemetry study** (E10 access-mask, no dump — Section 4) |
 | 3. A different bounded payload on a separate dummy corpus + scope check + restore (still enough Conti telemetry) | Conti batch deploy domain-wide (T1486) + post-impact file listing (T1083); does not touch the DC | **MATCH on telemetry, different scope (safety-mandated)**: `c0015_impact.ps1` keeps the Conti observables (high-speed fan-out, rename/extension, note creation, breadth) on an allowlisted corpus + restore verification; no real encryption, no propagation, no DC touch (the campaign also did not touch the DC — fidelity +1) |
 
 **Policy: no technique stays unknown in the chain.** Every chain step has executable behavior in the lab. Historic
@@ -132,7 +132,7 @@ to GOAD-Light and an exact match to the campaign structure (1 workstation beachh
 
 ## 6. M-1 additions, in order (on approval to run)
 
-1. Env verify (as `docs/implementation-plan.md` Section 5 M-1) + install **CALDERA v5.1.0+ on ELASTIC01** (or Kali)
+1. Env verify (as `docs/attack-chain-plan.md` Section 5 M-1) + install **CALDERA v5.1.0+ on ELASTIC01** (or Kali)
    per Section 2.2, sandcat agent on WS01/FS01, create the C0015 adversary profile = the exact S4 DFIR commands.
 2. Deploy payloads: build the DLL (mingw) -> per-run `config.ini` -> docm macro -> run S1-S3 with C2-SIM v2 + beacon.
 3. BadBlood on DC01 (if richer discovery data is desired).

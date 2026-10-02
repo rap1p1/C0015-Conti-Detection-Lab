@@ -1,114 +1,67 @@
 # C0015 Detection Lab
 
-> **Repository language: English.** All repository content (docs, code comments, commit
-> messages, artifacts) is written in English; conversational notes in issues/PRs may use
-> the author's language.
-
 Evidence-driven reconstruction of [MITRE ATT&CK Campaign C0015](https://attack.mitre.org/campaigns/C0015/)
 (Conti/Bazar intrusion, DFIR Report *CONTInuing the Bazar Ransomware Story*, 2021-11-29) for detection
-engineering and incident-response training on an owned homelab. The lab relies on real Windows, Active
-Directory, network, and file telemetry, lab-safe surrogates, and explicit artifact handoffs between stages —
-never a marker-only "PASS".
+engineering and incident-response training on an owned homelab. The lab replays the intrusion with real
+Windows/AD/network telemetry, lab-safe payload surrogates, an internal C2 simulator, explicit artifact
+handoffs between stages, and a detection-rule suite (R01-R21) validated on recorded runs.
 
-## What C0015 Is
+## Campaign chain — original tools vs lab tools
 
-C0015 is the MITRE ATT&CK campaign documenting the Conti/Bazar intrusion chain described in the DFIR Report:
-a Word macro drops an HTA bootstrap, the HTA decodes base64 payloads and downloads a DLL masquerading as a
-JPEG that is loaded through regsvr32, an initial C2 beacon establishes a foothold, the operator performs
-discovery and lateral movement over SMB and WMI with explicit credentials, collected files are staged and
-transferred, movement continues over RDP and remote-access tooling, and the intrusion ends in a bounded
-ransomware-style impact. The lab replays this chain as fifteen labelled stages (S1-S15) with artifact handoffs
-between stages:
+| Stage | Technique (MITRE) | Original tool (DFIR report) | Lab surrogate / tool | Telemetry anchor | Detection |
+|---|---|---|---|---|---|
+| S1 | T1204.002/T1059.005 → T1218.005/T1218.010/T1105 | Word macro → HTA → regsvr32 Bazar DLL | `c0015_final3.docm` (macro **self-writes** config/HTA/beacon) + `c0015_143_surrogate.dll` | Sysmon E1 office→mshta→regsvr32, E11 macro writes | R01-R08 |
+| S2-S3 | T1071.001, T1016 | Bazar C2 / Cobalt Strike | `c0015_beacon.ps1` (phase3) → C2-SIM :8080 | E1/E3 + `register` | R05/R06/R09 |
+| S4-S5 | T1057/T1069/T1482/T1016/T1018/T1135 | AdFind, net, nltest, PowerView (Invoke-ShareFinder) | `scripts/runbooks/c0015-phase2.json` | E1 beacon→cmd→tool | R10-R13 |
+| S7 | T1078 | valid accounts | `C0015\it.admin` | Security 4624/4672 | R14a/R14b |
+| S7b | T1003.001 | ProcessHacker (dump) | mimikatz-style surrogate (signed-off, no secrets) | Sysmon E10 0x1010 | R15 |
+| S8a | T1570/T1105 | SMB **C$** + `143.dll` copy | beacon-side copy + `143.dll` → FS01 `C:\C0015` | Security 5145 + E11 | R16 |
+| S8b | T1047/T1218.011 | `wmic ... rundll32 ... 143.dll` | space-form `rundll32.exe ... LabEntry` (WMI) | E1 wmiprvse→rundll32 | R17 |
+| S9 | T1071.001 | Cobalt Strike session 2 | beacon (phase7-session2, FS01) | E3 :8080 + receipt ART-07-01 | R18 |
+| S10 | T1005/T1039/T1074.001 | ShareFinder re-run, staging | beacon UNC collection → `C:\C0015\collect\` | E11 + S5145 | R16 |
+| S11a/b | T1567.002/T1030 | **rclone → MEGA** (two rounds) | real rclone → **local WebDAV sink** (:9001) | E1 rclone, E3 :9001, receipt ART-09-01 | R06/R09 |
+| S12 | T1021.001 | RDP to backup server (day 2) | RDP `mstsc` + `cmdkey` | Security 4624 T3/T4/T10 | R19 |
+| S13 | T1219.002 | AnyDesk in `Videos\`, ProcessHacker at `C:\` | real AnyDesk (lab-local use) + ProcessHacker (no dump) | E11 drop paths + E1 | R20 |
+| S14 | T1486/T1083 | `locker.bat` + Conti (`-m -net -size 10 ...`) | `c0015_impact.ps1` **bounded** surrogate (reversible) | E11 bulk rename + note | R21 |
+| S15 | E2E / IR exercise | — | orchestrator + ledger + scorecard ART-15-01 | evidence chain | — |
 
-```text
-S1  Word macro
-  -> S2  HTA (VBS + JS + base64) -> DLL (.jpg) loaded via regsvr32
-  -> S3  Session 1 (C2-SIM v3 dynamic tasking, public-IP mock)
-  -> S4  Discovery (exact DFIR commands)
-  -> S5  found_shares artifact
-  -> S6  Orchestrator target decision
-  -> S7  Auth controls (it.admin explicit credential)
-  -> S8  Tool handoff (C$ SMB) + WMI remote process (rundll32)
-  -> S9  Session 2 (server-side receipt)
-  -> S10 Collection / staging (manifest + hash)
-  -> S11a Transfer r1
-  -> S12 RDP
-  -> S11b Transfer r2
-  -> S13 AnyDesk-like channel + LSASS telemetry study
-  -> S14 Bounded impact + restore / verify
-  -> S15 End-to-end engineering + investigation runs (ground truth hidden)
+## Repository structure
+
+```
+phases/        phase1-initial-access | phase2-operator | phase3-final-campaign   (each with README)
+docs/          canonical technical records (chain, runbook, architecture, telemetry comparison, C2 design)
+detections/    rule suite R01-R21 (eql/ + README with full index, severity and stage mapping)
+payloads/      lab tooling per chain stage (beacon, dll, hta, impact, docm, lsass, packaging)
+scripts/       infrastructure: C2-SIM, watchdog, lab_tools (artifacts/receipts/score), runbooks, verify, preflight
+configs/       agent/Sysmon configuration
+evidence/      run ledger (only the latest validated run is retained) + artifacts
+stage/         runtime files (generated docm, configs, tools) — gitignored; evidence copies live in evidence/
+build/         served tool staging for the HTTP ..:8000 (gitignored)
 ```
 
-C2 channels (researched and install-verified): **C2-SIM v3** (foothold beacon; operator-entered benign commands via
-dynamic tasking), **Apache CALDERA v5** (operator
-orchestration, primary), Sliver optional under strict conditions, Havoc excluded. Details and the AD three-VM
-assessment are in `docs/payloads-and-c2.md`.
+## Detection suite
 
-Current status: design is complete and all offline components are implemented — the 15 offline unit tests pass
-and the benign payloads have been validated offline (parse, impact cycle with guard, beacon-to-C2-SIM over
-localhost). No live lab run has been completed yet: the chain is not end-to-end until a single continuous run
-produces handoff evidence for every stage.
+21 rules (R01-R21), Elastic EQL, deterministic `rule_id` (SHA-256 of the rule name) for
+idempotent re-import. **High/alerting rules: R17 (WMI pivot), R18 (proxy→PS egress),
+R21 (impact artifacts).** Medium: R14b, R15, R19, R20. All other rules are
+low-severity building blocks (BB-ON) or suppressed. Full index, stage mapping and
+run coverage: [detections/README.md](detections/README.md).
 
-## Lab Architecture
+## Lab boundaries (current)
 
-Host-only VMnet2 `192.168.50.0/24`, DHCP off. Domain `c0015.lab` / NetBIOS `C0015`.
+- Exfiltration stops at the internal sink — no public cloud (MEGA/Telegram never used).
+- Impact is a bounded, allowlist-root-capped, reversible surrogate — no real encryption,
+  no self-propagation.
+- AnyDesk usage in the final campaign was lab-internal; the public relay is not a C2 channel.
+- No secrets in repo/logs; per-run credentials stay in gitignored `stage/`.
 
-| Host | Role | Address |
-|---|---|---|
-| DC01 | AD DS + DNS (the campaign never touches the DC — telemetry only) | 192.168.50.10 |
-| WS01 | First victim (Windows 10, `duc.user`) | 192.168.50.20 |
-| FS01 | File + backup-server role (Windows 10 Pro 19045; shares Finance -> `duc.user`, IT -> `it.admin`) | 192.168.50.30 |
-| Kali | Operator / C2 host (planned) | 192.168.50.100 |
-| ELASTIC01 | Elastic 9.5.3 / Kibana / Fleet (`https://100.77.46.126:8220`, policy `C0015-Windows-Endpoints`, namespace `c0015`) | Tailscale |
+## Key documents
 
-Windows endpoints run the Elastic Agent (healthy) with Sysmon 15.21 (schema 4.91). The live Sysmon
-configuration (hash `D30CD93C...`) is an unverified third variant with E7/E10 disabled. Two profiles are
-committed under `configs/sysmon/`: the routine **BALANCED** profile (`sysmon-c0015-balanced.xml`, scoped
-E7/E10/Registry to keep volume low) and the **CAPTURE** profile (`sysmon-c0015-capture.xml`, unfiltered
-E7/E10/Registry for bounded observation sessions). Reconcile the live file with these before the S2/S9
-observation runs (E7 required).
-
-## Repository Structure
-
-```text
-C0015-Conti-Detection-Lab/
-├── README.md
-├── configs/sysmon/          # Sysmon profiles: BALANCED (routine, scoped) + CAPTURE (observation, broad)
-├── detections/              # Atomic KQL, correlation ES|QL, EQL prototypes
-├── docs/                    # Blueprint, narrative, fidelity, correlation, payload/C2 documents
-├── evidence/run-ledger/     # Run ledger schema + templates
-├── payloads/                # Benign config-driven payloads (docm/hta/dll/beacon/impact + config)
-└── scripts/                 # c2sim_v2.py, lab_tools.py, tests/, fixtures/ (synthetic replay)
-```
-
-## Documentation
-
-- [Implementation Plan](docs/implementation-plan.md) — single blueprint, stages, gates, milestones, operator runbook
-- [Attack-Chain Plan](docs/attack-chain-plan.md) — narrative, historical fidelity, canonical phase map 0-15
-- [Correlation Architecture](docs/correlation-architecture.md) — detection correlation design
-- [Payloads & C2](docs/payloads-and-c2.md) — C2-SIM v3 design, CALDERA/Sliver/Havoc research, AD three-VM verdict
-- [Architecture](docs/architecture.md) — lab architecture
-
-## Evidence & Fidelity
-
-Every claim in the repository is labelled so that historical facts are never confused with lab observations.
-Labels: `[OBSERVED-C0015]`, `[INFERRED-C0015]`, `[UNKNOWN-C0015]` (historical facts), `[LAB-SURROGATE]`,
-`[SUPPLEMENTAL-LAB-TECHNIQUE]`, `[NOT-VERIFIED-IN-REPO]`. Status vocabulary: `VERIFIED IN REPO`, `ARTIFACT
-VERIFIED`, `NARRATIVE ONLY`, `NOT VERIFIED`, `NOT RUN`, `PARTIAL`, `SENSOR GAP`, `DETECTED`, `CONTRADICTED`.
-Correlation tiers: `DIRECT EVENT LINK`, `SUPPORTED HANDOFF`, `CONTEXTUAL ONLY`, `UNPROVEN`, `CONTRADICTED`.
-Every historical gap is replaced by an executable lab technique with a label — no chain step stays unknown.
-
-## Safety Boundaries
-
-Owned VMs only. No real Bazar, Conti, or Cobalt Strike malware; no injection into Winlogon, svchost, LSASS,
-or other system processes; no credential dumping; no public C2 or cloud exfiltration (internal allowlist sink
-only); no general-purpose encryptor or propagation (bounded corpus with restore); no secrets in the repository.
-
-## Quick Start (Offline)
-
-```powershell
-python scripts/tests/test_offline.py            # 15/15 offline unit tests
-python scripts/c2sim_v2.py --ip 127.0.0.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log
-python scripts/lab_tools.py fixture-check scripts/fixtures
-# Payload build/run instructions and the code-to-technique map: payloads/README.md
-```
+- [docs/attack-chain-plan.md](docs/attack-chain-plan.md) — the canonical S1-S15 chain + fidelity blocks.
+- [docs/attack-runbook.md](docs/attack-runbook.md) — operator runbook (per-stage commands).
+- [docs/architecture.md](docs/architecture.md) — lab topology, channels, Elastic/Fleet setup.
+- [docs/correlation-architecture.md](docs/correlation-architecture.md) — telemetry correlation design.
+- [docs/telemetry-comparison-c0015-vs-lab.md](docs/telemetry-comparison-c0015-vs-lab.md) — event-level parity.
+- [docs/payloads-and-c2.md](docs/payloads-and-c2.md) — payload/C2 design notes.
+- `phases/phaseN/` — per-phase plans, run records and recipes.
+- [evidence/run-ledger/](evidence/run-ledger/) — schema + the latest validated run (RUN-20261002-05).

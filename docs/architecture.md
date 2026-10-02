@@ -178,7 +178,7 @@ Endpoint Elastic Agents on WS01 and FS01 ship under the `C0015-Windows-Endpoints
 | Detection content: atomic KQL, correlation ES|QL, EQL prototypes | `detections/` | In repository |
 | Sysmon configuration: committed baseline and CAPTURE profile | `configs/sysmon/` | Committed |
 
-Detailed blueprints and runbooks are documented in `docs/implementation-plan.md`; the attack chain and stage definitions (S2, S9, S13b) in `docs/attack-chain-plan.md`; correlation design in `docs/correlation-architecture.md`.
+Detailed blueprints and runbooks are documented in `docs/attack-chain-plan.md`; the attack chain and stage definitions (S2, S9, S13b) in `docs/attack-chain-plan.md`; correlation design in `docs/correlation-architecture.md`.
 
 ## Operator C2
 

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
 Rerun-v2 preflight via VMware Workstation vmrun — automates the one-time P0 gates on
-WS01 / FS01 / Kali WITHOUT touching their consoles (docs/rerun-v2-remote-operator-design.md §5.1).
+WS01 / FS01 / Kali WITHOUT touching their consoles (phases/phase1-initial-access/rerun-v2-remote-operator-design.md §5.1).
 
 Pattern per guest: copy a script in -> run it (admin, output redirected to a file)
 -> copy the output back -> print. No interactive prompts; credentials come from a

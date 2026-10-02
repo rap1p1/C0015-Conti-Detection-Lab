@@ -2,7 +2,7 @@
 
 Trạng thái: **DESIGN** (chờ user duyệt access: vmrun creds, Elastic creds, it.admin, station, docm automation).
 Run trước tham chiếu: `RUN-20260930-01` (ledger + telemetry: `docs/telemetry-comparison-c0015-vs-lab.md`,
-`docs/operator-phase-context-gaps-runbook.md`).
+`../phase2-operator/operator-phase-context-gaps-runbook.md`).
 
 ## 0. Mục tiêu rerun
 
@@ -202,3 +202,4 @@ beacon register phase3 (token a7d4f6e1, ok=True). c0015wf.log ghi từng bước
 Điều kiện lab cần nhớ: victim-open MANUAL (Word session interactive), Word sạch (xoá Resiliency/DocumentRecovery
 sau crash trước khi mở), auto-macro bật. Ghi chú: đôi khi mshta hiện "script error: write to file failed
 (code 0)" thoáng qua ở bước ghi marker nhưng file vẫn ghi thành công (E11 xác nhận) - script tiếp tục chạy.
+

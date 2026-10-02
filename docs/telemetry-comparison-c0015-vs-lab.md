@@ -44,4 +44,4 @@ Sysmon, khác model binary. S8: **PARTIAL–HIGH** — T1047 verified, rundll32-
 | S8b | ✅ **E1 rundll32 pid 8172 parent=WmiPrvSE.exe** `...143_surrogate.dll LabEntry` (space-form) + **E7 hash=ART-06-01** + E11 marker — **đúng chữ ký camp `wmiprvse→rundll32→143.dll`** | **G2/G7 SOLVED**: root cause cũ = `wmic` cắt command line ở dấu phẩy (ReturnValue 9); fix = space-form; Defender `RyukLocalspawn.A` (chặn wmic→rundll32 khi RTM bật sau snapshot-revert) đã tắt |
 | S9 | ✅ register `phase7-session2` (03:08:59Z) → **receipt `ART-07-01-2f3afc34`** + E3 FS01→:8080 | — |
 
-**Kết luận v2**: toàn bộ S1–S9 = **HIGH fidelity** (chữ ký camp đầy đủ: entry từ docm, operator remote, WMI pivot rundll32 nguyên vẹn, auth telemetry có trên ES). G1/G2/G4/G7/G8 đã xử lý — chi tiết & rule pointer ở `operator-phase-context-gaps-runbook.md` §4b.
+**Kết luận v2**: toàn bộ S1–S9 = **HIGH fidelity** (chữ ký camp đầy đủ: entry từ docm, operator remote, WMI pivot rundll32 nguyên vẹn, auth telemetry có trên ES). G1/G2/G4/G7/G8 đã xử lý — chi tiết & rule pointer ở `../phases/phase2-operator/operator-phase-context-gaps-runbook.md` §4b.

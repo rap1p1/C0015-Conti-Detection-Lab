@@ -2,7 +2,7 @@
 
 > Defines how telemetry is joined into an evidenced chain. It strictly separates three layers:
 > **event-level correlation** (joining events of the same activity), **phase-level handoff** (the output of one phase
-> being consumed by the next — see the handoff contracts in `docs/implementation-plan.md`, Section 3), and
+> being consumed by the next — see the handoff contracts in `docs/attack-chain-plan.md`, Section 3), and
 > **orchestration / run ledger** (ground truth, not endpoint telemetry).
 >
 > Primary rule: **never elevate a conclusion just because several events are close in time**. If ProcessGuid/LogonId is
@@ -43,7 +43,7 @@ repo/ingest). Otherwise record **neutral logic + the list of sample events neede
 from the query + dataset.
 
 Phase-2 (S4–S9) expected telemetry + verification skeletons per stage:
-`docs/phase2-detection-prep-s4-s9.md`.
+`../phases/phase2-operator/README.md`.
 
 ### C1 — Discovery -> SMB Collection (REMOVED — re-baseline pending phase-2 telemetry)
 - The correlation `detections/correlations/discovery-to-smb-collection.esql` and its 5 source atomics were
@@ -58,7 +58,7 @@ Phase-2 (S4–S9) expected telemetry + verification skeletons per stage:
   variation (spread discovery window) and control (discovery without collection -> must not fire).
 - **Status:** `NOT RUN` (awaiting phase-2 telemetry); the historical `DETECTED (09-15)` claim is no longer
   reproducible (dataset + rule removed). Stage verification skeletons:
-  `docs/phase2-detection-prep-s4-s9.md`.
+  `../phases/phase2-operator/README.md`.
 
 ### C2 — Bootstrap/Foothold (roadmap — not implemented)
 - **Input:** E1 chain (WINWORD -> cmd -> mshta -> regsvr32), E7 ImageLoad unsigned (user-writable path), E3/E22
@@ -151,7 +151,7 @@ WMI process-creation evidence). Every correlation in Sections 3 and 5 must be re
 
 | Corr | Phase | Input signals | Join keys / window | Current evidence level | Gaps | Conditions to call `validated` |
 |---|---|---|---|---|---|---|
-| C1 | P4+P8 | 5 atomic alerts (removed `a8390e7`) | user.name aggregation; 15 min lookback | `REMOVED` — re-baseline pending phase-2 S4/S5 telemetry | rule+atomics removed; re-write after phase-2 run; same join cautions apply | see `docs/phase2-detection-prep-s4-s9.md` for stage queries |
+| C1 | P4+P8 | 5 atomic alerts (removed `a8390e7`) | user.name aggregation; 15 min lookback | `REMOVED` — re-baseline pending phase-2 S4/S5 telemetry | rule+atomics removed; re-write after phase-2 run; same join cautions apply | see `../phases/phase2-operator/README.md` for stage queries |
 | C2 | P1–P2 | E1 chain + E7 + E3/E22 | ProcessGuid ancestry; 10 min | `UNPROVEN` (hypotheses DH only) | mshta hop not linked; E3 attribution | 1 P1 run with clean ProcessGuid + 1 control; EQL prototype runs |
 | C3 | P5–P6 | S4648/4624/4672 + S4688 + E1 (wmiprvse -> child) | FS01 LogonId (4624 <-> 4672) + host + boot/time anchor; 4648 <-> 4624 via account/IP/window/auth context; 10 min | `UNPROVEN` (narrative-only evidence) | no exports; field mapping unverified | exports of 1 run; LogonId join verified (never 4648 <-> 4624 by LogonId) |
 | C-SESSION2 | P7 | E1 + E7 + E3 + receipt | host + run_id + LogonId; 10 min | `UNPROVEN` | session 2 does not exist yet (target of a future run) | `ART-07-01` + callback telemetry in the same run |
@@ -184,3 +184,4 @@ validated when the items it depends on are at INGEST VERIFIED.
 8. Ingest verification: for each host, take at least one local E1/E7/E11 event and find the matching event in Elastic by
    host, channel, RecordID and time; check E255, ingest errors, latency and EVTX growth over 5-10 minutes. Agent
    Healthy alone does not prove ingestion.
+

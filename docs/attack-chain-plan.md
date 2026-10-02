@@ -7,7 +7,7 @@ chain (with evidence labels), the evidence labels and status vocabulary used acr
 fidelity model, and the canonical phase map (phases 0-15). It is read together with the blueprint/runbook and must
 not duplicate it:
 
-- `docs/implementation-plan.md` — blueprint/runbook: run order, milestones, acceptance gates, failure branches,
+- `docs/attack-runbook.md` — blueprint/runbook: run order, milestones, acceptance gates, failure branches,
   rollback. Its stage table is NOT duplicated here.
 - `docs/correlation-architecture.md` — how telemetry is joined into an evidence-backed chain (handoff contracts,
   correlation tiers, downgrade triggers).
@@ -206,7 +206,7 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
 - **Fidelity:** mechanism HIGH; provenance `[UNKNOWN-C0015]` not reproduced.
 - **Telemetry/evidence:** S4648 (WS01), S4624 Type 3 + S4672 (FS01), S4625 (control). `ART-05-01` is EVIDENCE
   that a credential was used — it is not control input for S8; S8 executes with the explicit credential issued by
-  the operator (pattern in `docs/implementation-plan.md`; secrets never enter command lines, logs, or artifacts).
+  the operator (pattern in `docs/attack-runbook.md`; secrets never enter command lines, logs, or artifacts).
 - **Gap:** it.admin is a REQUIRED lab config — local Administrator on FS01 (WMI `Win32_Process` Create requires
   admin on the target) AND on WS01 (SeDebugPrivilege for S7b); no longer an M-1 "unknown" (verified run
   `RUN-20260930-01`).
@@ -342,7 +342,7 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
   phase has a handoff and a run_id. The chain is end-to-end only when a single run_id carries evidence for every
   mandatory handoff; a missing handoff is recorded as CHAIN BROKEN AT S<n> — never patched with timestamps,
   markers, or narrative.
-- **Gap:** reachable only after the `docs/implementation-plan.md` milestones (M-1 onward).
+- **Gap:** reachable only after the `docs/attack-runbook.md` milestones (M-1 onward).
 
 ## 6. Key technique distinctions (mandatory — do not conflate)
 
@@ -454,7 +454,7 @@ PASS, and the chain is not end-to-end.
   logs.
 - Detection must not depend on fixed filenames or IPs; enrichment fields (DLL filename, lab paths) are not
   acceptance conditions.
-- VM activity is executed only under `docs/implementation-plan.md` milestones with user approval.
+- VM activity is executed only under `docs/attack-runbook.md` milestones with user approval.
 
 ## 11. Deployment classification (summary)
 

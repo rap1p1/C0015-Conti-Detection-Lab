@@ -1,7 +1,7 @@
 # C0015 Attack Runbook — step by step (S1 to S15)
 
 Canonical, machine-by-machine runbook to reproduce the C0015-inspired chain on the lab.
-All steps are benign surrogates on owned VMs. Read `docs/implementation-plan.md` (blueprint),
+All steps are benign surrogates on owned VMs. Read `docs/attack-chain-plan.md` (blueprint),
 `docs/attack-chain-plan.md` (historical fidelity) and `docs/correlation-architecture.md`
 (join keys) first. Supersedes the earlier phase-1-only runbook.
 
@@ -289,3 +289,4 @@ Status: S1-S3 VERIFIED on lab (ledger RUN-20261001-01); S4 = CORPUS-only in that
 back to T-NOOP due to a stale config.ini - regenerate config per Part B before the next run); S5-S15 are
 operator/design steps with exact machine/command/evidence/ledger rows above; the chain is NOT end-to-end
 until one continuous run carries handoff evidence for every stage under a single run_id.
+

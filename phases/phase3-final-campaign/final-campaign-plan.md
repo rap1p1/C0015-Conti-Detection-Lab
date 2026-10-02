@@ -1,7 +1,7 @@
 # Final Campaign Plan — S10–S15 (Phase 3) with S1–S9 correlation anchors
 
 Status: **PLAN** (approved design; execution on operator approval). Supersedes the
-phase-3 notes in `docs/run-full-campaign-guide.md` / `docs/attack-chain-plan.md` by
+phase-3 notes in ``docs/attack-chain-plan.md` by
 concretizing the final stages against the validated lab state (RUN-20261002-04).
 
 ---
@@ -201,3 +201,5 @@ mapping in a follow-up.
 
 Decisions (operator-approved): rclone→local sink (rev 1), RustDesk+local relay (AnyDesk-like),
 ProcessHacker E10-no-dump. No external credentials are required for the final campaign.
+
+
