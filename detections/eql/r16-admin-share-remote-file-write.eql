@@ -1,4 +1,4 @@
 any where event.code == "5145"
   and winlog.event_data.ObjectType : "File"
-  and winlog.event_data.ShareName : ("\\*\\C$", "\\*\\C$\\*", "\\*\\ADMIN$", "\\*\\ADMIN$\\*", "\\*\\IPC$\\*")
+  and winlog.event_data.ShareName : ("*\\C$", "*\\C$\\*", "*\\ADMIN$", "*\\ADMIN$\\*", "*\\IPC$")
   and winlog.event_data.RelativeTargetName != null

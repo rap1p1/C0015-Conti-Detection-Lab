@@ -122,9 +122,14 @@ chỉ process/path **class**, signature class, command-line class và entity anc
 | R14a | `eql/r14a-network-logon-by-user.eql` | S7: 4624 Type 3 non-system user | low / 21 | ON | 4 | 27 (dup) | Security `logs-system.security-c0015*` |
 | R14b | `eql/r14b-elevated-privileges-assigned-to-user.eql` | S7: 4672 non-system user | medium / 47 | ON (sau tuning) | 4 | 139 (noise → BB ON) | beacon elevated logon lặp = FP |
 | R15 | `eql/r15-lsass-credential-access.eql` | S7b: E10 lsass 0x1010/0x1418/0x1fffff non-system | medium / 47 | ON | 1 (wide 27.5h: 2, 0 FP) | 3 (1 TP + dup) | ambient system bị loại |
-| R16 | `eql/r16-admin-share-remote-file-write.eql` | S8a: 5145 C$/ADMIN$ | low / 21 | ON | 0 (audit-gated) | 0 (audit-gated) | cần Detailed File Share audit |
+| R16 | `eql/r16-admin-share-remote-file-write.eql` | S8a: 5145 C$/ADMIN$ | low / 21 | ON | 0 (audit chưa bật) | 0 cũ → **3 (sau khi bật audit 10-02)** | audit policy "Detailed File Share" đã bật trên lab; ShareName có tiền tố `\\*` nên glob dùng `*\\C$` |
 | R17 | `eql/r17-wmiprvse-spawns-process-loading-unsigned-module.eql` | S8b: wmiprvse→child→E7 unsigned | high / 73 | OFF | 1 (wide: 3, 0 FP) | 9 (3 sweep × chain) | E7 dùng `[any where]` (category library) |
 | R18 | `eql/r18-proxy-spawned-powershell-egress.eql` | S9: rundll32/regsvr32→PS→egress | high / 73 | OFF | 2 | 12 (dup) | E3 lag 2–3s so E1 |
+
+**Alert suppression (đã enable 2026-10-02)** trên R12/R13/R14a/R15/R17/R18 (group_by `process.entity_id`
+/`host.name`+`winlog.event_data.TargetLogonId`, duration 5m) — loại bỏ sweep duplication (cùng event match
+nhiều sweep 1m/6m từng quan sát: R06 366, R12 30–72, R17/R18 ×3). R14b BB ON (4672 của beacon-elevated-logon
+từng gây 89–139 alerts); R16 không suppression (mỗi 5145 là sự kiện riêng).
 
 Ghi chú thiết kế (rút từ telemetry verified):
 - E7 có `event.category` = library → trongsequence phải dùng `[any where event.code=="7"]` — `process where` sẽ lọc mất.
