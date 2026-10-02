@@ -62,8 +62,9 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T09:33:22.5Z",
-          "detail": "beacon powershell (child of regsvr32)"
+          "es_id": "AaD79qiPmO7CP6Qb1x3g",
+          "ts": "2026-10-02T09:33:22.647Z",
+          "detail": "beacon powershell (parent=regsvr32)"
         }
       ],
       "notes": "covered with S1/S3"
@@ -161,8 +162,9 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T09:36:5xZ",
-          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin)"
+          "ts": "2026-10-02T09:36:08.276Z",
+          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin)",
+          "es_id": "AaD7-KiPmO7CP6TB4iig"
         }
       ],
       "notes": "timing from run notes"

@@ -101,7 +101,7 @@ Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 
 ## Building blocks and analyst correlation guidance
 
-The default view exposes **R17 and R18 as alerting rules**; every other rule is a
+The default view exposes **R17, R18 and R23 as alerting rules**; every other rule is a
 building block (BB-ON) that feeds correlation. Building blocks do not constitute a
 campaign conclusion by themselves:
 
@@ -114,6 +114,7 @@ Correlation guidance: join by host + EntityID/logon-id (same-host only); E3 time
 lag E1/E11 by 2-3s; alert volume from the schedule (1m interval, 6m look-back) is
 mitigated by the suppression groups listed above — the counts in the coverage section
 are raw stored counts and must be treated as upper bounds until dedup is confirmed per rule.
+
 
 
 

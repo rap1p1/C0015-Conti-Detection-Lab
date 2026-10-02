@@ -28,9 +28,10 @@ high-severity alerting rules; the other 21 are building blocks.
 4. [Operator runbook](docs/attack-runbook.md) — the documented lab procedure, evidence collection, and
    cleanup.
 
-RUN-07 is the evidence reference used in this README. [RUN-08](reports/reference-run-20261002-08.md) is
-the latest recorded replay; its ledger still contains approximate timestamp placeholders and fewer
-event IDs, so it is listed separately rather than used to replace the more explicit RUN-07 citations.
+RUN-07 is the evidence reference used in this README. [RUN-08](reports/reference-run-20261002-08.md)
+carries full provenance in its ledger (real event ids/timestamps). The latest replay is
+[RUN-20261002-09](reports/reference-run-20261002-09.md), which adds S6 target-selection
+orchestration and S12 interactive-logon session evidence.
 
 ## Project architecture and workflow
 
@@ -187,7 +188,7 @@ activity counts are only reported where the run report establishes them.
 | RUN-20261002-05 | Initial recorded run; R19 rule coverage began after its Type-10 events; impact verification used the earlier one-directional implementation | [Report](reports/reference-run-20261002-05.md) · [Ledger](evidence/runs/RUN-20261002-05/RUN-20261002-05.json) |
 | RUN-20261002-06 | Replay with R19 positive and bidirectional impact verification | [Report](reports/reference-run-20261002-06.md) · [Ledger](evidence/runs/RUN-20261002-06/RUN-20261002-06.json) |
 | RUN-20261002-07 | Evidence reference for this README; tuned rules and R22/R23/R24 coverage | [Report](reports/reference-run-20261002-07.md) · [Ledger](evidence/runs/RUN-20261002-07/RUN-20261002-07.json) |
-| RUN-20261002-08 | Latest recorded replay; report records acceptance and repeat coverage, with ledger provenance limitations noted below | [Report](reports/reference-run-20261002-08.md) · [Ledger](evidence/runs/RUN-20261002-08/RUN-20261002-08.json) |
+| RUN-20261002-09 | **Latest recorded replay**; S6 orchestration executed + S12 T10/session captured | [Report](reports/reference-run-20261002-09.md) · [Ledger](evidence/runs/RUN-20261002-09/RUN-20261002-09.json) |
 
 All four committed scorecards record `ACCEPTED`. This means that the configured acceptance assertions
 passed at verification time. It does not mean that every planned stage ran, every telemetry field was
@@ -200,7 +201,7 @@ populated, or every RDP session was fully characterized.
 | S1 | Word macro entry and script/proxy handoff | E1 parent/entity chain; E11 bootstrap writes | R01–R08 |
 | S2–S3 | HTA/DLL bootstrap and session-1 callback | E1/E3/E7; markers and C2 registration | R05/R06/R09/R18 |
 | S4–S5 | Discovery and share enumeration | E1 command/process ancestry | R10–R13 |
-| S6 | Target-manifest orchestration | NOT RUN; recorded explicitly in the ledgers | No coverage claim |
+| S6 | Target-manifest orchestration | NOT RUN in RUN-05..08 (explicit); **EXECUTED in RUN-20261002-09** (decision artifact `ART-06-02-RUN09`, fixed scenario target FS01) | coverage claim = decision executed; NOT discovery-driven selection |
 | S7 | Authentication and privileged logon context | Security 4624/4672; same-host logon IDs | R14a/R14b |
 | S7b | LSASS-access surrogate | E10 process access; no extraction inferred | R15 |
 | S8a | SMB admin-share handoff | Security 5145 and target-side E11 | R16 |
@@ -355,6 +356,8 @@ is used for lab sessions; any observed vendor-relay traffic is not used as the s
 - [Payload and C2 design](docs/payloads-and-c2.md)
 
 Licensed under [MIT](LICENSE).
+
+
 
 
 

@@ -17,15 +17,34 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T12:56:1xZ",
-          "detail": "WINWORD entry (manual victim open; macro self-write per c0015wf.log 12:56:14Z)"
+          "es_id": "AaD8r6iPmO7CP6bqJr5b",
+          "ts": "2026-10-02T12:56:13.687Z",
+          "detail": "WINWORD entry (manual victim open; macro self-write c0015wf.log 12:56:14Z)"
+        },
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8r6iPmO7CP6bqJr6W",
+          "ts": "2026-10-02T12:56:15.114Z",
+          "detail": "mshta (parent WINWORD)"
+        },
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8r6iPmO7CP6bqJr7c",
+          "ts": "2026-10-02T12:56:16.544Z",
+          "detail": "regsvr32 (parent mshta)"
         },
         {
           "kind": "register",
           "host": "WS01",
           "channel": "C2-SIM (c2sim.log)",
           "ts": "2026-10-02T12:56:19Z",
-          "detail": "initial register token 44233104 (run restarted with resilient beacon; final session S1-38bf53a55e9ef37c at 13:12:00Z)"
+          "detail": "register 44233104; run-09 beacons relaunched (loop_count fix + resilient loop) - registrations: 44233104@12:56, e89fa24c@13:10, 5e9ef37c@13:12, 38bf53a5 (used for operator) - distinguished by c2sim sessions"
         }
       ],
       "notes": "entry chain per P0 recipe; multiple beacon relaunches due to short loop_count in the first guest config - documented"
@@ -37,7 +56,17 @@
       "status": "PASS",
       "input_artifacts": [],
       "output_artifacts": [],
-      "evidence_refs": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8r6iPmO7CP6bqJr7q",
+          "ts": "2026-10-02T12:56:16.706Z",
+          "detail": "beacon powershell (parent=regsvr32)"
+        }
+      ],
       "notes": "covered with S1/S3"
     },
     {
@@ -53,7 +82,9 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "3",
-          "detail": "poll loop to C2-SIM :8080 (beacon persisted after loop_count fix)"
+          "es_id": "AaD8r6iPmO7CP6bqJ74u",
+          "ts": "2026-10-02T12:56:19.423Z",
+          "detail": "first poll egress to :8080"
         }
       ],
       "notes": ""
@@ -67,9 +98,13 @@
       "output_artifacts": [],
       "evidence_refs": [
         {
-          "kind": "tasking",
-          "channel": "C2-SIM (discovery batch)",
-          "detail": "8 discovery tasks executed"
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8r6iPmO7CP6bqJ74e",
+          "ts": "2026-10-02T12:56:18.043Z",
+          "detail": "first discovery cmd (post-entry)"
         }
       ],
       "notes": ""
@@ -87,6 +122,8 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
+          "es_id": "AaD8r6iPmO7CP6bqJ74h",
+          "ts": "2026-10-02T12:56:18.065Z",
           "detail": "net view enumeration"
         }
       ],
@@ -105,7 +142,7 @@
         {
           "kind": "decision",
           "ts": "2026-10-02T13:12:37Z",
-          "detail": "target selection orchestration (server-side): selected FS01; ART-06-02-RUN09.json written (basis: scenario target)"
+          "detail": "target selection orchestration executed: selected FS01 (fixed scenario target) -> ART-06-02-RUN09.json; claim = decision executed, NOT discovery-driven selection"
         }
       ],
       "notes": "executed: server-side orchestration task after the discovery batch (previous runs: NOT RUN)"
@@ -123,8 +160,9 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T13:13:4xZ",
-          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin)"
+          "es_id": "AaD8v6iPmO7CP6ahTALL",
+          "ts": "2026-10-02T13:13:19.754Z",
+          "detail": "elevate via wmic local create (ReturnValue 0) -> it.admin beacon (earlier elevate 12:57:22Z AaD8sKiPmO7CP6beKYQa)"
         }
       ],
       "notes": ""
@@ -142,7 +180,8 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "10",
-          "ts": "2026-10-02T13:14:1xZ",
+          "es_id": "AaD8v6iPmO7CP6bvTjBe",
+          "ts": "2026-10-02T13:13:45.085Z",
           "detail": "mimikatz-style surrogate -> lsass grant 0x1010 (no dump)"
         }
       ],
@@ -163,7 +202,9 @@
           "host": "fs01",
           "channel": "Security",
           "event": "5145",
-          "detail": "admin-share access observed (C$); S10 reads also via C$"
+          "es_id": "AaD8wKiPmO7CP6bFUZSh",
+          "ts": "2026-10-02T13:14:41.464Z",
+          "detail": "admin-share access observed (C$); collection reads also via C$"
         }
       ],
       "notes": ""
@@ -183,15 +224,18 @@
           "host": "fs01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T13:15:0xZ",
-          "detail": "rundll32 (parent=WmiPrvSE) LabEntry space form"
+          "es_id": "AaD8waiPmO7CP6YYUlik",
+          "ts": "2026-10-02T13:15:05.678Z",
+          "detail": "rundll32 (parent=WmiPrvSE) cmd: ... c0015_143_surrogate.dll LabEntry (space form)"
         },
         {
           "kind": "event",
           "host": "fs01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "7",
-          "detail": "E7 unsigned load; file.hash.sha256 present (ECS) = artifact hash"
+          "es_id": "AaD8waiPmO7CP6YYUlio",
+          "ts": "2026-10-02T13:15:05.702Z",
+          "detail": "E7 unsigned load; file.hash.sha256 present (ECS) = surrogate artifact hash (cbcd2a8b...)"
         }
       ],
       "notes": ""
@@ -209,16 +253,27 @@
       ],
       "evidence_refs": [
         {
-          "kind": "register",
-          "ts": "2026-10-02T13:15:10Z",
-          "detail": "phase7-session2 token 7e715c9a; receipt ART-07-01-7e715c9a.json"
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8waiPmO7CP6YYUlir",
+          "ts": "2026-10-02T13:15:05.721Z",
+          "detail": "second-session powershell (parent=rundll32)"
         },
         {
           "kind": "event",
           "host": "fs01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "3",
+          "es_id": "AaD8waiPmO7CP6Y_U1V0",
+          "ts": "2026-10-02T13:15:10.141Z",
           "detail": "second-session egress (entity-owned) to :8080"
+        },
+        {
+          "kind": "register",
+          "ts": "2026-10-02T13:15:10Z",
+          "detail": "phase7-session2 token 7e715c9a; receipt ART-07-01-7e715c9a.json"
         }
       ],
       "notes": ""
@@ -317,14 +372,17 @@
           "kind": "session",
           "host": "FS01",
           "channel": "query session",
-          "ts": "2026-10-02T13:18:0xZ",
-          "detail": "rdp-tcp#9 session Conn (observed during the RDP window)"
+          "detail": "rdp-tcp#9 session Conn observed during the RDP window (host-run query session, timing approximate ~13:18Z)"
         },
         {
           "kind": "alert",
           "rule": "C0015 | R19 | RDP Interactive Logon by Non-System Account",
           "ts": "2026-10-02T13:18:45.106Z",
-          "detail": "R19 alerts x2 on the T10 logon"
+          "detail": "R19 alerts x2 on the T10 logon",
+          "alert_ids": [
+            "db78b80ceda40bc84b4df66c822557fe7313e7c024495580c91ea3f0f3cd2c1b",
+            "586d9926b448fbafe3f49aafcada91b8648a5c81ca13d9fb4d8f7d7dd6df4797"
+          ]
         }
       ],
       "notes": "interactive logon + session state captured; 4778/4779 disconnect events not generated (abrupt client close) - documented lifecycle gap"
@@ -350,19 +408,19 @@
           "kind": "event",
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
-          "event": "1",
-          "es_id": "AaD8xaiPmO7CP6beb3rH",
-          "ts": "2026-10-02T13:20:16.341Z",
-          "detail": "AnyDesk run (after drop)"
+          "event": "11",
+          "es_id": "AaD8xaiPmO7CP6a2btH1",
+          "ts": "2026-10-02T13:19:59.578Z",
+          "detail": "ProcessHacker drop (C:\\ root)"
         },
         {
           "kind": "event",
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
-          "event": "11",
-          "es_id": "AaD8xaiPmO7CP6a2btH1",
-          "ts": "2026-10-02T13:19:59.578Z",
-          "detail": "ProcessHacker drop (C:\\ root)"
+          "event": "1",
+          "es_id": "AaD8xaiPmO7CP6beb3rH",
+          "ts": "2026-10-02T13:20:16.341Z",
+          "detail": "AnyDesk run (after drop)"
         }
       ],
       "notes": ""
@@ -377,6 +435,42 @@
         "ART-14-01"
       ],
       "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "11",
+          "es_id": "AaD8xqiPmO7CP6Zde5rH",
+          "ts": "2026-10-02T13:20:49.624Z",
+          "detail": "impact note write (finance)"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "11",
+          "es_id": "AaD8xqiPmO7CP6Zde5rI",
+          "ts": "2026-10-02T13:20:49.640Z",
+          "detail": "impact note write (hr)"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "11",
+          "es_id": "AaD8xqiPmO7CP6Zde5rJ",
+          "ts": "2026-10-02T13:20:49.663Z",
+          "detail": "impact note write (it) - R23 source events (same process entity)"
+        },
+        {
+          "kind": "rule",
+          "rule": "C0015 | R23 | Note Spread with Same-Process Context",
+          "alert_ids": [
+            "f428fd284521e8f9e8432d450b63675c27711fc74d5ad26390667e78dd1437d9"
+          ],
+          "ts": "2026-10-02T13:21:35Z",
+          "detail": "R23 fired (3 note creates, one entity, 3 distinct paths)"
+        },
         {
           "kind": "impact",
           "detail": "Prepare OK; Run 15 files/615 B; Verify 30 bidirectional mismatches; Rollback OK; Verify post-restore hash-equal"

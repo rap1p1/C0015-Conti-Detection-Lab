@@ -171,7 +171,12 @@ def select_target(token):
     run_raw = (s or {}).get("run") or ""
     if not run_raw:
         run_raw = "RUN-19700101-00"  # placeholder for session-less tests (no artifact evidence)
-    run_id = run_raw if run_raw[:12] == "RUN-" else "RUN-19700101-00"
+    # valid run pattern = RUN-YYYYMMDD-<seq>; anything else (e.g. legacy/test
+    # sessions without a run) falls back to the placeholder. The historical
+    # ART-06-02-RUN09 artifact was produced by the pre-guard code path with the
+    # live session's run id; this guard only prevents invalid writes for
+    # session-less tests.
+    run_id = run_raw if re.match(r"^RUN-\d{8}-\d{2,}$", run_raw) else "RUN-19700101-00"
     # basis: the discovery results for this session (net view /all) list FS01
     listed = "FS01" in " ".join(r.get("output", "") for r in (s or {}).get("results", [])[-8:])
     decision = {

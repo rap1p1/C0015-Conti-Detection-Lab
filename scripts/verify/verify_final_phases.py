@@ -162,6 +162,25 @@ def main():
                 {"terms": {"process.name": ["net.exe", "net1.exe"]}}], 2)
     require("S5", "net view enumeration", h)
 
+    # S6: target-selection orchestration (executed from RUN-20261002-09; earlier runs record NOT RUN)
+    if RUN in ("RUN-20261002-09",):
+        rec_dir6 = ROOT / "evidence" / "runs" / RUN
+        art6 = rec_dir6 / f"ART-06-02-RUN{RUN.split('-')[-1]}.json"
+        if not art6.exists():
+            FAILURES.append("S6: ART-06-02 target-selection artifact missing")
+        else:
+            a6 = json.loads(art6.read_text(encoding="utf-8"))
+            if a6.get("run_id") != RUN:
+                FAILURES.append(f"S6: artifact run_id {a6.get('run_id')} != {RUN}")
+            payload = a6.get("payload") or {}
+            if payload.get("kind") != "target-selection-decision":
+                FAILURES.append("S6: artifact kind != target-selection-decision")
+            if payload.get("selected_host") != "FS01":
+                FAILURES.append("S6: selected_host != FS01")
+            print("  ok  S6 target-selection artifact (decision, FS01, run_id match)")
+    else:
+        print(f"  note S6 NOT RUN for {RUN} (orchestration executed only in RUN-20261002-09)")
+
     # S7b: E10 lsass credential grant
     h = q(SYS, [{"term": {"event.code": "10"}}, {"term": {"process.name": "mimikatz.exe"}}], 1)
     require("S7b", "E10 mimikatz->lsass", h,
@@ -186,8 +205,10 @@ def main():
             e7hash = getpath(e7s, "file.hash.sha256") or getpath(e7s, "winlog.event_data.Hashes")
             if e7hash in (None, "-", ""):
                 FAILURES.append("S8b: E7 hash field missing (file.hash.sha256 / Hashes)")
+            elif str(e7hash).lower() != "cbcd2a8b8137bdede43c158fdd8c97268da88b680c2155b1551fba86301c8a3d":
+                FAILURES.append(f"S8b: E7 hash {str(e7hash)[:16]}... != surrogate artifact hash cbcd2a8b...")
             else:
-                print(f"  ok  S8b E7 hash present (sha256={str(e7hash)[:16]}...) - hash continuity available")
+                print("  ok  S8b E7 hash equals the surrogate artifact hash (cbcd2a8b...381c8a3d)")
 
     # S9: second-session powershell entity owns E3 :8080
     h = q(SYS, [{"term": {"event.code": "1"}}, {"term": {"host.name": "fs01"}},
