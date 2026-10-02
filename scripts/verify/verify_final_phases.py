@@ -168,12 +168,13 @@ def main():
                 lambda s: getpath(s, "process.parent.name") == "WmiPrvSE.exe"
                 and "LabEntry" in (getpath(s, "process.command_line") or ""))
     ts = getpath(p, "@timestamp") if p else None
+    ent = getpath(p, "process.entity_id") if p else None
     if ts:
-        w0, w1 = WIN[RUN]
         e7 = q(SYS, [{"term": {"event.code": "7"}}, {"term": {"host.name": "fs01"}},
+                     {"term": {"process.entity_id": ent}},
                      {"wildcard": {"file.path": "*c0015_143*"}}], 1,
-               window=(w0, _add_seconds(ts, 15)))
-        e7s = require("S8b", "E7 unsigned surrogate load (15s after pivot)", e7,
+               window=(ts, _add_seconds(ts, 15)))
+        e7s = require("S8b", "E7 unsigned surrogate load (within 15s of pivot, same entity)", e7,
                       lambda s: getpath(s, "winlog.event_data.Signed") in ("false", False))
         if e7s and (getpath(e7s, "winlog.event_data.Hashes") in (None, "-", "")):
             print("  note S8b: E7 hash field unpopulated in this event - hash continuity limited to path+signed")
@@ -186,16 +187,29 @@ def main():
     if b:
         ent = getpath(b, "process.entity_id")
         h3 = q(SYS, [{"term": {"event.code": "3"}}, {"term": {"host.name": "fs01"}},
-                     {"term": {"process.name": "powershell.exe"}}], 5)
+                     {"term": {"process.name": "powershell.exe"}},
+                     {"term": {"destination.port": "8080"}}], 5)
         owned = [x for x in h3 if getpath(x["_source"], "process.entity_id") == ent]
         if not owned:
-            FAILURES.append("S9: no E3 owned by the second-session beacon entity")
+            FAILURES.append("S9: no E3 (to :8080) owned by the second-session beacon entity")
         else:
-            print(f"  ok  S9 E3 owned by beacon entity {ent} ts={owned[0]['_source'].get('@timestamp')}")
+            print(f"  ok  S9 E3 (dst :8080) owned by beacon entity {ent} ts={owned[0]['_source'].get('@timestamp')}")
     rec_dir = ROOT / "evidence" / "runs" / RUN
     receipt = next(rec_dir.glob("ART-07-01-*.json"), None)
     if receipt is None:
         FAILURES.append("S9: ART-07-01 receipt missing for this run")
+    else:
+        rj = json.loads(receipt.read_text(encoding="utf-8"))
+        if rj.get("run_id") != RUN:
+            FAILURES.append(f"S9: receipt run_id {rj.get('run_id')} != {RUN}")
+        if (rj.get("payload") or {}).get("host") != "FS01":
+            FAILURES.append("S9: receipt payload.host != FS01")
+        if (rj.get("payload") or {}).get("stage") != "phase7-session2":
+            FAILURES.append("S9: receipt payload.stage != phase7-session2")
+        if not (rj.get("payload") or {}).get("session_token"):
+            FAILURES.append("S9: receipt missing session_token")
+        else:
+            print(f"  ok  S9 receipt content (run/host/stage/token) for {RUN}")
 
     # S10: manifest present with 11 files
     man = rec_dir / f"ART-08-01-RUN{RUN.split('-')[-1]}.json"
@@ -220,16 +234,26 @@ def main():
         else:
             print(f"  ok  S11 {r1} receipt manifest hash equal (canonical)")
         by_name = {f["path"].replace("\\", "/"): f for f in mj["payload"]["files"]}
+        if len(rj.get("sink_files", [])) != rj.get("total_files", -1):
+            FAILURES.append(f"S11 {r1}: sink_files count {len(rj.get('sink_files', []))} != total {rj.get('total_files')}")
+        manifest_paths = set(by_name.keys())
+        sink_paths = {sf["name"] for sf in rj.get("sink_files", [])}
+        missing = manifest_paths - sink_paths
+        extra = sink_paths - manifest_paths
+        if missing:
+            FAILURES.append(f"S11 {r1}: sink missing files {sorted(missing)[:3]}")
+        if extra:
+            FAILURES.append(f"S11 {r1}: sink extra files {sorted(extra)[:3]}")
         bad = 0
         for sf in rj.get("sink_files", []):
             entry = by_name.get(sf["name"])
-            if entry is None or int(entry["size"]) != int(sf["size"]) or \
-               entry["sha256"].upper() != sf["sha256"].upper():
+            if entry is not None and (int(entry["size"]) != int(sf["size"]) or
+                                      entry["sha256"].upper() != sf["sha256"].upper()):
                 bad += 1
         if bad:
-            FAILURES.append(f"S11 {r1}: {bad} sink-file mismatches vs manifest")
+            FAILURES.append(f"S11 {r1}: {bad} sink-file size/hash mismatches")
         else:
-            print(f"  ok  S11 {r1} sink_files per-file equality ({len(rj.get('sink_files', []))} files)")
+            print(f"  ok  S11 {r1} sink_files full-set equality ({len(rj.get('sink_files', []))} files, no missing/duplicate)")
 
     # S12: per-run expectation
     h = q(SEC, [{"term": {"event.code": "4624"}}, {"term": {"host.name": "fs01"}},
@@ -250,12 +274,13 @@ def main():
                 lj = json.loads((rec_dir / f"{RUN}.json").read_text(encoding="utf-8"))
                 for s in lj.get("stages", []):
                     if s.get("stage") == "S12":
-                        archived = any(r.get("kind") == "alert"
-                                       for r in s.get("evidence_refs", []))
+                        refs = [r for r in s.get("evidence_refs", []) if r.get("kind") == "alert"]
+                archived = any(len(r.get("alert_ids") or []) > 0 or r.get("source_event_id")
+                               for r in refs)
                 if archived:
-                    print("  ok  S12 R19 alerts archived in ledger (alert index cleaned post-run)")
+                    print("  ok  S12 R19 alerts archived in ledger with alert ids (alert index cleaned post-run)")
                 else:
-                    FAILURES.append("S12: no R19 alert found and no archived alert reference")
+                    FAILURES.append("S12: no R19 alert found and no archived alert reference with ids")
             else:
                 print(f"  ok  S12 R19 alerts present ({len(alerts)}; first ts="
                       f"{alerts[0]['_source'].get('@timestamp')})")
@@ -285,11 +310,39 @@ def main():
         for token_ in ("Rollback OK", "Verify OK"):
             if token_ not in content:
                 FAILURES.append(f"S14: impact output missing {token_}")
-        if RUN == "RUN-20261002-06" and "bidirectional" not in content:
+        if (RUN in ("RUN-20261002-06", "RUN-20261002-07")) and "bidirectional" not in content:
             FAILURES.append("S14: impact output missing bidirectional wording")
         print("  ok  S14 impact output asserts (Rollback OK / Verify OK)")
     else:
         FAILURES.append(f"S14: impact output file missing {txt.name}")
+
+    # S14/coverage: R22 (note class), R23 (spread alert), R24 (transfer tool)
+    # These rules were added before RUN-20261002-07; earlier runs are not required to show them.
+    if RUN != "RUN-20261002-07":
+        print(f"  note Coverage R22/R23/R24 not required for {RUN} (rules added later)")
+    else:
+        h = q(SYS, [{"term": {"event.code": "11"}}, {"wildcard": {"file.name": "README*"}}], 1)
+        if not h:
+            FAILURES.append("Coverage: no R22-class note create observed (E11 README*)")
+        else:
+            print("  ok  Coverage R22 note-class create observed")
+        n23 = q(AL, [{"term": {"kibana.alert.rule.name":
+                               "C0015 | R23 | Note Spread with Same-Process Context"}}], 3)
+        if not n23:
+            lj = json.loads((rec_dir / f"{RUN}.json").read_text(encoding="utf-8"))
+            has_r23 = any(r.get("kind") == "rule" and "R23" in str(r)
+                          for s in lj.get("stages", []) for r in s.get("evidence_refs", []))
+            if not has_r23:
+                FAILURES.append("Coverage: no R23 alert and no archived R23 evidence in ledger")
+            else:
+                print("  ok  Coverage R23 archived in ledger (alert index cleaned post-run)")
+        else:
+            print(f"  ok  Coverage R23 alert present ({len(n23)})")
+        r24 = q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "rclone.exe"}}], 1)
+        if not r24:
+            FAILURES.append("Coverage: no rclone E1 (R24 base) in window")
+        else:
+            print("  ok  Coverage R24 transfer-tool present (rclone E1)")
 
     # artifact_index canonical hashes (missing file = failure)
     ledger = json.loads((rec_dir / f"{RUN}.json").read_text(encoding="utf-8"))

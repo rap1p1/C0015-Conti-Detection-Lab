@@ -53,8 +53,9 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "3",
-          "ts": "2026-10-02T08:55:03Z+",
-          "detail": "poll loop to C2-SIM :8080"
+          "es_id": "AaD706iPmO7CP6QKbU1L",
+          "ts": "2026-10-02T08:55:01.782Z",
+          "detail": "first poll egress :8080"
         }
       ],
       "notes": ""
@@ -163,8 +164,9 @@
           "host": "fs01",
           "channel": "Security",
           "event": "5145",
-          "ts": "2026-10-02T08:5xZ",
-          "detail": "admin-share access observed (C$)"
+          "es_id": "AaD71qiPmO7CP6TGeiOu",
+          "ts": "2026-10-02T08:59:09.528Z",
+          "detail": "admin-share access observed (C$); 134 5145 events in the run window"
         }
       ],
       "notes": ""
@@ -303,7 +305,12 @@
           "kind": "alert",
           "rule": "C0015 | R19 | RDP Interactive Logon by Non-System Account",
           "ts": "2026-10-02T09:03:38Z",
-          "detail": "R19 alerts x2 on the T10 logon"
+          "detail": "R19 fired at 2026-10-02T09:03:38Z (2 alert docs with ids); source event 4624 T10 AaD72qiPmO7CP6S6j0bF",
+          "source_event_id": "AaD72qiPmO7CP6S6j0bF",
+          "alert_ids": [
+            "bf4a3c5dc66970376b1989175e2e99d56603d5a2168621099e26baeddf7c163b",
+            "cac55aace197ed2bc3651220d0a3a9bab82a36700322f04183147c33721e1cd9"
+          ]
         }
       ],
       "notes": "interactive logon observed; session lifetime not captured"
@@ -359,6 +366,36 @@
         {
           "kind": "impact",
           "detail": "Prepare OK; Run 15 files/615 B; Verify 30 bidirectional mismatches; Rollback OK; Verify post-restore hash-equal"
+        },
+        {
+          "kind": "rule",
+          "rule": "C0015 | R23 | Note Spread with Same-Process Context",
+          "observed": "2026-10-02T09:06:38Z",
+          "count": 1,
+          "source_events": [
+            {
+              "es_id": "AaD73aiPmO7CP6Qxn91W",
+              "ts": "2026-10-02T09:06:04.059Z",
+              "entity": "{88E52A21-73FB-6ABF-7A05-000000000C00}",
+              "path": "C:\\C0015-Impact-Corpus\\finance\\README_C0015_LAB.txt"
+            },
+            {
+              "es_id": "AaD73aiPmO7CP6Qxn91X",
+              "ts": "2026-10-02T09:06:04.075Z",
+              "entity": "{88E52A21-73FB-6ABF-7A05-000000000C00}",
+              "path": "C:\\C0015-Impact-Corpus\\hr\\README_C0015_LAB.txt"
+            },
+            {
+              "es_id": "AaD73aiPmO7CP6Qxn91Y",
+              "ts": "2026-10-02T09:06:04.075Z",
+              "entity": "{88E52A21-73FB-6ABF-7A05-000000000C00}",
+              "path": "C:\\C0015-Impact-Corpus\\it\\README_C0015_LAB.txt"
+            }
+          ],
+          "detail": "R23 alert doc e26e3bdb... at 09:06:38Z; 3 note creates, one powershell entity, 3 distinct paths",
+          "alert_ids": [
+            "e26e3bdbdc120f95a8ee4ab477777de7ac82a26bad0725a785dda33f14bfa538"
+          ]
         }
       ],
       "notes": "bounded surrogate; bidirectional Verify"
@@ -436,6 +473,5 @@
       "producer_stage": "S15",
       "consumer_stage": ""
     }
-  ],
-  "notes": "Campaign chain S1-S14 (impact). S15 = post-run validation (acceptance/ledger/scorecard), kept for schema compatibility and marked as non-campaign. Tuned-rules validation run: R16/R14b suppression, R22/R23/R24 live."
+  ]
 }

@@ -15,6 +15,8 @@ $tExec    = @{ id='TA0002'; name='Execution'; reference='https://attack.mitre.or
 $tCred    = @{ id='TA0006'; name='Credential Access'; reference='https://attack.mitre.org/tactics/TA0006/' }
 $tC2      = @{ id='TA0011'; name='Command and Control'; reference='https://attack.mitre.org/tactics/TA0011/' }
 $tDefEv   = @{ id='TA0005'; name='Defense Evasion'; reference='https://attack.mitre.org/tactics/TA0005/' }
+$tImpact  = @{ id='TA0040'; name='Impact'; reference='https://attack.mitre.org/tactics/TA0040/' }
+$tExfil   = @{ id='TA0010'; name='Exfiltration'; reference='https://attack.mitre.org/tactics/TA0010/' }
 function Tech { param($Tactic, [string]$Id, [string]$Name, [string]$SubId=$null, [string]$SubName=$null)
   if ($SubId) {
     @{ framework='MITRE ATT&CK'; tactic=$Tactic; technique=@(@{ id=$Id; name=$Name; reference="https://attack.mitre.org/techniques/$Id/"; subtechnique=@(@{ id=$SubId; name=$SubName; reference="https://attack.mitre.org/techniques/$SubId/" }) }) }
@@ -223,7 +225,7 @@ Confirm the source IP (winlog.event_data.IpAddress) and correlate the TargetLogo
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R20 | Portable Tool Dropped into Non-Standard Location then Executed' `
-  -Descr 'Detects a portable tool dropped into a non-standard location (Videos or drive root) and later executed - E11 then E1 sequence (S13). Two tool classes with distinct MITRE mappings: remote desktop software (AnyDesk/RustDesk/TeamViewer, T1219.002 Remote Desktop Software) and process-administration tooling (ProcessHacker). Host-level correlation - the rule does not prove the executed binary is the dropped file.' `
+  -Descr 'Detects remote desktop software (AnyDesk/RustDesk/TeamViewer) dropped into a non-standard location (Videos or drive root) and later executed - E11 then E1 sequence (S13, T1219.002 Remote Desktop Software). Host-level correlation - the rule does not prove the executed binary is the dropped file. ProcessHacker is NOT part of this predicate (process-tool branch split; its coverage is a documented gap).' `
   -Note '## Scope
 
 S13 tool deployment mirroring the report (AnyDesk under Videos\, ProcessHacker at C:\ root). The sequence joins by host.name only - it does not prove that the executed binary is the dropped file; treat as correlation.
@@ -283,7 +285,7 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Interval 1m, l
 
 A single README-like file is a weak signal; combine with R23 (note spread) and the E11 sweep. E11 covers file create/overwrite; renames appear as delete+create pairs and are only partially observed (no delete auditing).' `
   -Sev low -Risk 21 -FP @('Legitimate README/recovery instruction files.') `
-  -Threat (Tech $tExec 'T1486' 'Data Encrypted for Impact') -Idx $sysmon -Query $q['r22-ransomware-note-class'] -BBlock 'default'
+  -Threat (Tech $tImpact 'T1486' 'Data Encrypted for Impact') -Idx $sysmon -Query $q['r22-ransomware-note-class'] -BBlock 'default'
 
 $rules += New-ThresholdRule `
   -Name 'C0015 | R23 | Note Spread with Same-Process Context' `
@@ -300,12 +302,12 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Interval 1m, w
 
 Distinct-path cardinality avoids counting repeated writes to one note. The process context (name, parent, path) is retained for triage; this is a potential-impact signal, not a proof of encryption.' `
   -Query (Get-Content -LiteralPath "$qDir\r23-note-spread-distinct-paths.eql" -Raw).Trim() `
-  -GroupBy @('host.name','process.name') -Value 1 -CardField 'file.path' -CardValue 3 `
-  -Sev high -Risk 73 -Threat (Tech $tExec 'T1486' 'Data Encrypted for Impact') -Idx $sysmon
+  -GroupBy @('host.name','process.entity_id') -Value 1 -CardField 'file.path' -CardValue 3 `
+  -Sev high -Risk 73 -Threat (Tech $tImpact 'T1486' 'Data Encrypted for Impact') -Idx $sysmon
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R24 | Transfer Tool Egress' `
-  -Descr 'Detects a bulk-transfer tool (rclone/rsync/azcopy) starting and then making an egress connection (E1 then E3, entity join) - the S11 exfiltration behavior (T1567.002 surrogate; real rclone). Evidence-adjacent: receipts remain the authoritative transfer proof.' `
+  -Descr 'Detects a bulk-transfer tool (rclone/rsync/azcopy) starting and then making an egress connection (E1 then E3, entity join) - the S11 exfiltration behavior (T1567.002 surrogate; real rclone). The rule proves process egress; the receipts prove the file transfer (ART-09-01 hash equality).' `
   -Note '## Scope
 
 S11 transfer to the internal sink. Building block: ON. E3 must be owned by the same entity; destination port >= 1024.
@@ -318,7 +320,7 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Sequence joine
 
 rclone executed with transfer flags (--transfers/--bwlimit) reaching the sink is the campaign signal; receipts (ART-09-01) verify file equality independently.' `
   -Sev low -Risk 21 -FP @('Legitimate backup/transfer tooling (rclone to trusted endpoints).') `
-  -Threat (Tech $tC2 'T1567' 'Exfiltration Over Web Service' 'T1567.002' 'Exfiltration to Cloud Storage') -Idx $sysmon -Query $q['r24-transfer-tool-egress'] -BBlock 'default'
+  -Threat (Tech $tExfil 'T1567' 'Exfiltration Over Web Service' 'T1567.002' 'Exfiltration to Cloud Storage') -Idx $sysmon -Query $q['r24-transfer-tool-egress'] -BBlock 'default'
 # S1-S3 rules (R01-R11) - same metadata shape, English notes, sysmon index.
 # ---------------------------------------------------------------------------
 $s3rules = @()
@@ -330,11 +332,11 @@ $specs = @(
   @{ id='r02-script-host-spawning-proxy-loader'; name='C0015 | R02 | Script Host Spawning Regsvr32 or Rundll32';
      desc='Detects mshta/wscript/cscript spawning regsvr32 or rundll32 (E1) - the transition from the HTA bootstrap to the signed-proxy loader (S1, T1218.010/T1218.011).';
      note='## Scope`n`nS1 proxy execution after the HTA runs. Building block: ON.`n`n## Investigation`n`nMatch the child command line - regsvr32 /s with a staged path feeds R03.';
-     threat=(Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.010' 'Regsvr32') },
+     threat=@((Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.010' 'Regsvr32'), (Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.011' 'Rundll32')) },
   @{ id='r03-proxy-loader-loading-unsigned-module'; name='C0015 | R03 | Proxy Loader Loading an Unsigned Module from a Staging Path';
      desc='Detects regsvr32/rundll32 loading an unsigned module from a staging path (E7) - the DLL surrogate load (S1, T1218.010).';
      note='## Scope`n`nS1 DLL-as-JPG load. Building block: ON.`n`n## Investigation`n`nCheck Signed=false + hash; correlate with E11 of the staged file and the subsequent beacon (R05/R06).';
-     threat=(Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.010' 'Regsvr32') },
+     threat=@((Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.010' 'Regsvr32'), (Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.011' 'Rundll32')) },
   @{ id='r04-script-or-proxy-staging-file-write'; name='C0015 | R04 | Script or Proxy Writing to a Staging Path';
      desc='Detects script/proxy processes writing files to staging paths via E11 - ingress staging signal (S1/S2, T1105). A file creation alone does not prove a download.';
      note='## Scope`n`nStaged file writes from script/proxy processes. The entry macro''s own writes are WINWORD-originated E11 events and fall outside this predicate - coverage claim is limited accordingly. Building block: ON.`n`n## Investigation`n`nReview the written file names and the writing process.';
@@ -413,6 +415,7 @@ if (($ids | Select-Object -Unique).Count -ne $ids.Count) { throw "duplicate rule
 Write-Output "written S1-S3: $($s3rules.Count) rules"
 ($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r12-r24.ndjson" -Encoding UTF8
 Write-Output "written S4-S9: $($rules.Count) rules"
+
 
 
 

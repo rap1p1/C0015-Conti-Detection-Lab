@@ -2,7 +2,7 @@ any where event.code == "1"
   and event.type == "start"
   and (
     (process.name : ("net.exe", "net1.exe")
-       and process.command_line : ("* view *", "* view", "* use *"))
+       and process.command_line : ("* view *", "* view"))
     or
     (process.name : ("powershell.exe", "pwsh.exe")
        and process.command_line : "*Get-SmbShare*")
