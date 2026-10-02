@@ -1,0 +1,15 @@
+{
+  "artifact_id": "ART-09-01",
+  "run_id": "RUN-20261002-05",
+  "round": 2,
+  "schema_version": "1.0",
+  "producer_phase": 12,
+  "consumer_phase": 15,
+  "verified_at": "2026-10-02T13:02:16.1946149+07:00",
+  "verified_files": 11,
+  "total_files": 11,
+  "manifest_ref": "stage/p3/art08_01.json",
+  "sink_root": "stage/sink/RUN-20261002-05/round2/DATA",
+  "tool": "rclone.exe 1.75.1",
+  "note": "internal sink (no public cloud); round 2 after RDP (day1/day4 mirror)"
+}

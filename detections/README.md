@@ -169,3 +169,18 @@ S9: R18=9. Tổng 656 → sau khi bỏ BB-ON + suppression (đã enable) tập a
 - **Sweep duplication** (interval 1m vs look-back 6m): cùng event match nhiều sweep — đã enable suppression (`process.entity_id`/`host.name`+logon id, 5m) — nếu vẫn thấy trùng, dedupe theo `kibana.alert.uuid`.
 - **E3 timestamp lag ~2–3s** so E1/E11 — không xếp thứ tự chain theo E3.
 - Loại ambient E10: gated SourceImage system (wininit/csrss/services/svchost/MsMpEng/Registry/wmiprvse) + `GrantedAccess` không gồm 0x1000/0x101000 (query-info thường).
+
+### Final phases (S10-S15) — extended from the DFIR report cross-check (RUN-20261002-05)
+
+| Stage (technique) | Victim-side artifacts | E# / S# | Key fields | Rule & what drives the match |
+|---|---|---|---|---|
+| **S10** Collection (T1005/T1039/T1074.001) | beacon reads network shares, copies files into a staging dir; local zip of the corpus | E11 (collect\ writes), **S5145** | `file.path` (`*collect*`), `winlog.event_data.ShareName` (`\\*\C$`, `\\*\Finance`), `RelativeTargetName`, `user.name` | **R16** (5145 C$/ADMIN$ — drives on share-name + relative path; read/write both audited with Detailed File Share ON); R04 class for staging writes |
+| **S11** Transfer to sink (T1567.002 surrogate / T1030 approx) | **rclone.exe** (real tool) copying the corpus to a remote (lab: local WebDAV sink on :9001) with transfer flags | E1 (rclone), E3 (egress :9001) | `process.name=rclone.exe` + `process.command_line` (`--transfers 7 --bwlimit 10M --max-age 2y` class), `destination.port=9001`, `network.direction=egress` | **R06/R09** class (script-host egress); NCC-style rclone CLI detection as a future R22 candidate; receipt = ART-09-01 hash equality (host-side, independent) |
+| **S12** RDP (T1021.001) | mstsc client; RDP NLA logon on target | **S4624** (T3/T4/T10), S4778/4779 | `winlog.event_data.LogonType` ("10" interactive, "3"/"4" network/NLA), `TargetUserName`, `IpAddress`, `TargetLogonId` | **R19** (4624 T10 non-system — BB; the lab run logged T3/T4 network-auth — rule gated on the completed interactive logon) |
+| **S13** AnyDesk-like / process tool (T1219.002) | portable tool dropped into `Videos\` or `C:\` root then executed | E11 (drop paths), E1 (tool run) | `file.path` (`*\\Videos\\*`, `C:\\*.exe`), `file.extension=exe`, `process.name` class (AnyDesk/RustDesk/TeamViewer/ProcessHacker) | **R20** (sequence E11-drop → E1-run, join host, maxspan 10m) |
+| **S14** Impact (T1486 surrogate, T1083) | bulk file rename + extension change on the corpus; ransom-note file; post-impact listing | E11 (renames + note), E2 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME* .txt), `file.extension` (novel class), `file.path` (`*Impact*`) | **R21** (note class OR novel extension), + R16 if SMB-driven; recovery evidence = Rollback + hash compare (host-side) |
+| **S15** E2E & investigation | full-run ledger, receipts, scorecard | ledger/artifacts | run_id + artifact hashes | ART-15-01 coverage scorecard; ground-truth-hidden exercise |
+
+Run reference: `evidence/run-ledger/RUN-20261002-05.json` — artifacts ART-07-01/08-01/09-01×2/14-01/15-01.
+Boundary crossings approved: real AnyDesk (public relay), real rclone (local sink only), ProcessHacker without dump; impact stays bounded/reversible.
+Repository language: English (legacy R12-R18 rule notes in Vietnamese are a translation debt tracked in ART-15-01).

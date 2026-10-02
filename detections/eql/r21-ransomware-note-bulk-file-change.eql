@@ -1,0 +1,3 @@
+any where event.code == "11"
+  and (file.name : ("README*.txt", "DECRYPT*.txt", "HOW_TO*.txt", "READ_ME*.txt")
+       or file.extension == "c0015")

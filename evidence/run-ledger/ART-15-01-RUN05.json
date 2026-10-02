@@ -1,0 +1,48 @@
+{
+  "artifact_id": "ART-15-01",
+  "run_id": "RUN-20261002-05",
+  "schema_version": "1.0",
+  "producer_stage": "S15",
+  "generated_utc": "2026-10-02T06:22:00Z",
+  "verification": {
+    "tool": "stage/analysis/verify_final_phases.py",
+    "window": "2026-10-02T05:41:00Z -> 2026-10-02T06:12:00Z",
+    "result": "PASS"
+  },
+  "stage_evidence": {
+    "S1": "WINWORD->mshta->regsvr32 E1 chain + macro self-write E11 + register 05:41:44Z",
+    "S4-S5": "runbook tasks 130+ (net/nltest/net view)",
+    "S7": "elevate wmic ReturnValue=0",
+    "S7b": "E10 mimikatz->lsass 0x1010 05:44:03Z",
+    "S8a": "S5145 381 (C$:377)",
+    "S8b": "E1 rundll32 parent=WmiPrvSE 05:45:11Z",
+    "S9": "ART-07-01-18c677ef 05:45:12Z",
+    "S10": "ART-08-01 manifest 11 files; E11 collect + collect5.zip",
+    "S11a": "rclone E1 05:58:35 + E3 :9001; ART-09-01 round1 11/11 hash",
+    "S12": "S4624 it.admin T3/T4 06:00:30Z+; session Conn (partial)",
+    "S11b": "rclone E1 06:01:29; ART-09-01 round2 11/11 hash",
+    "S13": "E11 AnyDesk Videos\\ + C:\\ProcessHacker.exe + E1 runs",
+    "S14": "impact 15 files Run/Verify(15 mismatch)/Rollback/Verify(hash-OK)",
+    "S15": "this scorecard; alerts sweep below"
+  },
+  "detection_coverage": {
+    "rules_enabled": 22,
+    "fired_raw_counts": {
+      "R16 File Write Admin Share": 340,
+      "R14b Elevated Privileges (BB)": 288,
+      "R10 PS-Nested CMD": 78,
+      "R14a Network Logon": 72,
+      "R12 PS->CMD->Discovery": 33,
+      "R11 Nested CMD Discovery": 9,
+      "R18 Proxy-PS Egress": 9,
+      "R13 Share Enumeration": 8,
+      "R17 WMI-Spawned Unsigned": 3,
+      "R15 LSASS Access": 2,
+      "R20 Portable Remote Tool": 3,
+      "R21 Ransomware Note/Bulk Rename": 3,
+      "R19 RDP Interactive": "0 (gated on completed type-10 logon; RDP observed as T3/T4 network-auth)"
+    },
+    "notes": "R21/R20 validated on-run; R19 validated logically; all rules imported with deterministic rule_id"
+  },
+  "artifacts_indexed": ["ART-07-01-18c677ef", "ART-08-01", "ART-09-01 r1", "ART-09-01 r2", "ART-14-01", "ART-15-01"]
+}
