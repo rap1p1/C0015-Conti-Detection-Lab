@@ -27,7 +27,7 @@ follow the same conventions:
 |---|---|---|---|---|---|
 | R14b | Elevated Privileges Assigned to Non-System Account | 47 | ON | host+SubjectLogonId (5m) | S7 — Security 4672 (non-system user; suppression added 2026-10-02) |
 | R15 | LSASS Access with Credential-Access Grant | 47 | ON | entity | S7b — E10 `GrantedAccess` 0x1010/0x1418/0x1fffff; ambient excluded |
-| R19 | RDP Interactive Logon by Non-System Account | 47 | ON | — | S12 — Security 4624 `LogonType=10` (true positive on RUN-20261002-06) |
+| R19 | RDP Interactive Logon by Non-System Account | 47 | ON | — | S12 — Security 4624 `LogonType=10` (true positive on RUN-20261002-06/-07) |
 | R20 | Portable Remote-Access or Process Tool Dropped and Executed | 47 | ON | — | S13 — E11 into `Videos\`/drive root → E1 tool class (remote-access software; ProcessHacker = process tool, not remote access; 3 matches in the reference run) |
 
 ### 🟢 Low — building blocks (BB-ON) / suppressed
@@ -64,8 +64,8 @@ follow the same conventions:
 | **S8b** WMI pivot (T1047/T1218.011) | Wmiprvse → rundll32 → 143.dll (LabEntry) → marker | **E1 parent=WmiPrvSE**, **E7** (unsigned, hash), E11 marker | `process.parent.name=WmiPrvSE.exe`, entity, E7 `Signed=false` | R17 |
 | **S9** Session-2 (T1071.001) | rundll32 → powershell beacon (FS01) → callback `:8080`, receipt | E1, E3 `:8080`, E11 | `parent=rundll32`, entity, E3 egress | R18 (+R09) |
 | **S10** Collection (T1005/T1039/T1074.001) | beacon reads shares (UNC), copies into staging dir, zips | E11 (`*collect*`), **S5145** | `file.path` (`*collect*`), `ShareName`, `RelativeTargetName`, `user.name` | R16 only for C$/ADMIN$ access; Finance/IT reads are observed via 5145 but outside the rule pattern (stated gap) |
-| **S11** Transfer (T1567.002 surrogate/T1030) | **real rclone** (`--transfers 7 --bwlimit 10M --max-age 2y`) → local WebDAV sink :9001 | E1 (rclone), E3 egress `:9001` | `process.name=rclone.exe`, `process.command_line` (transfer-flag class), `destination.port=9001` | no rclone-specific rule; evidence = rclone E1/E3 + ART-09-01 receipts (R06/R09 cover generic script-host egress only) |
-| **S12** RDP (T1021.001) | mstsc client; RDP NLA logon | **S4624** T3/T4/T10, S4778/4779 | `LogonType` ("3" network; "4" batch — not RDP-specific; "10" RemoteInteractive), `TargetUserName`, `IpAddress` | R19 (T10 non-system; BB — true positive on RUN-20261002-06 (07:56:06Z); run-05 T10 events predate rule coverage) |
+| **S11** Transfer (T1567.002 surrogate/T1030) | **real rclone** (`--transfers 7 --bwlimit 10M --max-age 2y`) → local WebDAV sink :9001 | E1 (rclone), E3 egress `:9001` | `process.name=rclone.exe`, `process.command_line` (transfer-flag class), `destination.port=9001` | R24 (transfer-tool egress) + rclone E1/E3 + ART-09-01 receipts (hash equality) |
+| **S12** RDP (T1021.001) | mstsc client; RDP NLA logon | **S4624** T3/T4/T10, S4778/4779 | `LogonType` ("3" network; "4" batch — not RDP-specific; "10" RemoteInteractive), `TargetUserName`, `IpAddress` | R19 (T10 non-system; BB — true positive on RUN-06/-07; run-05 T10 events predate rule coverage) |
 | **S13** Remote tool (T1219.002) | portable tool dropped into `Videos\` / `C:\` root, then run | E11 (drop), E1 (run) | `file.path` (`*\\Videos\\*`, `C:\\*.exe`), `file.extension=exe`, `process.name` class (AnyDesk/RustDesk/TeamViewer; ProcessHacker as process tool) | R20 (sequence drop→run joins by host.name - it does not prove the executed binary is the dropped file; treat as correlation) |
 | **S14** Impact (T1486 surrogate/T1083) | bulk name change (delete+create pairs; E11 create observed; E2 = creation-time change, not rename) + ransom-note file; post-impact listing | E11 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME*), `file.extension` (novel class), `file.path` (`*Impact*`) | — (impact writes monitored via E11 sweep); recovery evidence = Rollback + hash compare |
 | **S15** E2E / IR | full ledger + receipts + scorecard | — | run_id + artifact hashes | ART-15-01 coverage scorecard |
@@ -114,6 +114,7 @@ Correlation guidance: join by host + EntityID/logon-id (same-host only); E3 time
 lag E1/E11 by 2-3s; alert volume from the schedule (1m interval, 6m look-back) is
 mitigated by the suppression groups listed above — the counts in the coverage section
 are raw stored counts and must be treated as upper bounds until dedup is confirmed per rule.
+
 
 
 

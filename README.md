@@ -16,7 +16,7 @@ handoffs, and a detection suite validated against a recorded reference run.
 1. [reports/reference-run-20261002-05.md](reports/reference-run-20261002-05.md) — what was observed, which
    rules matched, what stayed partial.
 2. [detections/README.md](detections/README.md) — the rule suite (R01-R20), stage mapping and coverage.
-3. [evidence/runs/RUN-20261002-06/](evidence/runs/RUN-20261002-06/) — ledger with event references and
+3. [evidence/runs/RUN-20261002-07/](evidence/runs/RUN-20261002-07/) — ledger with event references and
    hash-verified artifacts.
 4. Verification: acceptance checks in `scripts/verify/verify_final_phases.py <RUN_ID>` (Elastic, env credentials); offline component tests via `python -m unittest discover -s scripts/tests` (20 tests);
    Elastic-gated checks are documented in `scripts/verify/`.
@@ -46,7 +46,7 @@ flowchart LR
 | C2 host | operator (this repository) | C2-SIM, HTTP staging, internal sink, Elastic access |
 | Elastic/Fleet | telemetry backend | managed stack; ingestion aliases `logs-windows.sysmon_operational-c0015*`, `logs-system.security-c0015*` |
 
-## Validated results (reference run RUN-20261002-06)
+## Validated results (reference run RUN-20261002-07)
 
 - **Entry chain (S1)**: the entry document's macro **self-writes** config.ini/bootstrap.hta/c0015_beacon.ps1
   (no tooling on disk before the open) → mshta → HTA → regsvr32 → beacon (registered session with token).
@@ -57,11 +57,11 @@ flowchart LR
   internal WebDAV sink (ART-09-01 receipts, 11/11 hash equality per round), RDP network-auth logons
   (no completed interactive logon — **S12 partial**), AnyDesk/ProcessHacker drops (E11/E1), and a bounded
   impact surrogate with **bidirectional verify + rollback** (ART-14-01) - exercised by RUN-20261002-06; the earlier run (RUN-20261002-05) used the one-directional verify then in force.
-- **Detection**: 21 rules (R01-R20) enabled; alerting rules R17/R18 correlated with their building blocks
+- **Detection**: 24 rules (R01-R24, R21 retired); alerting rules R17/R18/R23 correlated with their building blocks
   per the correlation map; alert counts recorded as raw stored values (upper bounds).
 
 Limitations are documented per stage in the [report](reports/reference-run-20261002-05.md) and in the
-ledger — notably: Type-10 RDP logons ARE recorded (run-06: event 07:56:06Z with R19 true positive; run-05: two T10 at 06:00:27Z with no R19 coverage in-window), session lifetime was not captured (S12 partial), no rclone-specific rule (evidence via
+ledger — notably: Type-10 RDP logons ARE recorded (run-06: event 07:56:06Z with R19 true positive; run-05: two T10 at 06:00:27Z with no R19 coverage in-window), session lifetime was not captured (S12 partial), S11 has a transfer-tool rule (R24); evidence cross-checked via
 events + receipts), R16 as an access indicator rather than a write detector, and upload-chunking (T1030
 variants) left as design-only.
 
@@ -81,7 +81,7 @@ variants) left as design-only.
 | S11a/b | T1567.002/T1030 | **rclone → MEGA** (two rounds) | real rclone → **local WebDAV sink** (:9001) | E1 rclone, E3 :9001, receipt ART-09-01 | evidence + receipts |
 | S12 | T1021.001 | RDP to the backup server (day 2) | RDP `mstsc` + `cmdkey` | Security 4624 T3 network / T10 RemoteInteractive (T10 observed; lifetime not captured) | R19 |
 | S13 | T1219.002 | AnyDesk in `Videos\`, ProcessHacker at `C:\` | real AnyDesk (lab-internal) + ProcessHacker | E11 drop paths + E1 | R20 |
-| S14 | T1486/T1083 | `locker.bat` + Conti (`-m -net -size 10 ...`) | `c0015_impact.ps1` bounded surrogate (reversible) | E11 bulk rename + note | — (monitored via E11 sweep) |
+| S14 | T1486/T1083 | `locker.bat` + Conti (`-m -net -size 10 ...`) | `c0015_impact.ps1` bounded surrogate (reversible) | E11 note + name-change creates | R22/R23 |
 
 ## Repository structure
 
@@ -101,7 +101,7 @@ stage/        runtime files (generated document, per-run configs, tools) — git
 
 24 rules across R01-R24 (R14a/R14b and R22/R23/R24 included) implement a layered model mirroring the intrusion chronology: initial
 access (R01-R08), beacon live-off-the-land activity (R09-R13), credential access and lateral movement
-(R14a-R18), and remote access (R19-R20 — the RDP and portable-tool steps; R19 was positively tested on RUN-20261002-06). The alerting set — **R17**
+(R14a-R18), and remote access (R19-R24 — RDP, portable tool, note class/spread, transfer; R19 positively tested on RUN-20261002-06/-07). The alerting set — **R17**
 (WMI pivot to an unsigned module) and **R18** (proxy-spawned beacon egress) — is high severity; the
 remaining rules operate as correlation building blocks with suppression on noisy sources (see the
 building-block → alerting correlation map in `detections/README.md`). Every rule uses a deterministic
@@ -127,7 +127,7 @@ empty queries; Offline component tests cover the evidence tooling and C2-SIM log
 - [docs/payloads-and-c2.md](docs/payloads-and-c2.md) — payload and C2 design.
 ## Environment versions (reference run)
 
-| Component | Version (as used in RUN-20261002-06) |
+| Component | Version (as used in RUN-20261002-07) |
 |---|---|
 | VMware Workstation | host-side; VMs WS01/FS01/DC01 (Windows 10 / Windows 10 Pro 19045 / Server), Kali |
 | Elastic / Fleet | managed stack (ingestion aliases above) |
@@ -136,6 +136,7 @@ empty queries; Offline component tests cover the evidence tooling and C2-SIM log
 | Sysmon | 15.21 (schema 4.91), profile `configs/sysmon/sysmon-c0015-balanced.xml` |
 | rclone | 1.75.1 (transferred with the documented flags) |
 | ProcessHacker / AnyDesk | 2.39 / standalone build |
+
 
 
 
