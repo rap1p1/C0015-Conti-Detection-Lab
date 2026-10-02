@@ -1,0 +1,1 @@
+event.code:11 AND file.name:(README*.txt OR DECRYPT*.txt OR HOW_TO*.txt OR READ_ME*.txt OR RECOVER*.txt)

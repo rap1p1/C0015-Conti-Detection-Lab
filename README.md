@@ -99,7 +99,7 @@ stage/        runtime files (generated document, per-run configs, tools) — git
 
 ## Detection engineering
 
-21 rules across R01-R20 (R14a/R14b included) implement a layered model mirroring the intrusion chronology: initial
+24 rules across R01-R24 (R14a/R14b and R22/R23/R24 included) implement a layered model mirroring the intrusion chronology: initial
 access (R01-R08), beacon live-off-the-land activity (R09-R13), credential access and lateral movement
 (R14a-R18), and remote access (R19-R20 — the RDP and portable-tool steps; R19 was positively tested on RUN-20261002-06). The alerting set — **R17**
 (WMI pivot to an unsigned module) and **R18** (proxy-spawned beacon egress) — is high severity; the
@@ -136,6 +136,7 @@ empty queries; Offline component tests cover the evidence tooling and C2-SIM log
 | Sysmon | 15.21 (schema 4.91), profile `configs/sysmon/sysmon-c0015-balanced.xml` |
 | rclone | 1.75.1 (transferred with the documented flags) |
 | ProcessHacker / AnyDesk | 2.39 / standalone build |
+
 
 
 

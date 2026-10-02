@@ -57,7 +57,7 @@ $sysmon = @('logs-windows.sysmon_operational-c0015*')
 $sec    = @('logs-system.security-c0015*')
 
 # Load queries for R12-R20 (bundle r12-r20) and R01-R11 (bundle r01-r11).
-$ids412 = 'r12-powershell-nested-cmd-launching-discovery','r13-share-enumeration-commands','r14a-network-logon-by-user','r14b-elevated-privileges-assigned-to-user','r15-lsass-credential-access','r16-admin-share-remote-file-write','r17-wmiprvse-spawns-process-loading-unsigned-module','r18-proxy-spawned-powershell-egress','r19-rdp-interactive-logon','r20-portable-remote-access-tool'
+$ids412 = 'r12-powershell-nested-cmd-launching-discovery','r13-share-enumeration-commands','r14a-network-logon-by-user','r14b-elevated-privileges-assigned-to-user','r15-lsass-credential-access','r16-admin-share-remote-file-write','r17-wmiprvse-spawns-process-loading-unsigned-module','r18-proxy-spawned-powershell-egress','r19-rdp-interactive-logon','r20-portable-remote-access-tool','r22-ransomware-note-class','r23-note-spread-distinct-paths','r24-transfer-tool-egress'
 $q = @{}
 foreach ($r in $ids412) { $q[$r] = (Get-Content -LiteralPath "$qDir\$r.eql" -Raw).Trim() }
 $q1 = @{}
@@ -236,9 +236,89 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Sequence of 2 
 
 Confirm the binary hash against vendor signatures; check the tool''s connection targets (E3) - public relays versus lab-local listeners; correlate with R15 if the tool touches lsass.' `
   -Sev medium -Risk 47 -FP @('Users manually installing legitimate remote-control software.') `
-  -Threat (Tech $tC2 'T1219' 'Remote Access Software' 'T1219.002' 'Remote Access Software') -Idx $sysmon -Query $q['r20-portable-remote-access-tool'] -BBlock 'default'
+  -Threat (Tech $tC2 'T1219' 'Remote Access Software' 'T1219.002' 'Remote Access Software') -Idx $sysmon -Query $q['r20-portable-remote-access-tool','r22-ransomware-note-class','r23-note-spread-distinct-paths','r24-transfer-tool-egress'] -BBlock 'default'
 
 # ---------------------------------------------------------------------------
+function New-ThresholdRule {
+  param([string]$Name, [string]$Descr, [string]$Note, [string]$Query, [string[]]$GroupBy,
+        [int]$Value, [string]$CardField, [int]$CardValue, [string]$Sev, [int]$Risk,
+        [object]$Threat, [string[]]$Idx)
+  $hash = ([System.Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Name)) |
+           ForEach-Object { $_.ToString('x2') }) -join ''
+  $uuid = '{0}-{1}-4{2}-8{3}-{4}' -f $hash.Substring(0,8), $hash.Substring(8,4),
+          $hash.Substring(12,3), $hash.Substring(15,3), $hash.Substring(18,12)
+  $o = [ordered]@{
+    id = $uuid; rule_id = $uuid; name = $Name; immutable = $false; version = 1; revision = 0
+    updated_at = $now; updated_by = 'elastic'; created_at = $now; created_by = 'elastic'
+    enabled = $true; interval = '1m'; from = 'now-10m'; to = 'now'
+    description = $Descr; tags = @('C0015'); author = @('C0015 Lab'); threat = @($Threat)
+    related_integrations = @(); required_fields = @(); setup = ''; note = $Note
+    false_positives = @('Legitimate recovery instructions dropped on the same host.')
+    references = @("https://github.com/rap1p1/C0015-Conti-Detection-Lab/tree/$commit/detections",
+                   'https://www.elastic.co/docs/reference/query-languages/query-language')
+    risk_score = $Risk; risk_score_mapping = @(); severity = $Sev; severity_mapping = @()
+    output_index = ''; max_signals = 100; exceptions_list = @(); actions = @()
+    meta = @{ from = '5m'; mitre_attack_version = '18'; c0015_source_commit = $commit }
+    type = 'threshold'; language = 'kuery'; index = $Idx; query = $Query
+    threshold = @{ field = $GroupBy; value = $Value; cardinality = @(@{ field = $CardField; value = $CardValue }) }
+    timestamp_field = '@timestamp'; event_category_override = 'event.category'
+  }
+  return $o
+}
+# ---------------------------------------------------------------------------
+# Coverage additions (2026-10-02): impact (R22/R23) and transfer (R24).
+# ---------------------------------------------------------------------------
+$rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
+  -Name 'C0015 | R22 | Potential Ransomware Note Creation' `
+  -Descr 'Detects creation of ransom-note-class files (README*/DECRYPT*/HOW_TO*/READ_ME*/RECOVER* .txt) via Sysmon E11 (S14 impact precursor). A single note is an initial signal only - investigate with process/entity/path. Naming reflects a potential-impact signal, not confirmed encryption.' `
+  -Note '## Scope
+
+S14 impact-preparation signal. Building block: ON. Retains process/entity/path for triage.
+
+## Data and schedule
+
+Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Interval 1m, look-back 5m.
+
+## Interpretation
+
+A single README-like file is a weak signal; combine with R23 (note spread) and the E11 sweep. E11 covers file create/overwrite; renames appear as delete+create pairs and are only partially observed (no delete auditing).' `
+  -Sev low -Risk 21 -FP @('Legitimate README/recovery instruction files.') `
+  -Threat (Tech $tExec 'T1486' 'Data Encrypted for Impact') -Idx $sysmon -Query $q['r22-ransomware-note-class'] -BBlock 'default'
+
+$rules += New-ThresholdRule `
+  -Name 'C0015 | R23 | Note Spread with Same-Process Context' `
+  -Descr 'Alerting: the same host+process creates ransom-note-class files in at least 3 DISTINCT paths within 10 minutes (threshold cardinality on file.path). Counts distinct paths - repeated writes of one note do not count as spread. Detects the lab impact pattern (notes across corpus dirs) while tolerating a single benign note. Names the signal as POTENTIAL impact.' `
+  -Note '## Scope
+
+S14 impact-detection. Alerting (not a building block). Threshold rule: group by host.name + process.name, require 3 distinct file.path values in the window. Baseline: the bounded impact run writes one note per corpus directory (>=3 dirs); a single note (1-2 paths) does not fire.
+
+## Data and schedule
+
+Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Interval 1m, window 10m. Query filters E11 note-class names.
+
+## Interpretation
+
+Distinct-path cardinality avoids counting repeated writes to one note. The process context (name, parent, path) is retained for triage; this is a potential-impact signal, not a proof of encryption.' `
+  -Query (Get-Content -LiteralPath "$qDir\r23-note-spread-distinct-paths.eql" -Raw).Trim() `
+  -GroupBy @('host.name','process.name') -Value 1 -CardField 'file.path' -CardValue 3 `
+  -Sev high -Risk 73 -Threat (Tech $tExec 'T1486' 'Data Encrypted for Impact') -Idx $sysmon
+
+$rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
+  -Name 'C0015 | R24 | Transfer Tool Egress' `
+  -Descr 'Detects a bulk-transfer tool (rclone/rsync/azcopy) starting and then making an egress connection (E1 then E3, entity join) - the S11 exfiltration behavior (T1567.002 surrogate; real rclone). Evidence-adjacent: receipts remain the authoritative transfer proof.' `
+  -Note '## Scope
+
+S11 transfer to the internal sink. Building block: ON. E3 must be owned by the same entity; destination port >= 1024.
+
+## Data and schedule
+
+Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Sequence joined by host.name + process.entity_id, maxspan 5m.
+
+## Interpretation
+
+rclone executed with transfer flags (--transfers/--bwlimit) reaching the sink is the campaign signal; receipts (ART-09-01) verify file equality independently.' `
+  -Sev low -Risk 21 -FP @('Legitimate backup/transfer tooling (rclone to trusted endpoints).') `
+  -Threat (Tech $tC2 'T1567' 'Exfiltration Over Web Service' 'T1567.002' 'Exfiltration to Cloud Storage') -Idx $sysmon -Query $q['r24-transfer-tool-egress'] -BBlock 'default'
 # S1-S3 rules (R01-R11) - same metadata shape, English notes, sysmon index.
 # ---------------------------------------------------------------------------
 $s3rules = @()
@@ -331,8 +411,13 @@ if (($ids | Select-Object -Unique).Count -ne $ids.Count) { throw "duplicate rule
 
 ($s3rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r01-r11.ndjson" -Encoding UTF8
 Write-Output "written S1-S3: $($s3rules.Count) rules"
-($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r12-r20.ndjson" -Encoding UTF8
+($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r12-r24.ndjson" -Encoding UTF8
 Write-Output "written S4-S9: $($rules.Count) rules"
+
+
+
+
+
 
 
 

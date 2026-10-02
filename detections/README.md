@@ -12,7 +12,7 @@ follow the same conventions:
 - Rebuild + import: `powershell scripts/rules/gen_rules_ndjson.ps1` → `curl -F "file=@detections/exports/c0015-rules-r12-r20.ndjson" -u elastic:... http://<kibana>:5601/api/detection_engine/rules/_import?overwrite=true`
   (S1-S3 rules ship as `detections/exports/c0015-rules-r01-r11.ndjson`).
 
-## Rule index
+## Rule index (24 rules: R01-R20 + R22-R24; R21 retired)
 
 ### 🔴 High — alerting (not building blocks)
 
@@ -21,13 +21,13 @@ follow the same conventions:
 | **R17** | WMI-Spawned Process Loading an Unsigned Module | 73 | host+entity | S8b — wmiprvse → rundll32 → unsigned `143.dll` (sequence E1→E7; `[any where]` because E7 is `category=library`) |
 | **R18** | Proxy-Spawned PowerShell Making an Egress Connection | 73 | host+entity | S9/S2 — rundll32/regsvr32 → powershell → E3 egress (sequence, 120s maxspan) |
 
-### 🟠 Medium (building-block ON = hidden from the default alert view until correlated)
+### 🟠 Medium  \n\n_No medium rows changed._ (building-block ON = hidden from the default alert view until correlated)
 
 | Rule | Name | Risk | BB | Supp | Fires at |
 |---|---|---|---|---|---|
-| R14b | Elevated Privileges Assigned to Non-System Account | 47 | ON | — | S7 — Security 4672 (non-system user) |
+| R14b | Elevated Privileges Assigned to Non-System Account | 47 | ON | host+SubjectLogonId (5m) | S7 — Security 4672 (non-system user; suppression added 2026-10-02) |
 | R15 | LSASS Access with Credential-Access Grant | 47 | ON | entity | S7b — E10 `GrantedAccess` 0x1010/0x1418/0x1fffff; ambient excluded |
-| R19 | RDP Interactive Logon by Non-System Account | 47 | ON | — | S12 — Security 4624 `LogonType=10` (reports once an interactive (Type 10) logon is observed) |
+| R19 | RDP Interactive Logon by Non-System Account | 47 | ON | — | S12 — Security 4624 `LogonType=10` (true positive on RUN-20261002-06) |
 | R20 | Portable Remote-Access or Process Tool Dropped and Executed | 47 | ON | — | S13 — E11 into `Videos\`/drive root → E1 tool class (remote-access software; ProcessHacker = process tool, not remote access; 3 matches in the reference run) |
 
 ### 🟢 Low — building blocks (BB-ON) / suppressed
@@ -48,7 +48,7 @@ follow the same conventions:
 | R12 | PowerShell-Driven Discovery via Nested CMD | 21 | ON | host+entity | S4 sequence |
 | R13 | Share Enumeration via net view or Get-SmbShare | 21 | ON | entity | S5 |
 | R14a | Network Logon by Non-System Account | 21 | ON | logon id | S7 |
-| R16 | Admin Share Access (SMB) | 21 | ON | — | S8a/S10 — Security 5145 on `*\\C$`/`*\\ADMIN$` (access check, not write-specific; requires the Detailed File Share audit policy) |
+| R16 | Admin Share Access (SMB) | 21 | ON | host+SubjectLogonId+ShareName (5m) | S8a/S10 — Security 5145 on `*\\C$`/`*\\ADMIN$` (access check; suppression added 2026-10-02) |
 
 ## Kill-chain mapping (technique → victim telemetry → rule)
 
@@ -67,7 +67,7 @@ follow the same conventions:
 | **S11** Transfer (T1567.002 surrogate/T1030) | **real rclone** (`--transfers 7 --bwlimit 10M --max-age 2y`) → local WebDAV sink :9001 | E1 (rclone), E3 egress `:9001` | `process.name=rclone.exe`, `process.command_line` (transfer-flag class), `destination.port=9001` | no rclone-specific rule; evidence = rclone E1/E3 + ART-09-01 receipts (R06/R09 cover generic script-host egress only) |
 | **S12** RDP (T1021.001) | mstsc client; RDP NLA logon | **S4624** T3/T4/T10, S4778/4779 | `LogonType` ("3" network; "4" batch — not RDP-specific; "10" RemoteInteractive), `TargetUserName`, `IpAddress` | R19 (T10 non-system; BB — true positive on RUN-20261002-06 (07:56:06Z); run-05 T10 events predate rule coverage) |
 | **S13** Remote tool (T1219.002) | portable tool dropped into `Videos\` / `C:\` root, then run | E11 (drop), E1 (run) | `file.path` (`*\\Videos\\*`, `C:\\*.exe`), `file.extension=exe`, `process.name` class (AnyDesk/RustDesk/TeamViewer; ProcessHacker as process tool) | R20 (sequence drop→run joins by host.name - it does not prove the executed binary is the dropped file; treat as correlation) |
-| **S14** Impact (T1486 surrogate/T1083) | bulk rename + extension change; ransom-note file; post-impact listing | E11, E2 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME*), `file.extension` (novel class), `file.path` (`*Impact*`) | — (impact writes monitored via E11 sweep); recovery evidence = Rollback + hash compare |
+| **S14** Impact (T1486 surrogate/T1083) | bulk name change (delete+create pairs; E11 create observed; E2 = creation-time change, not rename) + ransom-note file; post-impact listing | E11 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME*), `file.extension` (novel class), `file.path` (`*Impact*`) | — (impact writes monitored via E11 sweep); recovery evidence = Rollback + hash compare |
 | **S15** E2E / IR | full ledger + receipts + scorecard | — | run_id + artifact hashes | ART-15-01 coverage scorecard |
 
 ## Run coverage (reference run: RUN-20261002-06; first run: RUN-20261002-05)
@@ -114,6 +114,8 @@ Correlation guidance: join by host + EntityID/logon-id (same-host only); E3 time
 lag E1/E11 by 2-3s; alert volume from the schedule (1m interval, 6m look-back) is
 mitigated by the suppression groups listed above — the counts in the coverage section
 are raw stored counts and must be treated as upper bounds until dedup is confirmed per rule.
+
+
 
 
 

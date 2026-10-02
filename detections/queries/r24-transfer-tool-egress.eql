@@ -1,0 +1,3 @@
+sequence by host.name, process.entity_id with maxspan=5m
+  [any where event.code == "1" and process.name : ("rclone.exe", "rsync.exe", "azcopy.exe")]
+  [any where event.code == "3" and network.direction == "egress" and destination.port >= 1024]
