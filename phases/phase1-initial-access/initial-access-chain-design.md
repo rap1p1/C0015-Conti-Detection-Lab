@@ -97,8 +97,8 @@ as G7a; or WMI from the C2 host straight to FS01 (skip the WS01→FS01 hop, mark
 | Gap | Remediation | File |
 |---|---|---|
 | G8 | c2sim watchdog: respawn + port healthcheck + stderr capture | `scripts/c2sim_guard.py` (new), `payloads/packaging/launch_servers.ps1` (runs the guard instead of c2sim directly; `-Stop` kills guard + child) |
-| G2 | Diagnostic matrix (6 variants) before concluding; if a variant using `Invoke-CimMethod`/clean wmic returns 0 → **retract the "window-station constraint"** everywhere, and S8b switches to real rundll32 | `stage/analysis/wmi_rundll32_diag.ps1` (new) |
-| G4 | Verification adds: E3 `:8000` (S1 DLL + S7b/S8a tool fetches) + check of the `logs-windows.security-*` index | `stage/analysis/verify_run_evidence.py` |
+| G2 | Diagnostic matrix (6 variants) before concluding; if a variant using `Invoke-CimMethod`/clean wmic returns 0 → **retract the "window-station constraint"** everywhere, and S8b switches to real rundll32 | `scripts/diag/wmi_rundll32_diag.ps1` (new) |
+| G4 | Verification adds: E3 `:8000` (S1 DLL + S7b/S8a tool fetches) + check of the `logs-windows.security-*` index | `scripts/verify/verify_run_evidence.py` |
 | G1 | Fleet policy `C0015-Windows-Endpoints`: add the `windows.security` input (channel Security) — via Kibana/Fleet API (SSH tunnel to ELASTIC01) | documented in `../../docs/architecture.md` (written once credentials exist) |
 | G3 | Keep the E10 rule (0x1010/0x1fffff, non-system source); record the new source (wmiprvse chain) | docs update |
 | G6/G5 | Rules use `process.entity_id` + parent, deduplicated by entity | docs update |
@@ -223,3 +223,5 @@ be clean (delete Resiliency/DocumentRecovery after a crash before opening), auto
 Note: occasionally mshta shows a transient "script error: write to file failed (code 0)" while
 writing the marker, but the file is written successfully anyway (confirmed by E11) and the script
 continues.
+
+

@@ -24,5 +24,5 @@ $cred = Get-Credential -Message "C0015 lab credential for $Name (used by the rem
 if (-not $cred) { throw 'no credential entered' }
 $cred | Export-CliXml -Path $out
 Write-Output "credential file: $out (DPAPI bound to $env:USERNAME @ $env:COMPUTERNAME)"
-Write-Output "used with: stage/analysis/wmi_rundll32_diag.ps1 -CredFile $OutFile"
+Write-Output "used with: scripts/diag/wmi_rundll32_diag.ps1 -CredFile $OutFile"
 Write-Output "NEVER delete this file / commit it (stage/ is gitignored); delete it when the campaign ends: Remove-Item stage\lab-credentials-itadmin.xml"

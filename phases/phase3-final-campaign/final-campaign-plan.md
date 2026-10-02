@@ -163,7 +163,7 @@ extend the existing S1–S9 mapping with S10–S15 rows.
 4. S6/S10 collection → `ART-08-01`; S11a transfer (round 1) → receipt;
    S12 RDP → R19 alert; S11b transfer (round 2) → receipt; S13 AnyDesk-like;
    S14 impact → verify/rollback → `ART-14-01`; S15 score → `ART-15-01`.
-5. Verify: `stage/analysis/verify_run_evidence.py` extended with phase-3 sections
+5. Verify: `scripts/verify/verify_run_evidence.py` extended with phase-3 sections
    (sink receipts, 4624 T10, 4778, impact manifests, scorecard) — window = full run.
 6. Alerts: per-rule counts on the full window (expected new: R19/R20 + existing
    R01–R18) — update `detection-run-<run>.md` + README mapping.
@@ -201,6 +201,7 @@ mapping in a follow-up.
 
 Decisions (operator-approved): rclone→local sink (rev 1), RustDesk+local relay (AnyDesk-like),
 ProcessHacker E10-no-dump. No external credentials are required for the final campaign.
+
 
 
 

@@ -86,7 +86,7 @@ Original campaign: operator from runbook → discovery → credential test/refin
 7. [C2] `-Action WaitSession`/check receipt: `Get-ChildItem evidence\run-ledger` → **ART-07-01-<token>.json** (S9). Evidence **FS01 E3 →:8080** + E11 marker + receipt.
 
 **Q — Verify + cleanup**
-- Elastic: run `stage/analysis/verify_run_evidence.py` (env ES creds) → hash parity + entity chain; `run-window-evidence.md`.
+- Elastic: run `scripts/verify/verify_run_evidence.py` (env ES creds) → hash parity + entity chain; `run-window-evidence.md`.
 - `git pull/commit` evidence; cleanup: close the runas beacon, `-Action Stop`, re-enable ASR/RTM/firewall, delete C:\C0015/artifacts.
 
 ## 6. Rule-writing pointers (with gaps)
