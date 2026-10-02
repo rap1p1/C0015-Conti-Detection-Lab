@@ -74,7 +74,7 @@ follow the same conventions:
 
 Raw alert counts in/after the run window (sweep incl. duplicates; BB-ON rows are hidden
 from the default view): R16=340 (no suppression configured), R14b=288(BB), R10=78, R14a=72,
-R12=33, R11=9, R18=9, R13=8, R17=3, R15=2 , R20=3, R19=0 (no interactive logon in the run window).
+R12=33, R11=9, R18=9, R13=8, R17=3, R15=2, R20=3, R19=0 (no interactive logon in the run window).
 Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 
 ## Rule-authoring notes
@@ -90,6 +90,7 @@ Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 - The generator (`stage/analysis/gen_rules_ndjson.ps1`) loads every rule file listed in its
   `$q` loader — adding a rule requires adding BOTH the `.eql` file and the loader entry
   (an empty query imports silently and the rule fails at execution: "query is null or empty").
+
 
 
 
