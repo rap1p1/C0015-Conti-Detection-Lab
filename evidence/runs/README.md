@@ -20,3 +20,4 @@ Each run is a directory containing its ledger and artifacts.
 
 Registration of a new run: create `runs/<run_id>/` with a ledger per `RUN-schema.json`,
 index the artifacts it produced, and keep the schema unchanged.
+

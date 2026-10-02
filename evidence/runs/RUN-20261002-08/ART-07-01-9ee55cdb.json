@@ -1,0 +1,23 @@
+{
+  "artifact_id": "ART-07-01",
+  "run_id": "RUN-20261002-08",
+  "schema_version": "1.0",
+  "producer_phase": 7,
+  "consumer_phase": 8,
+  "payload": {
+    "host": "FS01",
+    "stage": "phase7-session2",
+    "client_ip": "192.168.50.30",
+    "session_token": "S1-725a83c09ee55cdb",
+    "registered_utc": "2026-10-02T09:39:46Z",
+    "task_ids": [
+      "T-DISCOVER-CORPUS"
+    ],
+    "evidence_expected": [
+      "FS01 E1 rundll32 (parent wmiprvse.exe)",
+      "FS01 E7 ImageLoad c0015_143_surrogate.dll",
+      "FS01 E3 callback to C2-SIM"
+    ]
+  },
+  "payload_sha256": "69F05932FADF82E94D6680F9FFCED27B01470EE79AA79384D92BE5733913DC51"
+}

@@ -1,0 +1,31 @@
+{
+  "artifact_id": "ART-14-01",
+  "run_id": "RUN-20261002-08",
+  "schema_version": "1.0",
+  "kind": "impact-metrics-summary",
+  "output_ref": "evidence/runs/RUN-20261002-08/ART-14-01-RUN08.txt",
+  "actions": [
+    {
+      "action": "Prepare",
+      "result": "PASS"
+    },
+    {
+      "action": "Run",
+      "result": "PASS (15 files / 615 bytes transformed)"
+    },
+    {
+      "action": "Verify",
+      "result": "PASS (30 bidirectional mismatches = impact applied)"
+    },
+    {
+      "action": "Rollback",
+      "result": "PASS"
+    },
+    {
+      "action": "Verify-post-restore",
+      "result": "PASS (corpus matches backup, bidirectional count/hash)"
+    }
+  ],
+  "producer_stage": "S14",
+  "consumer_stage": "S15"
+}

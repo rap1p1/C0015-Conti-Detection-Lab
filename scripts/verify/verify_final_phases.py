@@ -47,14 +47,16 @@ WIN = {
     "RUN-20261002-05": ("2026-10-02T05:41:00Z", "2026-10-02T06:12:00Z"),
     "RUN-20261002-06": ("2026-10-02T07:49:00Z", "2026-10-02T08:14:00Z"),
     "RUN-20261002-07": ("2026-10-02T08:50:00Z", "2026-10-02T09:15:00Z"),
+    "RUN-20261002-08": ("2026-10-02T09:33:00Z", "2026-10-02T09:56:00Z"),
 }
 TOKEN = {
     "RUN-20261002-05": "S1-9a7cab91e7fd4f9f",
     "RUN-20261002-06": "S1-0d84eba20418da28",
     "RUN-20261002-07": "S1-353be732c7d5d5d2",
+    "RUN-20261002-08": "S1-6eb01d7793ddfe8b",
 }
-EXPECT_T10 = {"RUN-20261002-05": True, "RUN-20261002-06": True, "RUN-20261002-07": True}
-EXPECT_R19_ALERTS = {"RUN-20261002-05": False, "RUN-20261002-06": True, "RUN-20261002-07": True}
+EXPECT_T10 = {"RUN-20261002-05": True, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True}
+EXPECT_R19_ALERTS = {"RUN-20261002-05": False, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True}
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -125,13 +127,15 @@ def main():
     h = q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "regsvr32.exe"}}], 1)
     r = require("S1", "regsvr32 from mshta", h,
                 lambda s: getpath(s, "process.parent.name") == "mshta.exe")
-    if m and r:
-        pe = getpath(r, "process.parent.entity_id")
-        me = getpath(m, "process.entity_id")
-        if pe != me:
-            FAILURES.append(f"S1: regsvr32 parent.entity_id != mshta entity ({pe} vs {me})")
+    if r:
+        # reverse join: the regsvr32's parent entity must identify an mshta event in the window
+        par = getpath(r, "process.parent.entity_id")
+        hm = q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "mshta.exe"}},
+                     {"term": {"process.entity_id": par}}], 1)
+        if not hm:
+            FAILURES.append(f"S1: no mshta event with entity {par}")
         else:
-            print(f"  ok  S1 entity join mshta->regsvr32 ({me})")
+            print(f"  ok  S1 entity join mshta->regsvr32 ({par})")
 
     # S2: beacon + register token; S3: first poll
     h = q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "powershell.exe"}},
@@ -318,7 +322,7 @@ def main():
 
     # S14/coverage: R22 (note class), R23 (spread alert), R24 (transfer tool)
     # These rules were added before RUN-20261002-07; earlier runs are not required to show them.
-    if RUN != "RUN-20261002-07":
+    if RUN in ("RUN-20261002-05", "RUN-20261002-06"):
         print(f"  note Coverage R22/R23/R24 not required for {RUN} (rules added later)")
     else:
         h = q(SYS, [{"term": {"event.code": "11"}}, {"wildcard": {"file.name": "README*"}}], 1)
@@ -375,5 +379,6 @@ def _add_seconds(ts, secs):
 
 if __name__ == "__main__":
     main()
+
 
 

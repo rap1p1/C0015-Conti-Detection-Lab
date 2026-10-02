@@ -1,0 +1,13 @@
+{
+  "artifact_id": "ART-15-01",
+  "run_id": "RUN-20261002-08",
+  "schema_version": "1.0",
+  "producer_stage": "S15",
+  "generated_utc": "2026-10-02T09:47:49Z",
+  "verification": {
+    "tool": "scripts/verify/verify_final_phases.py",
+    "window": "2026-10-02T09:33:00Z -> 2026-10-02T09:56:00Z",
+    "result": "ACCEPTED"
+  },
+  "notes": "Post-run validation (ledger, acceptance, alert volume, screenshots) - not a campaign stage. Screenshots under reports/assets (console evidence)."
+}
