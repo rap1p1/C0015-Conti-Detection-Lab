@@ -15,7 +15,7 @@ behavior.
 | S7b LSASS surface | E10 lsass grant 0x1010 (no dump) |
 | S8a/S8b handoff+pivot | 5145 C$; rundll32 (par=WmiPrvSE, LabEntry) ~09:39:2xZ (retried after config propagation); E7 unsigned |
 | S9 session-2 | `S1-725a83c09ee55cdb` 09:39:46Z; receipt `ART-07-01-9ee55cdb` (run_id corrected to RUN-20261002-08) |
-| S10 collection | ART-08-01 manifest (11 files / 309 B) |
+| S10 collection | ART-08-01 manifest (11 files / 309 B); 228×5145 C$ (collection reads target C$, not the ordinary shares) |
 | S11a/b transfer | rclone rounds 1+2 → sink (22 files); receipts 11/11 full-set equality |
 | S12 RDP | interactive logon (T10) it.admin, TargetLogonId 0x3da16ed; R19 alerts 09:43:37Z |
 | S13 remote tools | AnyDesk drop→run (09:44:37→09:45:05), ProcessHacker drop 09:44:46 |
@@ -62,4 +62,5 @@ R23 fired again with the entity-based grouping — the 3 note creates share one
 
 - Ledger + artifacts: `evidence/runs/RUN-20261002-08/`
 - Screenshots: `reports/assets/` · Rule index: `detections/README.md`
+
 

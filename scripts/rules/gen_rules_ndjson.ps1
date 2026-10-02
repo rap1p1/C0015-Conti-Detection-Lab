@@ -321,6 +321,7 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Sequence joine
 rclone executed with transfer flags (--transfers/--bwlimit) reaching the sink is the campaign signal; receipts (ART-09-01) verify file equality independently.' `
   -Sev low -Risk 21 -FP @('Legitimate backup/transfer tooling (rclone to trusted endpoints).') `
   -Threat (Tech $tExfil 'T1567' 'Exfiltration Over Web Service' 'T1567.002' 'Exfiltration to Cloud Storage') -Idx $sysmon -Query $q['r24-transfer-tool-egress'] -BBlock 'default'
+# ---------------------------------------------------------------------------
 # S1-S3 rules (R01-R11) - same metadata shape, English notes, sysmon index.
 # ---------------------------------------------------------------------------
 $s3rules = @()
@@ -415,6 +416,8 @@ if (($ids | Select-Object -Unique).Count -ne $ids.Count) { throw "duplicate rule
 Write-Output "written S1-S3: $($s3rules.Count) rules"
 ($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r12-r24.ndjson" -Encoding UTF8
 Write-Output "written S4-S9: $($rules.Count) rules"
+
+
 
 
 

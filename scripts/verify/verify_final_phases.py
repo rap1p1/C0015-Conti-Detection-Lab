@@ -180,8 +180,12 @@ def main():
                window=(ts, _add_seconds(ts, 15)))
         e7s = require("S8b", "E7 unsigned surrogate load (within 15s of pivot, same entity)", e7,
                       lambda s: getpath(s, "winlog.event_data.Signed") in ("false", False))
-        if e7s and (getpath(e7s, "winlog.event_data.Hashes") in (None, "-", "")):
-            print("  note S8b: E7 hash field unpopulated in this event - hash continuity limited to path+signed")
+        if e7s:
+            e7hash = getpath(e7s, "file.hash.sha256") or getpath(e7s, "winlog.event_data.Hashes")
+            if e7hash in (None, "-", ""):
+                FAILURES.append("S8b: E7 hash field missing (file.hash.sha256 / Hashes)")
+            else:
+                print(f"  ok  S8b E7 hash present (sha256={str(e7hash)[:16]}...) - hash continuity available")
 
     # S9: second-session powershell entity owns E3 :8080
     h = q(SYS, [{"term": {"event.code": "1"}}, {"term": {"host.name": "fs01"}},
@@ -379,6 +383,7 @@ def _add_seconds(ts, secs):
 
 if __name__ == "__main__":
     main()
+
 
 
 

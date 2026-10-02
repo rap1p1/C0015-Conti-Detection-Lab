@@ -44,7 +44,7 @@ Alert volume (stored docs in window; unique-activity where cardinality applies):
 Compared with RUN-20261002-06: the tuned rules added coverage (R22/R23/R24) without
 removing any stage signal; R16 stored docs 273→184 with the new suppression config.
 
-Gaps (unchanged): S12 session lifetime not captured; E7 hash field unpopulated in-axis;
+Gaps (unchanged): S12 session lifetime not captured; E7 hash field present at file.hash.sha256 (ECS; equals the artifact hash) in-axis;
 rename attribution limited (no delete auditing); rclone evidence = events + receipts.
 
 ## Recovery & Cleanup
