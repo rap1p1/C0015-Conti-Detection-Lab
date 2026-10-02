@@ -16,16 +16,16 @@ ending with an independent receipt (ART-07-01).
 | S8b WMI pivot | T1047/T1218.011 | `wmic ... rundll32 ... 143.dll` | space-form `rundll32.exe ... LabEntry` (WMI comma-split fix) | E1 rundll32 parent=WmiPrvSE |
 | S9 Session 2 | T1071.001 | Cobalt Strike beacon session | beacon phase7-session2 (FS01) | E3 :8080 + receipt ART-07-01 |
 
-## Known engineering fixes recorded in this phase
+## Engineering notes
 
-- **G1** — Security events ingested under `.ds-logs-system.security-*`; audit
-  `Detailed File Share` enabled on FS01 (2026-10-02) → 5145 now live.
-- **G2** — `wmic process call create "<cmd>"` splits on commas → the **space form**
-  (`...rundll32.exe ...dll LabEntry`, ReturnValue 0) is the pivot spelling.
-- Defender behavioral block `Trojan:Win32/RyukLocalspawn.A` on wmic→rundll32 (FS01
-  snapshot was Defender-on) → disabled via SYSTEM scheduled task, kept OFF for reruns.
-- duc.user cannot use direct `runProgramInGuest`; every victim action goes through an
-  interactive scheduled task; tools dropped by it.admin get `icacls` grants.
+- **Ingestion and auditing** — Security events are queried under `.ds-logs-system.security-*`; the
+  `Detailed File Share` audit policy on FS01 provides 5145 coverage.
+- **WMI pivot spelling** — `wmic process call create "<cmd>"` splits arguments on commas, so the **space form**
+  (`...rundll32.exe ...dll LabEntry`) is used.
+- The Defender behavioral signature `Trojan:Win32/RyukLocalspawn.A` can block wmic→rundll32 when real-time protection is enabled (FS01
+  was snapshot-restored with protection on) — real-time protection is disabled via a SYSTEM scheduled task for runs.
+- The `duc.user` account cannot use direct `runProgramInGuest`; victim-session actions run through an
+  interactive scheduled task, and tool files staged by `it.admin` receive `icacls` read grants.
 
 ## Detection (rules that fire in this phase)
 

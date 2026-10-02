@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# preflight_kali.sh — rerun-v2 P0 build gate, runs INSIDE Kali
+# preflight_kali.sh — entry-chain P0 build gate, runs INSIDE Kali
 # via vmrun as root. Builds the DLL payloads + prints hashes.
 # ============================================================
 set +e

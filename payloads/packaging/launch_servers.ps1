@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
 Start (or stop) the phase-1 lab servers on the C2/attacker host:
-  - C2-SIM v3 (scripts/c2sim_v2.py) on C2Port
+  - C2-SIM v3 (scripts/c2sim.py) on C2Port
   - a simple HTTP server (python http.server) serving a publish dir with the DLL
 Run this on Kali or the host LAN to the lab. The victim WS01 must reach both.
 
@@ -35,7 +35,7 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not $Stop -and (-not $C2Ip -or -not $PublishDir)) { throw '-C2Ip and -PublishDir are required unless -Stop' }
 $repo = (Get-Item (Join-Path $PSScriptRoot '..\..')).FullName   # repo root (two up from payloads\packaging)
-$c2sim = Join-Path $repo 'scripts/c2sim_v2.py'
+$c2sim = Join-Path $repo 'scripts/c2sim.py'
 $guard = Join-Path $repo 'scripts/c2sim_guard.py'
 $pub = [IO.Path]::GetFullPath((Join-Path $repo $PublishDir))
 
@@ -85,7 +85,7 @@ $pids = New-Object System.Collections.Generic.List[int]
 
 # G8: run C2-SIM under the watchdog (c2sim_guard.py) - respawn on exit, stderr
 # captured to c2sim.err.log, current child pid in $GuardState for -Stop.
-$guardArgs = "scripts/c2sim_guard.py --cmd ""python scripts/c2sim_v2.py --ip $C2Ip --port $C2Port --ledger $LedgerDir --log $LogPath"" --state $GuardState --stopflag $GuardStopFlag --log $GuardErrLog"
+$guardArgs = "scripts/c2sim_guard.py --cmd ""python scripts/c2sim.py --ip $C2Ip --port $C2Port --ledger $LedgerDir --log $LogPath"" --state $GuardState --stopflag $GuardStopFlag --log $GuardErrLog"
 $p1 = Start-Process python -ArgumentList $guardArgs -PassThru -WindowStyle Hidden
 $pids.Add($p1.Id)
 

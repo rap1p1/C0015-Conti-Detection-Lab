@@ -2,7 +2,7 @@
 
 | Script | Purpose | Key technical points |
 |---|---|---|
-| `c2sim_v2.py` | C2 simulator (HTTP :8080) | endpoints: `/register`, `/poll`, `/cmd`, `/runbook`, `/sessions`, `/results`; sessions/tasks in memory; beacon polling loop with jitter; runbook batches executed as ordered tasks; results capped (`result_cap_bytes`) |
+| `c2sim.py` | C2 simulator (HTTP :8080) | endpoints: `/register`, `/poll`, `/cmd`, `/runbook`, `/sessions`, `/results`; sessions/tasks in memory; beacon polling loop with jitter; runbook batches executed as ordered tasks; results capped (`result_cap_bytes`) |
 | `c2sim_guard.py` | watchdog for C2-SIM | relaunches c2sim on crash/exit (used by `launch_servers.ps1 -Stop` to tear down together) |
 | `lab_tools.py` | evidence toolkit | `artifact-new` / `artifact-check` (sha256'd artifact files), `manifest-new` (corpus manifest with per-file hash/size), `receipt-check` (hash equality vs manifest), `score` (coverage scorecard), `fixture-check` (offline fixture validation) |
 | `runbooks/c0015-phase2.json` | S4-S5 discovery batch | the exact `[OBSERVED-C0015]` command set: `net group "domain admins" /dom`, `net localgroup "administrator"`, `nltest /domain_trusts /all_trusts`, `net view /all /domain`, `net view /all`, `whoami`, `tasklist /s`, `ping`, `systeminfo`, `Get-SmbShare` |

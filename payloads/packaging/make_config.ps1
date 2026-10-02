@@ -6,7 +6,7 @@ The session token is NOT stored here: the beacon generates its own S1-<16hex> at
 (or reads $env:C0015_SESSION_TOKEN) so the token never sits in config/logs.
 
 .PARAMETER RunId        RUN-YYYYMMDD-<seq> run identifier.
-.PARAMETER C2Host       IP/hostname of the C2 host running scripts/c2sim_v2.py.
+.PARAMETER C2Host       IP/hostname of the C2 host running scripts/c2sim.py.
 .PARAMETER C2Port       C2-SIM port (default 8080).
 .PARAMETER HttpHost     IP/hostname of the HTTP server serving the DLL (defaults to C2Host).
 .PARAMETER HttpPort     HTTP download port (default 8000).

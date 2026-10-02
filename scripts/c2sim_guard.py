@@ -7,7 +7,7 @@ was never captured: the launcher started c2sim with a hidden window so the crash
 stderr went nowhere.
 
 The guard:
-  - spawns the guarded command (c2sim_v2.py) with stdout/stderr captured into a
+  - spawns the guarded command (c2sim.py) with stdout/stderr captured into a
     persistent error log (crash diagnostics land in the repo, not nowhere)
   - respawns the child automatically after any exit (3 s backoff)
   - reports every start/exit/restart count into the error log
@@ -16,7 +16,7 @@ The guard:
   - writes the current child PID to a state file so -Stop can also kill it directly
 
 Usage (via payloads/packaging/launch_servers.ps1):
-  python scripts/c2sim_guard.py --cmd "python scripts/c2sim_v2.py --ip 192.168.50.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log" --state .c2sim-child.pid --stopflag .c2sim.stop --log c2sim.err.log
+  python scripts/c2sim_guard.py --cmd "python scripts/c2sim.py --ip 192.168.50.1 --port 8080 --ledger evidence/run-ledger --log c2sim.log" --state .c2sim-child.pid --stopflag .c2sim.stop --log c2sim.err.log
 """
 import argparse
 import os

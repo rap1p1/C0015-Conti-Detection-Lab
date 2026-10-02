@@ -13,7 +13,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts"))
 
 import lab_tools as lt  # noqa: E402
-import c2sim_v2 as c2  # noqa: E402
+import c2sim as c2  # noqa: E402
 
 FIX = REPO / "scripts" / "fixtures"
 
@@ -299,3 +299,4 @@ class FixtureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

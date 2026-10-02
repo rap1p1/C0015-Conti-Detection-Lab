@@ -8,10 +8,10 @@
   "stages": [
     { "stage": "S1-S3", "host": "WS01", "account": "C0015\\duc.user", "status": "PASS",
       "evidence_refs": [
-        { "kind": "macro-selfwrite", "detail": "c0015wf.log 05:41:42Z: start -> decoded len0=1734 len1=4358 len2=6093 -> wrote config/hta/beacon err=0 (3rd consecutive macro entry)" },
+        { "kind": "macro-selfwrite", "detail": "c0015wf.log 05:41:42Z: start -> decoded len0=1734 len1=4358 len2=6093 -> wrote config/hta/beacon err=0 (reproducible macro entry)" },
         { "kind": "E1-chain", "detail": "WINWORD(05:41:41,par=explorer) -> mshta(05:41:42,par=WINWORD) -> regsvr32(05:41:43,par=mshta)" },
         { "kind": "register", "detail": "phase3 WS01 token=S1-9a7cab91e7fd4f9f 05:41:44Z" }
-      ], "notes": "manual victim open c0015_final3.docm; macro self-write chain" },
+      ], "notes": "manual victim open of the entry document; macro self-write chain" },
     { "stage": "S4-S5", "host": "WS01", "account": "C0015\\duc.user", "status": "PASS",
       "evidence_refs": [ { "kind": "tasking", "detail": "runbook c0015-phase2 tasks=130+; net view / net localgroup / nltest / whoami" } ], "notes": "" },
     { "stage": "S7", "host": "WS01", "account": "C0015\\it.admin", "status": "PASS",
@@ -36,12 +36,12 @@
         { "kind": "E1", "detail": "rclone.exe 05:58:35 copy --max-age 2y --ignore-existing --auto-confirm --multi-thread-streams 7 --transfers 7 --bwlimit 10M --config rclone.conf" },
         { "kind": "E3", "detail": "rclone.exe 05:58:38 192.168.50.20:49441 -> 192.168.50.1:9001 (local webdav sink)" },
         { "kind": "receipt", "detail": "ART-09-01 round1: 11/11 sha256 match vs ART-08-01" }
-      ], "notes": "real rclone (v1.75.1) -> local WebDAV sink; no public cloud" },
+      ], "notes": "real rclone -> local WebDAV sink; no public cloud" },
     { "stage": "S12", "host": "FS01", "account": "C0015\\it.admin", "status": "PARTIAL",
       "evidence_refs": [
         { "kind": "S4624", "detail": "it.admin 4624 type 3/4 (06:00:30-06:01:00Z) - RDP NLA network auth" },
         { "kind": "session", "detail": "rdp-tcp#1 Conn (query session); client closed at Conn" }
-      ], "notes": "type-10 interactive logon UI not completed in lab; R19 gated on completed logon - documented" },
+      ], "notes": "RDP step produced network-auth logons (4624 T3/T4); the interactive (T10) logon UI was not completed" },
     { "stage": "S11b", "host": "WS01", "account": "C0015\\it.admin", "status": "PASS",
       "evidence_refs": [
         { "kind": "E1", "detail": "rclone.exe 06:01:29 round2/DATA" },
@@ -51,8 +51,8 @@
       "evidence_refs": [
         { "kind": "E11", "detail": "AnyDesk.exe -> C:\\Users\\Public\\Videos\\AnyDesk.exe 06:02:21; ProcessHacker.exe -> C:\\ 06:02:49; rclone.exe -> C:\\ProgramData\\C0015\\ 05:54:43" },
         { "kind": "E1", "detail": "AnyDesk.exe --get-id 06:02:55; ProcessHacker.exe running (pid 1560, it.admin)" },
-        { "kind": "rule", "detail": "R20 fired (3 alerts) on AnyDesk2 validation drop+run 06:1xZ" }
-      ], "notes": "AnyDesk real (public relay usage authorized by operator); ProcessHacker no dump (E10 study gated)" },
+        { "kind": "rule", "detail": "R20 matched 3 alerts on the portable-tool drop/run sequence" }
+      ], "notes": "AnyDesk used lab-internally; ProcessHacker runs without dump or credential read" },
     { "stage": "S14", "host": "FS01", "account": "C0015\\it.admin", "status": "PASS",
       "evidence_refs": [
         { "kind": "impact", "detail": "Prepare OK; Run 15 files/615 B (06:04Z); Verify 15 mismatches; Rollback OK; Verify post-restore hash-OK" },

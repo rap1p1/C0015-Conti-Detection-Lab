@@ -32,7 +32,7 @@ Phạm vi: S1 → S9 (hết phase operator). Nguồn "camp gốc": DFIR C0015 (2
 S1–S6 + S9: **HIGH** (chain + entity + receipt khớp). S7: **PARTIAL** (thiếu Security channel). S7b: **HIGH** trên
 Sysmon, khác model binary. S8: **PARTIAL–HIGH** — T1047 verified, rundll32-side verified, cha khác (lab constraint).
 
-## Rerun-v2 `RUN-20261002-01` (2026-10-02) — kết quả sau khi fix gaps
+## RUN-20261002-01 (2026-10-02) — post-remediation results
 
 | Stage | Kết quả v2 (verified Elastic) | Thay đổi so với run cũ |
 |---|---|---|
@@ -45,3 +45,4 @@ Sysmon, khác model binary. S8: **PARTIAL–HIGH** — T1047 verified, rundll32-
 | S9 | ✅ register `phase7-session2` (03:08:59Z) → **receipt `ART-07-01-2f3afc34`** + E3 FS01→:8080 | — |
 
 **Kết luận v2**: toàn bộ S1–S9 = **HIGH fidelity** (chữ ký camp đầy đủ: entry từ docm, operator remote, WMI pivot rundll32 nguyên vẹn, auth telemetry có trên ES). G1/G2/G4/G7/G8 đã xử lý — chi tiết & rule pointer ở `../phases/phase2-operator/operator-phase-context-gaps-runbook.md` §4b.
+

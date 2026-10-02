@@ -170,7 +170,7 @@ Endpoint Elastic Agents on WS01 and FS01 ship under the `C0015-Windows-Endpoints
 
 | Component | Location | Status |
 |---|---|---|
-| C2 communication simulator (foothold beacon channel) | `scripts/c2sim_v2.py` | Tested |
+| C2 communication simulator (foothold beacon channel) | `scripts/c2sim.py` | Tested |
 | Artifact, hash, manifest, receipt, and scorecard tooling | `scripts/lab_tools.py` | In repository |
 | Synthetic telemetry replay fixtures (replay-only) | `scripts/fixtures/` | 12 fixtures and checker |
 | Run ledger schema and templates | `evidence/run-ledger/` | Schema forbids secrets |
@@ -191,3 +191,4 @@ Fleet Server and Elasticsearch are reached over TLS. Windows agents trust the la
 ## Operational Boundary
 
 The lab executes controlled behaviors only on owned virtual machines, using benign commands, dummy data, and safe substitutes. Out of scope are: the original Bazar/Conti malware, cracked Cobalt Strike, destructive encryption, credential theft from system processes, and uncontrolled external targeting.
+

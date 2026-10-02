@@ -8,6 +8,7 @@ document open.
 The **generated** self-write variant (macro that creates config/HTA/beacon from embedded
 blobs) is produced by `../packaging/gen_macro_embedded.ps1`; installation into a `.docm`
 is done by `../packaging/install_macro_docm.ps1` (standard module `c0015Payload`,
-`AutoOpen` trigger). Details and the debugging history (Document Recovery, ThisDocument
+`AutoOpen` trigger). Design rationale (Document Recovery, ThisDocument
 collision, standard-module decision) are in
-`../../phases/phase1-initial-access/rerun-v2-remote-operator-design.md`.
+`../../phases/phase1-initial-access/initial-access-chain-design.md`.
+

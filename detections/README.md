@@ -20,7 +20,7 @@ follow the same conventions:
 |---|---|---|---|---|
 | **R17** | WMI-Spawned Process Loading an Unsigned Module | 73 | host+entity | S8b — wmiprvse → rundll32 → unsigned `143.dll` (sequence E1→E7; `[any where]` because E7 is `category=library`) |
 | **R18** | Proxy-Spawned PowerShell Making an Egress Connection | 73 | host+entity | S9/S2 — rundll32/regsvr32 → powershell → E3 egress (sequence, 120s maxspan) |
-| **R21** | Ransomware Note or Bulk File Extension Change | 73 | — | S14 — note class (README*/DECRYPT*/HOW_TO*/READ_ME*) or novel extension `*.c0015` (validated on-run: 3 alerts) |
+| **R21** | Ransomware Note or Bulk File Extension Change | 73 | — | S14 — note class (README*/DECRYPT*/HOW_TO*/READ_ME*) or novel extension `*.c0015` (3 matches in the reference run (RUN-20261002-05)) |
 
 ### 🟠 Medium (building-block ON = hidden from the default alert view until correlated)
 
@@ -28,8 +28,8 @@ follow the same conventions:
 |---|---|---|---|---|---|
 | R14b | Elevated Privileges Assigned to Non-System Account | 47 | ON | — | S7 — Security 4672 (non-system user) |
 | R15 | LSASS Access with Credential-Access Grant | 47 | ON | entity | S7b — E10 `GrantedAccess` 0x1010/0x1418/0x1fffff; ambient excluded |
-| R19 | RDP Interactive Logon by Non-System Account | 47 | ON | — | S12 — Security 4624 `LogonType=10` (gated on a completed logon) |
-| R20 | Portable Remote-Access Tool Dropped and Executed | 47 | ON | — | S13 — E11 into `Videos\`/drive root → E1 tool class (validated on-run: 3 alerts) |
+| R19 | RDP Interactive Logon by Non-System Account | 47 | ON | — | S12 — Security 4624 `LogonType=10` (reports once an interactive (Type 10) logon is observed) |
+| R20 | Portable Remote-Access Tool Dropped and Executed | 47 | ON | — | S13 — E11 into `Videos\`/drive root → E1 tool class (3 matches in the reference run (RUN-20261002-05)) |
 
 ### 🟢 Low — building blocks (BB-ON) / suppressed
 
@@ -49,7 +49,7 @@ follow the same conventions:
 | R12 | PowerShell Spawning Nested CMD Launching a Discovery Tool | 21 | ON | host+entity | S4 sequence |
 | R13 | Share Enumeration via net view or Get-SmbShare | 21 | ON | entity | S5 |
 | R14a | Network Logon by Non-System Account | 21 | ON | logon id | S7 |
-| R16 | File Write to Admin Share (SMB) | 21 | ON | — | S8a/S10 — Security 5145 `*\\C$`/`*\\ADMIN$` (audit-gated; **suppression key missing — tracked debt**) |
+| R16 | File Write to Admin Share (SMB) | 21 | ON | — | S8a/S10 — Security 5145 `*\\C$`/`*\\ADMIN$` (requires the Detailed File Share audit policy; no suppression configured) |
 
 ## Kill-chain mapping (technique → victim telemetry → rule)
 
@@ -66,7 +66,7 @@ follow the same conventions:
 | **S9** Session-2 (T1071.001) | rundll32 → powershell beacon (FS01) → callback `:8080`, receipt | E1, E3 `:8080`, E11 | `parent=rundll32`, entity, E3 egress | R18 (+R09) |
 | **S10** Collection (T1005/T1039/T1074.001) | beacon reads shares (UNC), copies into staging dir, zips | E11 (`*collect*`), **S5145** | `file.path` (`*collect*`), `ShareName`, `RelativeTargetName`, `user.name` | R16 (share read/write); R04 class |
 | **S11** Transfer (T1567.002 surrogate/T1030) | **real rclone** (`--transfers 7 --bwlimit 10M --max-age 2y`) → local WebDAV sink :9001 | E1 (rclone), E3 egress `:9001` | `process.name=rclone.exe`, `process.command_line` (transfer-flag class), `destination.port=9001` | R06/R09 class; ART-09-01 receipt hash-equality (host-side, independent) |
-| **S12** RDP (T1021.001) | mstsc client; RDP NLA logon | **S4624** T3/T4/T10, S4778/4779 | `LogonType` ("10" interactive; "3"/"4" network/NLA), `TargetUserName`, `IpAddress` | R19 (T10 non-system; BB — run logged T3/T4 network-auth, T10 gated) |
+| **S12** RDP (T1021.001) | mstsc client; RDP NLA logon | **S4624** T3/T4/T10, S4778/4779 | `LogonType` ("10" interactive; "3"/"4" network/NLA), `TargetUserName`, `IpAddress` | R19 (T10 non-system; BB — run logged T3/T4 network-auth, T10 pending an interactive logon) |
 | **S13** Remote tool (T1219.002) | portable tool vào `Videos\` / `C:\` root rồi chạy | E11 (drop), E1 (run) | `file.path` (`*\\Videos\\*`, `C:\\*.exe`), `file.extension=exe`, `process.name` class (AnyDesk/RustDesk/TeamViewer/ProcessHacker) | R20 (sequence drop→run, join host, maxspan 10m) |
 | **S14** Impact (T1486 surrogate/T1083) | bulk rename + extension change; ransom-note file; post-impact listing | E11, E2 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME*), `file.extension` (novel class), `file.path` (`*Impact*`) | R21; recovery evidence = Rollback + hash compare |
 | **S15** E2E / IR | full ledger + receipts + scorecard | — | run_id + artifact hashes | ART-15-01 coverage scorecard |
@@ -74,11 +74,11 @@ follow the same conventions:
 ## Run coverage (latest: RUN-20261002-05)
 
 Raw alert counts in/after the run window (sweep incl. duplicates; BB-ON rows are hidden
-from the default view): R16=340 (suppression debt), R14b=288(BB), R10=78, R14a=72,
-R12=33, R11=9, R18=9, R13=8, R17=3, R15=2, R20=3, R21=3, R19=0 (gated).
+from the default view): R16=340 (no suppression configured), R14b=288(BB), R10=78, R14a=72,
+R12=33, R11=9, R18=9, R13=8, R17=3, R15=2, R20=3, R21=3, R19=0 (no interactive logon in the run window).
 Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 
-## Rule-authoring notes (hard-won)
+## Rule-authoring notes
 
 - E7 events have `event.category=library` — use `[any where event.code=="7"]` in sequences.
 - Security 4624: `winlog.logon.id` is 0x0 — join 4624↔4672 manually via `TargetLogonId`↔`SubjectLogonId`.
@@ -91,3 +91,4 @@ Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 - The generator (`stage/analysis/gen_rules_ndjson.ps1`) loads every rule file listed in its
   `$q` loader — adding a rule requires adding BOTH the `.eql` file and the loader entry
   (an empty query imports silently and the rule fails at execution: "query is null or empty").
+

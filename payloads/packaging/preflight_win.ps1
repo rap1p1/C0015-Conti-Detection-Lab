@@ -1,5 +1,5 @@
 # ============================================================
-# preflight_win.ps1 — rerun-v2 P0 gates, runs INSIDE WS01/FS01
+# preflight_win.ps1 — entry-chain P0 gates, runs INSIDE WS01/FS01
 # via vmrun as it.admin (host-dependent via $env:C0015_PREFLIGHT_HOST).
 # Output: status lines only (stdout redirect by vmrun caller).
 # ============================================================

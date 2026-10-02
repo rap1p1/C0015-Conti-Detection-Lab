@@ -23,7 +23,7 @@ manifests) and telemetry-faithful to the DFIR report's tooling.
   `launch_servers.ps1` (watchdog-aware) starts/stops C2-SIM + HTTP; `preflight_*.ps1/.sh` check
   machine state; `defender_off.ps1` via SYSTEM task.
 - **beacon/dll/hta** — no manual install: they are written by the macro
-  (goal #3) or fetched over HTTP at runtime (T1105) during a run.
+  (entry-chain recipe) or fetched over HTTP at runtime (T1105) during a run.
 
 ## Key code explanations
 
@@ -44,7 +44,8 @@ manifests) and telemetry-faithful to the DFIR report's tooling.
 - **`packaging/install_macro_docm.ps1`** — injects the module into the **document's own**
   VB project (`$doc.VBProject`) as a standard module `c0015Payload` (never `ThisDocument`,
   never `ActiveVBProject` — both fail silently/visibly in Word automation; see
-  `../phases/phase1-initial-access/rerun-v2-remote-operator-design.md`).
+  `../phases/phase1-initial-access/initial-access-chain-design.md`).
 - **`impact/c0015_impact.ps1`** — manifest-driven actions `Prepare/Run/Verify/Rollback`
   (T1486 surrogate + T1083 listing); refuses drive roots, system paths, reparse points,
   non-allowlist roots and cap violations; restore = hash-verified from the backup dir.
+

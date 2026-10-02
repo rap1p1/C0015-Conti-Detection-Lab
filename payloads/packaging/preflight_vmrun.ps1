@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-Rerun-v2 preflight via VMware Workstation vmrun — automates the one-time P0 gates on
-WS01 / FS01 / Kali WITHOUT touching their consoles (phases/phase1-initial-access/rerun-v2-remote-operator-design.md §5.1).
+Preflight via VMware Workstation vmrun — automates the one-time P0 gates on
+WS01 / FS01 / Kali WITHOUT touching their consoles (phases/phase1-initial-access/initial-access-chain-design.md §5.1).
 
 Pattern per guest: copy a script in -> run it (admin, output redirected to a file)
 -> copy the output back -> print. No interactive prompts; credentials come from a
@@ -104,4 +104,6 @@ if (-not $SkipKali) {
     $jpg = Get-Item (Join-Path $repo 'build/out/c0015-comparefor.jpg') -ErrorAction SilentlyContinue
     if ($jpg) { Write-Host "  pulled build/out/c0015-comparefor.jpg ($($jpg.Length) bytes)" }
 }
-Write-Host "`npreflight done. Kiem tra tung gate trong output, xong thi chay rerun (P0 bang tay chi con nhung gi script chua lam duoc)."
+Write-Host "`npreflight done. Review each gate in the output, then run the campaign (manual P0 only for steps the script cannot perform)."
+
+

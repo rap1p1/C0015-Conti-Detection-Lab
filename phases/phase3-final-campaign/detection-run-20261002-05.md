@@ -14,19 +14,20 @@ Window: 2026-10-02 05:41:00Z -> 06:12:00Z (entry chain at 05:41:41Z, impact at 0
 ## Alert coverage (raw counts in/after the window; sweep incl. duplicates)
 R16=340 (S5145 admin-share writes; add suppression group_by ShareName+RelativeTargetName
 in a follow-up), R14b=288 (BB), R10=78, R14a=72, R12=33, R11=9, R18=9, R13=8, R17=3,
-R15=2, R20=3 (AnyDesk drop+run; validated via AnyDesk2 re-validation), R21=3 (impact
-README notes), R19=0 (gated on completed type-10 logon; RDP logged as T3/T4 network-auth).
+R15=2, R20=3 (portable-tool drop/run), R21=3 (impact
+README notes), R19=0 (no interactive T10 logon; RDP logged as T3/T4 network-auth).
 
-## Quality notes (for follow-up)
-1. R16 suppression key missing -> 340 raw alerts from ~377 S5145 C$ events; add
+## Operational notes
+1. R16 emits ~340 alerts from ~377 S5145 C$ events; suppression (host, ShareName, RelativeTargetName) should be added when the volume is not acceptable.
    alert_suppression group_by (host.name, winlog.event_data.ShareName,
    winlog.event_data.RelativeTargetName) 5m.
-2. R19 needs a complete type-10 RDP logon for an end-to-end validation (lab closed the
-   session at Conn; observed 4624 T3/T4 network-auth only).
-3. R20/R21 were validated on-run after the generator query-loader bug was fixed
-   (rules imported with an empty query - "query is null or empty" - fixed in
+2. R19 reports only after a fully interactive (T10) logon; the reference run closed the
+   session at Conn, so only T3/T4 network-auth was observed.
+3. R20 and R21 matched during the run. Note for rule maintenance: the generator loads
+   every rule file through its loader list; a rule missing from that list imports with an empty query and fails at execution ('query is null or empty') - see
    gen_rules_ndjson.ps1).
-4. FS01 phase7-session2 beacon died once mid-run and was respawned via WMI (direct
-   powershell beacon); noted in the ledger.
-5. Legacy R12-R18 rule notes are Vietnamese - translation to English is tracked debt
-   (repo language policy: English).
+4. The FS01 second-session beacon was respawned once via WMI (direct
+   powershell beacon) during the run; recorded in the ledger.
+5. R12-R18 rule metadata notes predate the repository language policy and are -
+   
+

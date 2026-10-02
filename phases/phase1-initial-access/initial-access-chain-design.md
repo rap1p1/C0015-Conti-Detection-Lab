@@ -1,10 +1,10 @@
-# Rerun v2 — operator 100% remote, delivery chỉ từ file macro, fix WMI→rundll32 (thiết kế)
+# Initial Access Chain — Design (remote operator, macro-only delivery, WMI→rundll32)
 
 Trạng thái: **DESIGN** (chờ user duyệt access: vmrun creds, Elastic creds, it.admin, station, docm automation).
 Run trước tham chiếu: `RUN-20260930-01` (ledger + telemetry: `../../docs/telemetry-comparison-c0015-vs-lab.md`,
 `../phase2-operator/operator-phase-context-gaps-runbook.md`).
 
-## 0. Mục tiêu rerun
+## 0. Objectives
 
 1. **Operator remote 100%** — không gõ lệnh trên console WS01/FS01. Mọi kỹ thuật operator (S4–S9) được
    điều khiển từ trạm operator (C2 host 192.168.50.1) qua C2-SIM tasking + WMI DCOM (T1047), đúng chất
@@ -202,5 +202,6 @@ beacon register phase3 (token a7d4f6e1, ok=True). c0015wf.log ghi từng bước
 Điều kiện lab cần nhớ: victim-open MANUAL (Word session interactive), Word sạch (xoá Resiliency/DocumentRecovery
 sau crash trước khi mở), auto-macro bật. Ghi chú: đôi khi mshta hiện "script error: write to file failed
 (code 0)" thoáng qua ở bước ghi marker nhưng file vẫn ghi thành công (E11 xác nhận) - script tiếp tục chạy.
+
 
 

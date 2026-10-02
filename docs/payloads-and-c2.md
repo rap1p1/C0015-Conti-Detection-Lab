@@ -32,7 +32,7 @@ gaps are replaced by executed techniques carrying labels (no blanks, no "unknown
 
 ### 2.1 Foothold automation (S1 -> S3): C2-SIM v3.2 (implemented + tested 20/20)
 
-Keep `scripts/c2sim_v2.py` (v3.2, the current C2-SIM revision): register/task/result with server-side receipts
+Keep `scripts/c2sim.py` (v3.2, the current C2-SIM revision): register/task/result with server-side receipts
 plus **dynamic tasking** (`POST /cmd`) and **output read-back** for the remote operator. v3.2 additions (all
 verified this session, run `RUN-20260930-01`):
 
@@ -70,7 +70,7 @@ command stays a benign string (allowlist or operator-entered; secrets never on t
 ## 3. C2-SIM v3.2 endpoint design (dynamic tasking + remote output read-back)
 
 Constrained HTTP server running on the lab host / Kali, playing the C2 role for the surrogate beacon; implementation:
-`scripts/c2sim_v2.py` (tested 20/20 offline + end-to-end with `payloads/beacon/c0015_beacon.ps1`).
+`scripts/c2sim.py` (tested 20/20 offline + end-to-end with `payloads/beacon/c0015_beacon.ps1`).
 
 | Endpoint | Method | Purpose | Conditions (allowlist) |
 |---|---|---|---|
@@ -137,3 +137,4 @@ to GOAD-Light and an exact match to the campaign structure (1 workstation beachh
 2. Deploy payloads: build the DLL (mingw) -> per-run `config.ini` -> docm macro -> run S1-S3 with C2-SIM v2 + beacon.
 3. BadBlood on DC01 (if richer discovery data is desired).
 4. (Optional) Sliver per the Section 2.2 conditions — only after CALDERA is running stably.
+

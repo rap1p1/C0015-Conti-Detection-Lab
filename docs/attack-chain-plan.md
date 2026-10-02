@@ -148,7 +148,7 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
 - **Live lab behavior:** on WS01, run the bounded benign agent/DLL surrogate: (a) public-IP lookup via HTTP GET to
   the mock endpoint (`public-ip.txt` = 203.0.113.77), (b) periodic callback to C2-SIM
   `POST /session/register?stage=phase3&host=WS01`, (c) GET task / POST result with a fixed task allowlist.
-- **Surrogate behavior:** C2-SIM (implemented in `scripts/c2sim_v2.py`; design and decisions in
+- **Surrogate behavior:** C2-SIM (implemented in `scripts/c2sim.py`; design and decisions in
   `docs/payloads-and-c2.md`) replaces Bazar/Cobalt Strike C2. Kept: outbound callback, session registration,
   public-IP query, task/result loop. Not kept: HTTPS/JA3/cert profile, 60 s sleep with 37 jitter, Malleable C2
   URI, Winlogon injection.
@@ -399,7 +399,7 @@ PASS, and the chain is not end-to-end.
 |---|---|---|---|---|---|---|
 | 0 | Baseline and sensor readiness | `PARTIAL` — ingest validated (09-12/14); 4 readiness deliverables still missing | — -> sensor matrix | Whole lab | — | VM IPs not re-verified; Kali clock skew |
 | 1 | Entry: Word macro -> HTA | `VERIFIED IN REPO` (P1-A/B/C mechanics); delivery `NOT REPRODUCED` (manual trigger) | P0 -> chain artifacts | WS01 `duc.user` | T1204.002, T1566.001 (assessed), T1059.005/.007, T1218.005, T1027 | Entity/PID conflict `UNRESOLVED`; mshta hop unlinked |
-| 2 | Bootstrap -> loader -> session 1 (Bazar-like) | `PARTIAL` — public-IP mock verified as artifact; C2-SIM session-1 receiver implemented (`scripts/c2sim_v2.py`), not yet run in lab | P1 -> session-1 token | WS01 | T1016, T1105, T1218.010/.011 | JA3/cert not reproduced; no run_id yet |
+| 2 | Bootstrap -> loader -> session 1 (Bazar-like) | `PARTIAL` — public-IP mock verified as artifact; C2-SIM session-1 receiver implemented (`scripts/c2sim.py`), not yet run in lab | P1 -> session-1 token | WS01 | T1016, T1105, T1218.010/.011 | JA3/cert not reproduced; no run_id yet |
 | 3 | Session 1 and operator discovery | `NOT RUN` — CALDERA (v5) decision per `docs/payloads-and-c2.md`, not deployed | P2 -> found_shares -> P4 | WS01 session 1 | T1059.003, T1057, T1018, T1069, T1482, T1135, T1124 | No session record |
 | 4 | Discovery -> decision -> target | `PARTIAL` — T1057/T1069.002/T1482/T1135/T1039 `DETECTED` (09-15); artifact does not exist yet; T1018/T1016 `CONTRADICTED` | P3 -> `ART-04-01/02` -> P5/P6 | WS01 `duc.user` | T1135, T1074.001, T1018, T1016 | No run_id yet |
 | 5 | Auth bridge (identity pre-provisioned) | `NARRATIVE ONLY` (4648/4624/4672 claims) | P4 -> `ART-05-01` evidence -> P6 | WS01 -> FS01 `it.admin` (not DA) | Valid accounts (lab), auth study | Entirely narrative-only |
@@ -463,3 +463,4 @@ PASS, and the chain is not end-to-end.
   (no dump), S14 (impact — bounded simulator, separate approval), D574 case (DNS-only, documented at S3).
 - **Not enough evidence (kept unchanged):** post-09-19 claims (auth bridge, DLL branch, WMI canary, collection
   run, DET-008) are `[NOT-VERIFIED-IN-REPO]`; Phase 1 PID/entity conflict remains `UNRESOLVED`.
+
