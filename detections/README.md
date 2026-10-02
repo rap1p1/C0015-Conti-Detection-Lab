@@ -107,3 +107,30 @@ Rule counts in this repo are presented post-filter (R04 matches the chain artifa
   pre-filter review export (disabled) lives with the review handoff, not in this repo.
 - Rerun alerts: `Alerts (1).csv` (40 docs; summary fields only — open in Kibana for uuid/RecordID/command line).
 - Review handoff: `HANDOFF-C0015-S1-S3.vi.md`; full phase-1 analysis: `../stage/analysis/s1-s4-detection-report.md`.
+
+## Operator-phase rules (R12–R18) — S4–S9
+
+Import file: `eql/C0015-S4-S9-elastic-rules.ndjson` (8 rules, **enabled**, interval 1m, from now-6m).
+Grounded on `RUN-20261002-01` (verified telemetry) + validation run `RUN-20261002-02` (coverage/noise report
+trong `../docs/detection-run-20261002-02.md`). Rules không hardcode giá trị lab (không IP/host/port/hash/account;
+chỉ process/path **class**, signature class, command-line class và entity ancestry).
+
+| ID | File | Scope | Sev/risk | BBlock | Preview (RUN-…-01) | Rerun-…-02 alerts | Ghi chú |
+|---|---|---|---|---|---|---|---|
+| R12 | `eql/r12-powershell-nested-cmd-launching-discovery.eql` | S4: PS→cmd→discovery tool | low / 21 | ON | 3 | 30–72 (sweep dup) | entity chain 2 bước |
+| R13 | `eql/r13-share-enumeration-commands.eql` | S5: net view/use + Get-SmbShare | low / 21 | ON | 3 | 17 (dup) | command-line class |
+| R14a | `eql/r14a-network-logon-by-user.eql` | S7: 4624 Type 3 non-system user | low / 21 | ON | 4 | 27 (dup) | Security `logs-system.security-c0015*` |
+| R14b | `eql/r14b-elevated-privileges-assigned-to-user.eql` | S7: 4672 non-system user | medium / 47 | ON (sau tuning) | 4 | 139 (noise → BB ON) | beacon elevated logon lặp = FP |
+| R15 | `eql/r15-lsass-credential-access.eql` | S7b: E10 lsass 0x1010/0x1418/0x1fffff non-system | medium / 47 | ON | 1 (wide 27.5h: 2, 0 FP) | 3 (1 TP + dup) | ambient system bị loại |
+| R16 | `eql/r16-admin-share-remote-file-write.eql` | S8a: 5145 C$/ADMIN$ | low / 21 | ON | 0 (audit-gated) | 0 (audit-gated) | cần Detailed File Share audit |
+| R17 | `eql/r17-wmiprvse-spawns-process-loading-unsigned-module.eql` | S8b: wmiprvse→child→E7 unsigned | high / 73 | OFF | 1 (wide: 3, 0 FP) | 9 (3 sweep × chain) | E7 dùng `[any where]` (category library) |
+| R18 | `eql/r18-proxy-spawned-powershell-egress.eql` | S9: rundll32/regsvr32→PS→egress | high / 73 | OFF | 2 | 12 (dup) | E3 lag 2–3s so E1 |
+
+Ghi chú thiết kế (rút từ telemetry verified):
+- E7 có `event.category` = library → trongsequence phải dùng `[any where event.code=="7"]` — `process where` sẽ lọc mất.
+- 4624: `winlog.logon.id` = 0x0 (SubjectLogonId) — không join được 4624↔4672 theo logon id; dùng 4672 single
+  (R14b) + nối tay theo `TargetLogonId` khi điều tra.
+- E11 SMB write phiá target không giữ UNC/Image/User → S8a chỉ dùng 5145 (R16) — audit-gated.
+- Sweep duplication (interval 1m vs look-back 6m) làm cùng event match nhiều sweep — kiến nghị enable
+  **alert suppression** (group_by `process.entity_id`/`host.name` + duration) hoặc dedupe theo uuid khi phân tích
+  (đã thấy ở R10 từ phase-1).

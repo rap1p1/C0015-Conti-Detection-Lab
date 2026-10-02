@@ -1,0 +1,10 @@
+any where event.code == "1"
+  and event.type == "start"
+  and (
+    (process.name : ("net.exe", "net1.exe")
+       and process.command_line : ("* view *", "* view", "* use *"))
+    or
+    (process.name : ("powershell.exe", "pwsh.exe")
+       and process.command_line : "*Get-SmbShare*")
+  )
+  and process.entity_id != null and not process.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")

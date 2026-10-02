@@ -1,0 +1,4 @@
+any where event.code == "4672"
+  and winlog.event_data.SubjectLogonId != "0x0"
+  and user.name != null
+  and not user.name : ("*$", "SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE")

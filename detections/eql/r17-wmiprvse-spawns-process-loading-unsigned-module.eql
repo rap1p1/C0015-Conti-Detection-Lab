@@ -1,0 +1,11 @@
+sequence by host.id with maxspan=60s
+  [process where event.code == "1"
+     and event.type == "start"
+     and process.parent.name : "wmiprvse.exe"
+     and process.name : ("cmd.exe", "powershell.exe", "pwsh.exe", "rundll32.exe", "regsvr32.exe", "mshta.exe", "wscript.exe", "cscript.exe")
+     and process.entity_id != null and not process.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.entity_id
+  [any where event.code == "7"
+     and winlog.event_data.Signed : "false"
+     and process.entity_id != null and not process.entity_id : ("", "{00000000-0000-0000-0000-000000000000}", "00000000-0000-0000-0000-000000000000")
+  ] by process.entity_id
