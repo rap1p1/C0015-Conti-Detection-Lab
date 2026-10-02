@@ -165,11 +165,12 @@
   "artifact_index": [
     { "artifact_id": "ART-07-01", "path": "evidence/runs/RUN-20261002-05/ART-07-01-18c677ef.json", "sha256": "B8C4A30547699069E9793BA7C1F7BBF766FF07F2931FF4420BC3B410F2DA0767", "producer_stage": "S9", "consumer_stage": "S8" },
     { "artifact_id": "ART-08-01", "path": "evidence/runs/RUN-20261002-05/ART-08-01-RUN05.json", "sha256": "4DEFB232BE17B7FEC851F70B2742467ECD3294A2FDE7DD6A794287099F07E1F4", "producer_stage": "S10", "consumer_stage": "S11" },
-    { "artifact_id": "ART-09-01", "path": "evidence/runs/RUN-20261002-05/ART-09-01-round1-RUN05.json", "sha256": "D43F0EDD9E75E984BF0AB92F2E370466417308274C253B0BC5E4BC93DF3EFE08", "producer_stage": "S11a", "consumer_stage": "S15" },
-    { "artifact_id": "ART-09-01", "path": "evidence/runs/RUN-20261002-05/ART-09-01-round2-RUN05.json", "sha256": "77E1A0FEC341173BADE511D0BDFD6109AFEB31670E88F5568FBB4BB51D520B38", "producer_stage": "S11b", "consumer_stage": "S15" },
+    { "artifact_id": "ART-09-01", "path": "evidence/runs/RUN-20261002-05/ART-09-01-round1-RUN05.json", "sha256": "3A73DCC2F083EB388C02299CA8EB6E4CB10CB743C8EC39004FB3284E9EDC1FC1", "producer_stage": "S11a", "consumer_stage": "S15" },
+    { "artifact_id": "ART-09-01", "path": "evidence/runs/RUN-20261002-05/ART-09-01-round2-RUN05.json", "sha256": "3829692662D1754638775C5C5BBAD2D68291512D7C213F6EE8E928F00E65487F", "producer_stage": "S11b", "consumer_stage": "S15" },
     { "artifact_id": "ART-14-01", "path": "evidence/runs/RUN-20261002-05/ART-14-01-RUN05.json", "sha256": "E448DEE9108FB20C13A64E8EEFF89A583631468FEF07AFB0E838A0266F564445", "producer_stage": "S14", "consumer_stage": "S15" },
     { "artifact_id": "ART-14-01", "path": "evidence/runs/RUN-20261002-05/ART-14-01-RUN05.txt", "sha256": "CF48B0FAC9F8F9C16F6E2CFA16B5B6495A8914555D89DE9BA16CAFF02B43B225", "producer_stage": "S14", "consumer_stage": "S15" },
     { "artifact_id": "ART-15-01", "path": "evidence/runs/RUN-20261002-05/ART-15-01-RUN05.json", "sha256": "25D9EE41B9293005521D6CCB0D71198281D2A841AE2C72367208A6C8D1F6BD16", "producer_stage": "S15", "consumer_stage": "" }
   ],
   "notes": "Delivery variant: self-generating entry macro (gen_macro_embedded.ps1 output). Generated-tool versions: rclone 1.75.1, AnyDesk standalone, ProcessHacker 2.39. Historical artifacts no longer retained are marked in run records rather than reconstructed."
 }
+

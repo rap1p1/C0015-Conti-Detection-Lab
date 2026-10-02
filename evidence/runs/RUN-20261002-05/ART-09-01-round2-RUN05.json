@@ -5,12 +5,14 @@
   "schema_version": "1.0",
   "producer_phase": 12,
   "consumer_phase": 15,
-  "verified_at": "2026-10-02T13:02:16.1946149+07:00",
+  "verified_at": "2026-10-02T13:10:00+07:00",
   "verified_files": 11,
   "total_files": 11,
-  "manifest_ref": "evidence/runs/RUN-20261002-05/ART-08-01-RUN05.json", "manifest_sha256": "4DEFB232BE17B7FEC851F70B2742467ECD3294A2FDE7DD6A794287099F07E1F4",,
+  "manifest_ref": "evidence/runs/RUN-20261002-05/ART-08-01-RUN05.json",
+  "manifest_sha256": "4DEFB232BE17B7FEC851F70B2742467ECD3294A2FDE7DD6A794287099F07E1F4",
+  "per_file_hashes_in": "manifest_ref (11 entries; verified equal against the sink copies)",
   "sink_root": "stage/sink/RUN-20261002-05/round2/DATA",
-  "tool": "rclone.exe 1.75.1",
-  "note": "internal sink (no public cloud); round 2 after RDP (day1/day4 mirror)"
+  "tool": "rclone.exe 1.75.1 (copy --max-age 2y --ignore-existing --auto-confirm --multi-thread-streams 7 --transfers 7 --bwlimit 10M -> webdav sink local)",
+  "note": "internal sink (no public cloud); round 2 after the RDP step (day1/day4 mirror)",
+  "matched": "all-files-hash-equal-manifest"
 }
-
