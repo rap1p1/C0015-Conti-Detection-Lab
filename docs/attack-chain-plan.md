@@ -215,20 +215,19 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
 
 - **Historical:** WMIC remote process creation -> rundll32 -> `143.dll` on the backup server `[OBSERVED-C0015]`
   (S2; T1047, T1570, T1218.011).
-- **Live lab behavior:** from the elevated WS01 session-1 beacon/console, explicit `it.admin` credential:
-  `wmic /node:FS01 process call create ...`. **Known lab constraint (verified):** `rundll32.exe` (GUI subsystem)
-  cannot load ANY DLL when created via WMI `process call create` in session-0 (`ReturnValue=9` "Path not found" —
-  no window station; proven with `user32.dll,MessageBeep`; `rundll32.exe` alone returns 0). The WMI pivot (T1047)
-  is kept; the **same `c0015_143_surrogate.dll`** is loaded by a console-loader host
-  (`cmd.exe /c powershell -File C:\C0015\s8b_loader.ps1` → P/Invoke `LoadLibrary`/`GetProcAddress` → `LabEntry`).
-- **Surrogate behavior:** DLL benign; mechanism of WMI remote process kept, rundll32 proxy replaced by the
-  console-loader host (documented adaptation, run `RUN-20260930-01`).
-- **Fidelity:** mechanism HIGH; load-host PARTIAL (rundll32 non-interactive load not reproducible in lab WMI).
+- **Live lab behavior:** from the elevated WS01 session-1 beacon, explicit `it.admin` credential:
+  `wmic /node:FS01 process call create "C:\Windows\System32\rundll32.exe C:\C0015\c0015_143_surrogate.dll LabEntry"`.
+  **Spelling requirement (verified):** `wmic process call create` splits arguments on commas
+  (`ReturnValue=9` for the comma form, proven with `user32.dll,MessageBeep`); the **space form** returns 0 and
+  calls the export — E1 `rundll32 (parent=WmiPrvSE)` + E7 (hash == ART-06-01) reproduced in RUN-20261002-01/-05.
+- **Surrogate behavior:** DLL benign; the WMI remote-process mechanism and the rundll32 load host match the
+  campaign. An earlier console-loader adaptation (`s8b_loader.ps1`, RUN-20260930-01) was **retracted** once the
+  space form reproduced the campaign signature.
+- **Fidelity:** HIGH (T1047 + T1218.011 + unsigned `143.dll` surrogate).
 - **Telemetry (distinctions apply):** WS01 S4648, E3 connection WS01 -> FS01 (a network connection, not proof of
   RPC; attribution may be empty), S5156 optional; FS01 S4624 Type 3 + S4672 + S4688 (if audit) + E1
-  `wmiprvse.exe -> cmd.exe -> powershell.exe` (console-loader) (key evidence) + E7 (ImageLoad of
-  `c0015_143_surrogate.dll` by the loader) + E11. E19-21 are NOT expected (WMI subscription telemetry; see Section
-  6.2).
+  `wmiprvse.exe -> rundll32.exe` (key evidence) + E7 (ImageLoad of `c0015_143_surrogate.dll` by rundll32) + E11.
+  E19-21 are NOT expected (WMI subscription telemetry; see Section 6.2).
 - **Gap:** event/field availability is Windows-version dependent — verify on the environment rather than asserting
   identical events on every build.
 
@@ -237,7 +236,7 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
 - **Historical:** `143.dll` is a Cobalt Strike beacon injected into
   `svchost.exe -k UnistackSvcGroup -s CDPUserSvc`; callback checkauj.com; ~9 hours later RDP `[OBSERVED-C0015]`
   (S2).
-- **Live lab behavior (injection separated):** the benign DLL loaded by the console-loader host on FS01 (S8):
+- **Live lab behavior (injection separated):** the benign DLL loaded by rundll32 on FS01 (S8, space form):
   (1) POST `/session/register` {host=FS01, stage=phase7-session2, self-generated token} to C2-SIM, (2) GET
   `/task/next` -> fixed benign task (`T-DISCOVER-CORPUS`), (3) execute the task (reads a corpus file list —
   metadata only), (4) POST `/result` -> C2-SIM writes the server-side `ART-07-01` receipt.
@@ -286,8 +285,8 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
   (192.168.50.1:8081, SHA-256 allowlist, up to 1024 B) with artifacts drawn from `ART-08-01`; the sink writes an
   `ART-09-01` receipt. The lab compresses the timeline (two rounds separated by one RDP at S12); deviation from
   the 4-day gap is recorded.
-- **Surrogate behavior:** MEGA -> internal sink; bwlimit/multi-thread transfer not reproduced (T1030 PARTIAL:
-  chunked up-to-512 B transfer is design-only until a sink capable of chunk reassembly exists; currently a single
+- **Surrogate behavior:** MEGA -> internal sink; T1030 (data transfer size limits) is reproduced by the real rclone ``--bwlimit 10M`` flag (RUN-20261002-05); the optional chunked-upload design is separate from T1030 and remains design-only
+  
   POST up to 1024 B approximates a fixed size limit).
 - **Fidelity:** PARTIAL (cloud/bwlimit).
 - **Telemetry:** E3 (FS01 -> 192.168.50.1:8081; attribution caveat), sink server log (client IP, bytes, hash),
@@ -463,4 +462,6 @@ PASS, and the chain is not end-to-end.
   (no dump), S14 (impact — bounded simulator, separate approval), D574 case (DNS-only, documented at S3).
 - **Not enough evidence (kept unchanged):** post-09-19 claims (auth bridge, DLL branch, WMI canary, collection
   run, DET-008) are `[NOT-VERIFIED-IN-REPO]`; Phase 1 PID/entity conflict remains `UNRESOLVED`.
+
+
 

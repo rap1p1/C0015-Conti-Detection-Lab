@@ -154,7 +154,7 @@ WMI process-creation evidence). Every correlation in Sections 3 and 5 must be re
 | C1 | P4+P8 | 5 atomic alerts (removed `a8390e7`) | user.name aggregation; 15 min lookback | `REMOVED` — re-baseline pending phase-2 S4/S5 telemetry | rule+atomics removed; re-write after phase-2 run; same join cautions apply | see `../phases/phase2-operator/README.md` for stage queries |
 | C2 | P1–P2 | E1 chain + E7 + E3/E22 | ProcessGuid ancestry; 10 min | `UNPROVEN` (hypotheses DH only) | mshta hop not linked; E3 attribution | 1 P1 run with clean ProcessGuid + 1 control; EQL prototype runs |
 | C3 | P5–P6 | S4648/4624/4672 + S4688 + E1 (wmiprvse -> child) | FS01 LogonId (4624 <-> 4672) + host + boot/time anchor; 4648 <-> 4624 via account/IP/window/auth context; 10 min | `UNPROVEN` (narrative-only evidence) | no exports; field mapping unverified | exports of 1 run; LogonId join verified (never 4648 <-> 4624 by LogonId) |
-| C-SESSION2 | P7 | E1 + E7 + E3 + receipt | host + run_id + LogonId; 10 min | `UNPROVEN` | session 2 does not exist yet (target of a future run) | `ART-07-01` + callback telemetry in the same run |
+| C-SESSION2 | P7 | E1 + E7 + E3 + receipt | host + run_id + LogonId; 10 min | `PROVEN` (RUN-20261002-05) | verified: E1 rundll32 (parent=WmiPrvSE) -> E7 unsigned (ART-06-01 hash) -> E3 fs01 :8080 05:45:13Z + receipt ART-07-01-18c677ef | `ART-07-01` + callback telemetry in the same run |
 | C4 | P8–P9 | S5145 + E11 + receipt | user/host + hash; 15 min | `UNPROVEN` until a new run (sink-side receipt/artifact verified — PARTIAL only) | VM chain not verified | manifest <-> receipt <-> allowlist hash match + VM-side run |
 | C5 | P7 analog | E10 + E7 | ProcessGuid source/target | `NOT RUN` | E10 not deploy-verified; config not committed | config committed + control/injection tests |
 | C6 | P13 | E2/E26/E11 + S5145 | process/account + host + root; window per metrics | `NOT RUN` | no corpus/manifest yet | control (backup) vs impact fan-out |
@@ -184,4 +184,5 @@ validated when the items it depends on are at INGEST VERIFIED.
 8. Ingest verification: for each host, take at least one local E1/E7/E11 event and find the matching event in Elastic by
    host, channel, RecordID and time; check E255, ingest errors, latency and EVTX growth over 5-10 minutes. Agent
    Healthy alone does not prove ingestion.
+
 

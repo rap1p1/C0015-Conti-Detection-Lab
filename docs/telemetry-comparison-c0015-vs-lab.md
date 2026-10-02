@@ -30,7 +30,7 @@ Sysmon (run window 02:00–04:30Z 2026-10-01) and the C2-SIM ledger.
   for EVERY DLL, demonstrated); the lab retains: WMI process creation (diag+loader) +
   rundll32→143.dll (E7 hash parity + entity chain) — the rundll32-side telemetry matches the
   original; only the parent differs.
-- S7b: original = in-process mimikatz (E10, no E1 binary); lab = standalone mimikatz.exe
+- S7b: original = ProcessHacker interacting with LSASS (per the report; the report does not describe in-process mimikatz); lab = mimikatz-style surrogate (E10, no dump; E10 access does not prove extraction)
   (new E1 + E10) — the model difference is documented in `payloads/lsass/` and the docs.
 
 ## Fidelity level
@@ -55,3 +55,4 @@ verified, rundll32 side verified, parent differs (lab constraint).
 signature: entry from the document, remote operator, intact rundll32 WMI pivot, auth
 telemetry on ES). G1/G2/G4/G7/G8 were resolved — details and rule pointers in
 `../phases/phase2-operator/operator-phase-context-gaps-runbook.md` §4b.
+
