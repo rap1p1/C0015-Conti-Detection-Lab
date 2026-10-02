@@ -139,3 +139,33 @@ Ghi chú thiết kế (rút từ telemetry verified):
 - Sweep duplication (interval 1m vs look-back 6m) làm cùng event match nhiều sweep — kiến nghị enable
   **alert suppression** (group_by `process.entity_id`/`host.name` + duration) hoặc dedupe theo uuid khi phân tích
   (đã thấy ở R10 từ phase-1).
+## Ánh xạ chuỗi kỹ thuật → telemetry máy nạn nhân → rule phát hiện (kill-chain order)
+
+Chuẩn hoá từ run **RUN-20261002-04** (2026-10-02, window 05:13–05:26Z, verified trên Elastic).
+Ý nghĩa cột: **E#** = Sysmon event (channel `Microsoft-Windows-Sysmon/Operational`, `winlog.event_id`); **S#** = Security event (channel `Security`, dataset `system.security`); **Fields chính** = trường drive detection; **Rule** = alert tương ứng + điều kiện quyết định.
+
+| Stage (kỹ thuật) | Máy nạn nhân sinh ra gì | E# / S# | Fields chính | Rule phát hiện & điều gì drive match |
+|---|---|---|---|---|
+| **S1** Entry — macro Word (T1204.002/T1059.005 → T1218.005 → T1105/T1218.010) | WINWORD mở docm → **macro tự viết config.ini/bootstrap.hta/c0015_beacon.ps1** vào `%PUBLIC%\C0015` → mshta → HTA download `c0015-comparefor.jpg` (DLL) → regsvr32 /s jpg | E1 (WINWORD, mshta, regsvr32), **E11 (proc=WINWORD viết stage files)**, E3 `:8000`, E7 (jpg-as-DLL) | `process.name` (WINWORD/mshta/regsvr32), `process.parent.name`+`entity_id` (chain), `file.path` (`*C0015*`, staging dirs), `network.direction=egress`+`destination.port=8000` | **R01** (office→script/shell), **R02** (mshta→regsvr32/rundll32), **R03** (E7 unsigned staging), **R04** (E11 staging write — bắt cả macro self-write: proc=WINWORD), **R07** (seq office→mshta→proxy, join entity) |
+| **S2–S3** Beacon session-1 (T1071.001, T1016) | beacon powershell (con regsvr32) + callback `:8080` + markers (`dll-executed.txt`, token) | E1 (beacon), E3 `:8080`, E11 (markers) | `process.name=powershell` + `parent=regsvr32`, `process.entity_id`, E3 `destination.port=8080` | **R05** (regsvr32→PS), **R06** (script-host egress — BB), **R09/R18** (proxy→PS→egress seq) |
+| **S4** Discovery (T1057, T1069.001/002, T1482, T1016, T1018) | beacon → cmd → `whoami/tasklist/net group/net localgroup/nltest/net view/ping/systeminfo` | E1 (cmd con beacon, tool con cmd) | `process.parent.name` chain (`powershell→cmd→tool`), `process.name` (discovery class), `process.entity_id` | **R10** (PS→nested cmd), **R11** (nested cmd→discovery tool), **R12** (seq PS→cmd→discovery — anchor entity, không raw count) |
+| **S5** Share enum (T1135) | `net view \\FS01` + Get-SmbShare | E1 | `process.command_line` (`* view*`, `*Get-SmbShare*`), `process.name` (net/net1/powershell) | **R13** (command-line class) |
+| **S7** Auth (T1078) | logon mạng explicit cred → FS01; failed logon khi thử sai | **S4624 T3**, **S4672**, S4625, S4648 | `winlog.event_data.LogonType=3`, `user.name` (non-`*$`/SYSTEM), `winlog.event_data.TargetLogonId` / `SubjectLogonId` | **R14a** (4624 T3 non-system user), **R14b** (4672 non-system — BB; nối tay theo logon id) |
+| **S7b** LSASS (T1003.001) | mimikatz (fetch `:8000` → E11 truy tải) → OpenProcess lsass | **E10**, E11 (mimikatz.exe), E3 `:8000` | `winlog.event_data.TargetImage=*lsass.exe`, `GrantedAccess` ∈ {0x1010,0x1418,0x1fffff}, `process.name` nguồn (non-system), loại ambient (wininit/csrss/services/svchost/MsMpEng) | **R15** (E10 grant class + nguồn non-system; loại ambient 0x1000/0x101000) |
+| **S8a** Handoff (T1570/T1105) | beacon fetch 143.dll/beacon/config qua `:8000` → SMB C$ copy → FS01 | E3 `:8000`, E11 (C:\ProgramData\C0015 + FS01 C:\C0015), **S5145** | `destination.port=8000`, `winlog.event_data.ShareName` (`\\*\C$`/`ADMIN$`), `RelativeTargetName`, `user.name` (SMB writer) | **R16** (5145 C$/ADMIN$ — audit-gated: cần `auditpol Detailed File Share`), + R06/R04 (T1105 egress + staging) |
+| **S8b** WMI pivot (T1047/T1218.011) | Wmiprvse → rundll32 → 143.dll (LabEntry) → marker | **E1 prent=WmiPrvSE→rundll32**, **E7 (ImageLoad dll unsigned, hash)**, E11 marker | `process.parent.name=WmiPrvSE.exe`, `process.entity_id`, E7 `winlog.event_data.Signed=false`, `file.path`; Security 4624 T3 cùng cửa sổ (WMI logon) | **R17** (seq wmiprvse→child→E7 unsigned — dùng `[any where]` cho E7 vì category=library) |
+| **S9** Session-2 (T1071.001) | rundll32 → powershell beacon (FS01) → callback `:8080` + receipt ART-07-01 | E1 (beacon par=rundll32), E3 `:8080`, E11 marker | `process.parent.name=rundll32`, `process.entity_id`, E3 `direction=egress` | **R18** (seq rundll32→PS→egress), **R09** (proxy-PS egress) |
+
+### Độ phủ thực đo (RUN-20261002-04 — số alert raw trong window; BB-ON = ẩn khỏi bảng Alerts mặc định)
+
+S1: R01=2 R02=2 R03=2 R04=9 R07=6 | S2–S3: R05=3 R06=413(RB) R08=6 R09=9 | S4: R10=39 R11=9 R12=30 |
+S5: R13=7 | S7: R14a=10 R14b=97(RB) | S7b: R15=1 | S8a: R16=2 (tuned: IPC$ dropped) | S8b: R17=6 |
+S9: R18=9. Tổng 656 → sau khi bỏ BB-ON + suppression (đã enable) tập alert điều tra hữu ích còn ~40–60.
+
+### Chú giải quan trọng cho người viết/sửa rule
+- **E7 `process where` sẽ lọc mất** (category=library) → dùng `[any where event.code=="7"]` trong sequence (R17).
+- **4624**: `winlog.logon.id` = 0x0 (SubjectLogonId) → KHÔNG join 4624↔4672 theo logon id; dùng `TargetLogonId` (4624) ↔ `SubjectLogonId` (4672) khi điều tra tay.
+- **E11 SMB write phiá target** không giữ UNC/Image/User → S8a dùng **Security 5145** (R16), không dựa E11.
+- **Sweep duplication** (interval 1m vs look-back 6m): cùng event match nhiều sweep — đã enable suppression (`process.entity_id`/`host.name`+logon id, 5m) — nếu vẫn thấy trùng, dedupe theo `kibana.alert.uuid`.
+- **E3 timestamp lag ~2–3s** so E1/E11 — không xếp thứ tự chain theo E3.
+- Loại ambient E10: gated SourceImage system (wininit/csrss/services/svchost/MsMpEng/Registry/wmiprvse) + `GrantedAccess` không gồm 0x1000/0x101000 (query-info thường).
