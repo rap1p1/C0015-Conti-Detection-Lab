@@ -14,7 +14,7 @@ Window: 2026-10-02 12:55:00Z – 13:35:00Z. Ledger: `evidence/runs/RUN-20261002-
 | S9 session-2 | register `7e715c9a` 13:15:10Z + receipt `ART-07-01-7e715c9a.json` |
 | S10 | ART-08-01 manifest (11 files / 309 B) |
 | S11a/S11b | rclone rounds (E1 13:17:07Z / 13:18:51Z) → sink 22 files; receipts 11/11 full-set |
-| S12 RDP | **T10 interactive logon 13:17:54.978Z** (TargetLogonId 0x4cc3dae); R19 alerts 13:18:45Z; session `rdp-tcp#9 Conn` captured during the window; no 4778/4779 (abrupt close) |
+| S12 RDP | **T10 interactive logon 13:17:54.978Z** (TargetLogonId 0x4cc3dae); R19 alerts 13:18:45Z; session `rdp-tcp#9 Conn` captured; **end = 4634 logoff 13:18:22Z** (ingested, local=ES 87x). 4779 (disconnect) not generated locally (audit effective) - generation gap; 4778 (reconnect) n/a |
 | S13 | AnyDesk drop→run (13:19:49→13:20:16), ProcessHacker drop 13:19:59 |
 | S14 impact | 15 files; Verify 30 bidirectional mismatches → Rollback → hash-equal |
 

@@ -333,3 +333,4 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
 - Alert hygiene: close stale alerts before any re-run
   (`_update_by_query` on `.internal.alerts-security.alerts-default-*`, `workflow_status=closed`).
 - Commit with a short message; keep the tree green (tests OK).
+

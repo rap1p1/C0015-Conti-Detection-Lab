@@ -383,9 +383,18 @@
             "db78b80ceda40bc84b4df66c822557fe7313e7c024495580c91ea3f0f3cd2c1b",
             "586d9926b448fbafe3f49aafcada91b8648a5c81ca13d9fb4d8f7d7dd6df4797"
           ]
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "4634",
+          "es_id": "AaD8xKiPmO7CP6YWYrKP",
+          "ts": "2026-10-02T13:18:22.4Z",
+          "detail": "session end - logoff (4634) for it.admin at RDP close (ingested; 87x4634 in the window)"
         }
       ],
-      "notes": "interactive logon + session state captured; 4778/4779 disconnect events not generated (abrupt client close) - documented lifecycle gap"
+      "notes": "Lifecycle verified: logon = T10 4624 13:17:54.978Z; session state = rdp-tcp#9 Conn; end = 4634 logoff 13:18:22Z (ingested). 4779 (disconnect) was NOT generated even locally (audit effective - checked; no clean disconnect handshake); 4778 (reconnect) not applicable. Generation gap, not an ingest gap."
     },
     {
       "stage": "S13",
