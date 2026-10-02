@@ -47,6 +47,7 @@ TASKS = {
         "T-DISCOVER-NETVIEWALL",   # net view /all /domain               (T1018)
         "T-DISCOVER-TIME",         # net view /all time                  (T1124)
         "T-DISCOVER-PING",         # ping -n 1 <target>                  (T1018)
+        "T-SELECT-TARGET",         # S6 orchestration: pick lateral target (T1018->T1570)
         "T-BEACON-SLEEP",
     ],
     "phase7-session2": ["T-DISCOVER-CORPUS"],
@@ -160,6 +161,36 @@ def enqueue_runbook(token, entries):
     return True, "queued"
 
 
+def select_target(token):
+    """S6: server-side target-selection orchestration. Runs after the discovery
+    batch: chooses FS01 (the scenario lateral target, cross-checked against the
+    discovery net-view results), records the decision artifact ART-06-02 and a log
+    line, and returns a benign echo command for the beacon (kept visible in OS
+    telemetry). Returns (cmd_str, artifact_path)."""
+    s = STATE["sessions"].get(token)
+    run_id = (s or {}).get("run") or "RUN-unknown"
+    # basis: the discovery results for this session (net view /all) list FS01
+    listed = "FS01" in " ".join(r.get("output", "") for r in (s or {}).get("results", [])[-8:])
+    decision = {
+        "artifact_id": "ART-06-02", "kind": "target-selection-decision",
+        "run_id": run_id, "stage": "S6",
+        "selected_host": "FS01", "selected_ip": "192.168.50.30",
+        "basis": "scenario target; discovery net-view listing of FS01" if listed
+                 else "scenario target (discovery listing unavailable)",
+        "method": "server-side orchestration (c2sim select_target)",
+        "decision_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "next_stage": "phase7-session2 (WMI pivot -> rundll32 -> beacon)",
+    }
+    art = envelope("ART-06-02", run_id, 6, 7, decision)
+    out = OPTS["ledger_dir"] / f"ART-06-02-RUN{run_id.split('-')[-1]}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(art, indent=2) + "\n", encoding="utf-8")
+    log(f"S6 target selection session={token[-8:] if token else '-'} "
+        f"selected=FS01 basis={decision['basis']} artifact={out.name}")
+    cmd = 'cmd /c echo S6-TARGET=FS01 > C:\\Windows\\Temp\\s6_target.txt'
+    return cmd, str(out)
+
+
 def next_task(token):
     """Returns (task_name, raw_cmd_or_None, pause_sec). Operator commands (OP-CMD)
     take priority; otherwise the fixed discovery batch is served once, then idle."""
@@ -175,7 +206,11 @@ def next_task(token):
         return "T-NOOP", None, 0
     if idx >= len(seq):
         return "T-BEACON-SLEEP", None, 0
-    return seq[idx], None, 0
+    task = seq[idx]
+    if task == "T-SELECT-TARGET":
+        cmd, _ = select_target(token)
+        return "OP-CMD", cmd, 0
+    return task, None, 0
 
 
 def result_ok(token, task, size, body=None):
