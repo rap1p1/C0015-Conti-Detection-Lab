@@ -125,3 +125,14 @@ empty queries; `scripts/validate_repo.py` + CI enforce JSON/schema/query-sync/of
 - [docs/correlation-architecture.md](docs/correlation-architecture.md) — telemetry correlation design.
 - [docs/telemetry-comparison-c0015-vs-lab.md](docs/telemetry-comparison-c0015-vs-lab.md) — event-level parity.
 - [docs/payloads-and-c2.md](docs/payloads-and-c2.md) — payload and C2 design.
+## Environment versions (reference run)
+
+| Component | Version (as used in RUN-20261002-05) |
+|---|---|
+| VMware Workstation | host-side; VMs WS01/FS01/DC01 (Windows 10 / Windows 10 Pro 19045 / Server), Kali |
+| Elastic / Fleet | managed stack (ingestion aliases above) |
+| Python (tooling) | 3.12.x |
+| PowerShell (tooling) | 7.x (pwsh) |
+| Sysmon | 15.21 (schema 4.91), profile `configs/sysmon/sysmon-c0015-balanced.xml` |
+| rclone | 1.75.1 (transferred with the documented flags) |
+| ProcessHacker / AnyDesk | 2.39 / standalone build |

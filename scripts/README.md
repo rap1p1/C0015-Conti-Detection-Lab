@@ -27,3 +27,10 @@ with `POST /runbook?session=<token>&name=c0015-phase2`.
 
 
 
+
+## Control model
+
+The simulator accepts operator-issued commands (`/cmd`) and runbook batches; benign-execution
+guarantees are procedural (operator conventions, staged payloads, scheduled-task delegation), not
+code-enforced allowlists. Task-type allowlists inside runbooks are a convention, not an enforcement
+boundary.
