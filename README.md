@@ -297,8 +297,8 @@ retention and the runtime C2 log; the recorded scorecard preserves the result fr
 | S6 | The target-manifest stage is explicitly NOT RUN in all four ledgers; the runbook calls it skipped by design | No claim of automatic target-selection orchestration |
 | S12 | Type-10 interactive logons are observed; R19 is positive in RUN-06/07/08 | Session lifetime/disconnect evidence was not collected; stage characterization remains PARTIAL |
 | E7 | ImageLoad enabled (BALANCED); E7 unsigned load joined to the pivot entity with ****`file.hash.sha256` present (ECS) on all four runs - equals the surrogate artifact hash (cbcd2a8b...) | **resolved** (verified 2026-10-02; hash read at `file.hash.sha256`, not `winlog.event_data.Hashes`) |
-| RUN-08 provenance | The report and scorecard record a successful replay | Ledger timestamps include seven placeholders such as `09:33:1xZ`; many event refs lack an Elasticsearch ID, and some timings disagree with the report |
-| Collection and tool correlation | Admin-share access and tool drop/run signals are observable | R16 does not cover ordinary Finance/IT share reads; R20 joins on host and does not prove binary identity |
+| RUN-08 provenance | Ledger rebuilt with real Elasticsearch ids + exact UTC timestamps for every stage reference (S1 chain 09:33:20-22Z, S3 09:33:25Z, S4/S5 09:33:23Z, S7b 09:37:24Z, S8a 09:37:06Z/09:39:35Z, S8b 09:39:45Z, S9 09:39:48Z, S12 09:43:20Z, S13 09:44-45Z, S14 09:45:55Z, R23 source notes + alert ids) | **resolved** (2026-10-02) |
+| Collection and tool correlation | S10 collection reads observed as 5145 C$ (the runbook reads Finance/IT content THROUGH C$, 228 events in RUN-08); R20 documents the host-level join and the analyst hash cross-check (E11.file.hash.sha256 vs E1.process.hash) | **resolved as documented** - R16 covers the S10 reads (mechanism = C$); binary identity is a documented procedural step, not an EQL join |
 | Historical fidelity | Real Windows telemetry and bounded surrogate mechanisms are exercised | Credential provenance, original malware internals, external cloud transfer, and encryption are not reproduced |
 
 S12's earlier missing-Type-10 concern and E7's earlier disabled-event concern have been resolved in the
@@ -355,4 +355,5 @@ is used for lab sessions; any observed vendor-relay traffic is not used as the s
 - [Payload and C2 design](docs/payloads-and-c2.md)
 
 Licensed under [MIT](LICENSE).
+
 
