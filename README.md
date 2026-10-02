@@ -1,39 +1,27 @@
 # C0015 Detection Engineering Lab
 
-An evidence-driven reconstruction of [MITRE ATT&CK Campaign C0015](https://attack.mitre.org/campaigns/C0015/),
-based on [The DFIR Report: CONTInuing the Bazar Ransomware Story](https://thedfirreport.com/2021/11/29/continuing-the-bazar-ransomware-story/)
-(29 November 2021). The project studies how an intrusion becomes observable, how detection rules respond,
-and how each conclusion can be traced to a recorded lab run.
+A detection engineering project that reconstructs the behaviors of
+[MITRE ATT&CK Campaign C0015](https://attack.mitre.org/campaigns/C0015/) in a Windows and Active Directory homelab.
+Based on [The DFIR Report's investigation](https://thedfirreport.com/2021/11/29/continuing-the-bazar-ransomware-story/),
+the lab connects campaign simulation, endpoint telemetry, Elastic Security detections, and recorded evidence.
 
-The homelab combines Windows/Active Directory telemetry, benign payload surrogates, an internal C2
-simulator, and Elastic Security. It follows the entry, discovery, lateral movement, collection, transfer,
-remote-access, and impact portions of the campaign. Historical behavior, lab substitutions, and evidence
-limitations are kept separate.
+Controlled surrogates reproduce process, network, authentication, file, and module-load activity across
+WS01 and FS01. Each documented run brings together event references, detection results, transfer receipts,
+and recovery verification.
 
-**Project scope:** campaign stages S1–S14, followed by validation and recovery. S6 target-manifest
-orchestration was not executed in the recorded runs; S15 is post-run validation, not campaign behavior.
+**24 detection rules · 5 documented runs · 20 offline component tests**
 
-**Detection suite:** 24 rules — 23 EQL rules and one KQL threshold rule. R17, R18, and R23 are
-high-severity alerting rules; the other 21 are building blocks.
+## Explore the project
 
-## Start here
+| Resource | What to read |
+|---|---|
+| [Latest run: RUN-20261002-09](reports/reference-run-20261002-09.md) | Campaign timeline, target-selection decision, RDP logon/logoff evidence, and recovery |
+| [RUN-09 evidence ledger](evidence/runs/RUN-20261002-09/RUN-20261002-09.json) | Elasticsearch event IDs, UTC timestamps, logon joins, and artifact references |
+| [Detection catalogue](detections/README.md) | Rule intent, telemetry, and investigation context |
+| [Query sources](detections/queries/) · [NDJSON exports](detections/exports/) | Detection logic and Elastic Security import bundles |
+| [Lab architecture](docs/architecture.md) · [Operator runbook](docs/attack-runbook.md) | Environment design, lab procedure, evidence collection, and cleanup |
 
-1. [Reference run RUN-20261002-07](reports/reference-run-20261002-07.md) — observed chain, detection
-   results, activity counts, and recovery.
-2. [Run-07 ledger](evidence/runs/RUN-20261002-07/RUN-20261002-07.json) and
-   [artifacts](evidence/runs/RUN-20261002-07/) — event references, transfer receipts, and verification outputs.
-3. [Detection queries](detections/queries/) and [import bundles](detections/exports/) — the implemented
-   predicates and their exported configuration. The [detection catalogue](detections/README.md) provides
-   investigation context.
-4. [Operator runbook](docs/attack-runbook.md) — the documented lab procedure, evidence collection, and
-   cleanup.
-
-RUN-07 is the evidence reference used in this README. [RUN-08](reports/reference-run-20261002-08.md)
-carries full provenance in its ledger (real event ids/timestamps). The latest replay is
-[RUN-20261002-09](reports/reference-run-20261002-09.md), which adds S6 target-selection
-orchestration and S12 interactive-logon session evidence.
-
-## Project architecture and workflow
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -146,220 +134,145 @@ style detection fill:none,stroke:none,color:#c9d1d9
 style evidence fill:none,stroke:none,color:#c9d1d9
 ```
 
-Fleet manages endpoint policies; Elastic Agents send telemetry to Elasticsearch, where Elastic Security
-evaluates the rules. Event references and lab artifacts are recorded together in the run ledger.
+Fleet manages endpoint policies. Elastic Agents collect Sysmon and Windows Security events and send
+them to Elasticsearch, where Elastic Security evaluates the detection rules. The evidence ledger connects
+source events and alerts with the artifacts produced during each run.
 
-| System | Role | Lab address / purpose |
+| System | Role | Lab address |
 |---|---|---|
-| WS01 | Windows 10 initial workstation | `192.168.50.20`; document entry, session 1, operator tooling |
-| FS01 | Windows 10 Pro file server / target | `192.168.50.30`; Finance/IT shares, WMI pivot, session 2, impact corpus |
-| DC01 | AD DS and DNS for `c0015.lab` | `192.168.50.10`; domain infrastructure, no interactive operator use |
-| Windows C2 host | Operator and internal services | `192.168.50.1`; HTTP staging `:8000`, C2-SIM `:8080`, WebDAV sink `:9001` |
-| Kali | Auxiliary tooling and telemetry routing | `192.168.50.100`; Tailscale routing to the Elastic backend |
-| ELASTIC01 | Elasticsearch, Kibana, Fleet Server | Tailscale `100.77.46.126`; endpoint policy `C0015-Windows-Endpoints` |
+| WS01 | Windows 10 workstation; initial foothold and session 1 | `192.168.50.20` |
+| FS01 | Windows 10 Pro file server; Finance/IT data, WMI pivot, and session 2 | `192.168.50.30` |
+| DC01 | AD DS and DNS for `c0015.lab` | `192.168.50.10` |
+| Windows host | Operator, HTTP staging, C2-SIM, and WebDAV sink | `192.168.50.1` |
+| Kali | Auxiliary tooling and Tailscale routing | `192.168.50.100` |
+| ELASTIC01 | Elasticsearch, Kibana, and Fleet Server | Tailscale `100.77.46.126` |
 
-Domain traffic uses VMware VMnet2 (`192.168.50.0/24`, host-only, DHCP disabled). WS01 and FS01 also
-have NAT adapters for installers and updates. Endpoint events use namespace `c0015`; the rule bundles
-target `logs-windows.sysmon_operational-c0015*` and `logs-system.security-c0015*`.
+The domain network uses VMware VMnet2 (`192.168.50.0/24`, host-only). WS01 and FS01 also have
+NAT adapters for installation and updates. The Windows host serves HTTP staging on `:8000`, C2-SIM
+on `:8080`, and the WebDAV sink on `:9001`. Endpoint telemetry uses the Elastic namespace `c0015`.
 
 ## Recorded results
 
-The following results come from RUN-07 and its committed evidence. They describe the lab replay,
-not execution of the original Bazar/Conti malware.
+The latest replay, **RUN-20261002-09**, records the following outcomes:
 
-| Area | Recorded outcome | Evidence |
+| Area | Result | Evidence |
 |---|---|---|
-| Entry and session 1 | The Word macro writes the bootstrap files; WINWORD → mshta → regsvr32 leads to beacon registration | S1–S3 ledger; entity joins and C2 registration |
-| Discovery and identity | Discovery/share-enumeration tasks and administrative context; LSASS surrogate access mask `0x1010` | S4–S7b; Sysmon E1/E10 and Security events; no credential extraction claim |
-| Lateral movement and session 2 | SMB staging followed by WMI-spawned rundll32, an unsigned module load, and the FS01 callback | S8a–S9; Security 5145, Sysmon E1/E7/E3, ART-07-01 |
-| Collection and transfer | 11 files / 309 bytes; two rclone rounds with 11/11 name, size, and hash equality in each receipt | ART-08-01 manifest and two ART-09-01 receipts |
-| RDP | Type-10 interactive logon on FS01 at `09:03:26.968Z`; R19 alerts recorded at `09:03:38Z` | S12 event `AaD72qiPmO7CP6S6j0bF` and archived alert references |
-| Remote tools | AnyDesk drop followed by execution; ProcessHacker drop observed | S13 E11/E1 references |
-| Bounded impact and recovery | 15-file surrogate run; 30 bidirectional verification mismatches after impact, then rollback and hash equality | ART-14-01 JSON summary and console output |
-| Detection | R17: 3 stored docs / 1 sequence; R18: 6 docs / 2 activities; R23: 1 alert; R19: 2 docs / 1 Type-10 logon | Reference report and run ledger |
+| Entry and bootstrap | Word macro → HTA → regsvr32 → PowerShell beacon | S1–S3 process events and C2 registrations |
+| Discovery and target decision | Discovery batch followed by a recorded decision for the fixed scenario target, FS01 | S4–S6; ART-06-02 |
+| Lateral movement | SMB staging, WMI-spawned rundll32, and an unsigned DLL load with SHA-256 verification | S8a/S8b; Security 5145 and Sysmon E1/E7 |
+| Second session | FS01 beacon registration and process-owned network activity | S9; ART-07-01 and Sysmon E3 |
+| Collection and transfer | 11 files / 309 bytes; two transfer rounds with matching file names, sizes, and hashes | ART-08-01 manifest and two ART-09-01 receipts |
+| RDP session | Type-10 logon followed by a Type-10 logoff, joined by `TargetLogonId=0x4cc3dae` on FS01 | S12; Security 4624/4634 and R19 alert IDs |
+| Impact and recovery | 15-file bounded simulation; bidirectional verification followed by rollback and hash equality | S14; ART-14-01 |
+| Detection | R19 and R23 alert references archived; transfer and impact telemetry recorded | S12/S14 ledger and acceptance scorecard |
 
-Stored alert documents are not incident counts. Look-back overlap, polling, and suppression affect volume;
-activity counts are only reported where the run report establishes them.
+All five committed run scorecards record successful verification under the verifier's defined assertions.
+The reports retain the configuration, findings, and evidence context for each replay.
 
-### Recorded runs
-
-| Run | Role in this repository | Report / ledger |
-|---|---|---|
-| RUN-20261002-05 | Initial recorded run; R19 rule coverage began after its Type-10 events; impact verification used the earlier one-directional implementation | [Report](reports/reference-run-20261002-05.md) · [Ledger](evidence/runs/RUN-20261002-05/RUN-20261002-05.json) |
-| RUN-20261002-06 | Replay with R19 positive and bidirectional impact verification | [Report](reports/reference-run-20261002-06.md) · [Ledger](evidence/runs/RUN-20261002-06/RUN-20261002-06.json) |
-| RUN-20261002-07 | Evidence reference for this README; tuned rules and R22/R23/R24 coverage | [Report](reports/reference-run-20261002-07.md) · [Ledger](evidence/runs/RUN-20261002-07/RUN-20261002-07.json) |
-| RUN-20261002-09 | **Latest recorded replay**; S6 orchestration executed + S12 T10/session captured | [Report](reports/reference-run-20261002-09.md) · [Ledger](evidence/runs/RUN-20261002-09/RUN-20261002-09.json) |
-
-All four committed scorecards record `ACCEPTED`. This means that the configured acceptance assertions
-passed at verification time. It does not mean that every planned stage ran, every telemetry field was
-populated, or every RDP session was fully characterized.
-
-## Campaign behavior and detection coverage
-
-| Stage | Behavior represented in the lab | Telemetry / evidence | Rules |
+| Run | Focus | Report | Ledger |
 |---|---|---|---|
-| S1 | Word macro entry and script/proxy handoff | E1 parent/entity chain; E11 bootstrap writes | R01–R08 |
-| S2–S3 | HTA/DLL bootstrap and session-1 callback | E1/E3/E7; markers and C2 registration | R05/R06/R09/R18 |
-| S4–S5 | Discovery and share enumeration | E1 command/process ancestry | R10–R13 |
-| S6 | Target-manifest orchestration | NOT RUN in RUN-05..08 (explicit); **EXECUTED in RUN-20261002-09** (decision artifact `ART-06-02-RUN09`, fixed scenario target FS01) | coverage claim = decision executed; NOT discovery-driven selection |
-| S7 | Authentication and privileged logon context | Security 4624/4672; same-host logon IDs | R14a/R14b |
-| S7b | LSASS-access surrogate | E10 process access; no extraction inferred | R15 |
-| S8a | SMB admin-share handoff | Security 5145 and target-side E11 | R16 |
-| S8b | WMI-spawned proxy loading an unsigned DLL | E1 → E7 on the same process entity | R17 |
-| S9 | FS01 session-2 beacon callback | Entity-owned E3 and ART-07-01 receipt | R18/R09 |
-| S10 | UNC collection and staging | E11, Security 5145, ART-08-01 manifest | R16 covers admin shares; Finance/IT reads require analyst review |
-| S11a/b | rclone transfer to an internal WebDAV sink | E1 → E3 and per-file ART-09-01 receipts | R24 |
-| S12 | RDP interactive logon | Security 4624 Type 10; R19 references | R19 |
-| S13 | Portable remote-access/process tools | E11 drop and E1 execution | R20 |
-| S14 | Reversible impact surrogate and note spread | E11; ART-14-01 verification and rollback | R22/R23 |
+| RUN-20261002-05 | Initial recorded chain | [Report](reports/reference-run-20261002-05.md) | [Ledger](evidence/runs/RUN-20261002-05/RUN-20261002-05.json) |
+| RUN-20261002-06 | R19 positive and bidirectional impact verification | [Report](reports/reference-run-20261002-06.md) | [Ledger](evidence/runs/RUN-20261002-06/RUN-20261002-06.json) |
+| RUN-20261002-07 | Tuned rules and R22/R23/R24 coverage | [Report](reports/reference-run-20261002-07.md) | [Ledger](evidence/runs/RUN-20261002-07/RUN-20261002-07.json) |
+| RUN-20261002-08 | Repeat execution with source event and alert references | [Report](reports/reference-run-20261002-08.md) | [Ledger](evidence/runs/RUN-20261002-08/RUN-20261002-08.json) |
+| RUN-20261002-09 | Target decision and RDP session evidence | [Report](reports/reference-run-20261002-09.md) | [Ledger](evidence/runs/RUN-20261002-09/RUN-20261002-09.json) |
 
-The initial bootstrap DLL is `c0015-comparefor.jpg`, built from
-[payloads/dll/c0015_bootstrap_dll.c](payloads/dll/c0015_bootstrap_dll.c).
-The separate `c0015_143_surrogate.dll` belongs to the FS01 lateral-movement stage.
-The [historical mapping and fidelity notes](docs/attack-chain-plan.md) describe the source campaign and
-which behaviors are inferred or replaced by lab surrogates.
+## Detection suite
 
-## Detection engineering
+The suite contains **23 EQL rules and one KQL threshold rule**. It uses process ancestry, module
+signature and path context, logon fields, file creation, and process-owned network activity.
 
-The suite uses behavioral process ancestry, module signature/path context, logon fields, file creation,
-and process-owned network connections. Detection predicates avoid hardcoded lab IPs, hostnames, and
-accounts; index patterns and ingest mappings remain specific to this lab.
+| Behavior | Stages | Rules |
+|---|---|---|
+| Office, HTA, proxy execution, and bootstrap | S1–S3 | R01–R09 |
+| Discovery and share enumeration | S4–S5 | R10–R13 |
+| Authentication, privileged context, and LSASS-access surrogate | S7/S7b | R14a/R14b/R15 |
+| Admin-share access, WMI pivot, and beacon egress | S8–S10 | R16–R18 |
+| Transfer-tool network activity | S11a/b | R24 |
+| RDP and portable remote-access tools | S12–S13 | R19/R20 |
+| Impact-note creation and same-process note spread | S14 | R22/R23 |
 
-| Rule group | Purpose |
-|---|---|
-| R01–R08 | Office/script/proxy execution and staging |
-| R09 | Proxy-spawned PowerShell network activity |
-| R10–R13 | Discovery ancestry and share enumeration |
-| R14a/R14b/R15 | Authentication, privileged context, and LSASS access |
-| R16–R18 | Admin-share access, WMI pivot, and proxy-spawned egress |
-| R19/R20 | RDP and portable remote-access/process tools |
-| R22/R23 | Potential impact-note creation and same-process note spread |
-| R24 | Transfer-tool process egress |
+**R17, R18, and R23** are high-severity alerting rules. The remaining **21 rules** are building blocks
+for investigation. R17/R18 use EQL sequences; R23 requires at least three distinct file paths grouped
+by host and process entity. The [correlation architecture](docs/correlation-architecture.md) documents
+the join keys and analyst workflow.
 
-**Alerting rules:** R17 (WMI-spawned unsigned module), R18 (proxy-spawned PowerShell egress), and
-R23 (note spread across distinct paths). **Building blocks:** the remaining 21 rules.
+### Import into Elastic Security
 
-R17 and R18 are EQL sequences; R23 is a KQL threshold rule grouped by `host.name` and
-`process.entity_id`, requiring at least three distinct `file.path` values.
-The rules evaluate raw events. Cross-rule building-block relationships are analyst correlation guidance;
-there is no claim that a campaign-level rule consumes those building-block alerts.
-
-### Import bundles
+Import both bundles from **Security → Rules → Import rules**:
 
 - [c0015-rules-r01-r11.ndjson](detections/exports/c0015-rules-r01-r11.ndjson) — 11 rules.
-- [c0015-rules-r12-r24.ndjson](detections/exports/c0015-rules-r12-r24.ndjson) — 13 rules, including
-  R14a/R14b and R22–R24. R21 is retired.
+- [c0015-rules-r12-r24.ndjson](detections/exports/c0015-rules-r12-r24.ndjson) — 13 rules.
 
-The generator is [scripts/rules/gen_rules_ndjson.ps1](scripts/rules/gen_rules_ndjson.ps1).
-It rejects empty queries and duplicate rule IDs. IDs are derived from rule names; a rename changes the ID
-and requires migration rather than assuming the old server-side rule is overwritten.
+Rule numbering includes R14a/R14b; R21 is retired. The exported schedule is one minute, with a
+six-minute EQL look-back and a ten-minute R23 threshold window.
 
-The exported schedule is one minute, with a six-minute EQL look-back and a ten-minute R23 threshold
-window. Suppression is configured for selected rules; its presence alone does not establish a measured
-reduction in unique activity.
+The [rule generator](scripts/rules/gen_rules_ndjson.ps1) maintains the export bundles and checks for
+empty queries and duplicate IDs. Rule IDs are derived from names, so renaming a rule requires migration
+of its existing Elastic configuration.
 
 ## Evidence and verification
 
-Each [run directory](evidence/runs/) contains a ledger, an artifact index, manifests, receipts, and
-verification outputs. The public repository records selected evidence and event references; it is not
-a complete export of the Elasticsearch telemetry.
+[Run directories](evidence/runs/) contain event and alert references, artifact indexes, collection
+manifests, transfer receipts, and verification outputs. The evidence model supports process-entity joins
+within a host and logon-ID joins for authentication/session records on the same host.
 
-Artifact-file SHA-256 values use CRLF → LF normalization, as documented by the verifier. Transfer
-receipts separately record observed payload-file names, sizes, and SHA-256 values for comparison with
-the collection manifest. Artifact hash integrity and event-reference completeness are distinct checks.
+Artifact-file hashes use the documented CRLF → LF canonical convention. Transfer receipts compare
+each observed payload file against the collection manifest by name, size, and SHA-256.
 
-### Offline component tests
-
-From the repository root:
+Run the offline component tests from the repository root:
 
 ```bash
 python -m unittest discover -s scripts/tests
 ```
 
-The current suite contains 20 tests for artifact/manifest/receipt handling, fixtures, and C2-SIM logic.
-These are component tests; they do not execute EQL in Elastic or prove a live campaign replay.
+The suite covers artifact handling, manifests, receipts, fixtures, and C2-SIM logic.
 
-### Acceptance against retained telemetry
-
-With the documented runtime log and authorized Elastic credentials available:
+To verify a recorded run against retained Elastic telemetry, its runtime C2 log, and committed artifacts:
 
 ```bash
-python scripts/verify/verify_final_phases.py RUN-20261002-07
+python scripts/verify/verify_final_phases.py RUN-20261002-09
 ```
 
-The verifier requires `ES_PASS`; `ES_URL` and `ES_USER` select the backend and account.
-It queries retained events/alerts and checks committed artifacts. Live acceptance depends on telemetry
-retention and the runtime C2 log; the recorded scorecard preserves the result from the run.
+Supply `ES_PASS` through the environment; `ES_URL` and `ES_USER` select the backend and account.
+See [evidence documentation](evidence/README.md) and the [run reports](reports/) for the verification
+method and recorded findings.
 
-## Known limitations
-
-| Item | What is established | Remaining limitation |
-|---|---|---|
-| S6 | Target-selection orchestration EXECUTED in RUN-20261002-09: server-side decision (FS01, discovery context) recorded as `ART-06-02-RUN09` at 13:12:37Z | **resolved** (RUN-09; earlier ledger rows keep the historical NOT RUN) |
-| S12 | Type-10 interactive logons are observed in RUN-06/07/08/09; R19 positive | Session lifetime: RUN-09 verified logon-to-logoff BY TargetLogonId (T10 4624 13:17:54Z 0x4cc3dae -> 4634 13:18:36Z same LogonId, Type 10) + session Conn; 4779 (disconnect)/4778 (reconnect) not separately captured - **partially resolved**, gap documented |
-| E7 | ImageLoad enabled (BALANCED); E7 unsigned load joined to the pivot entity with ****`file.hash.sha256` present (ECS) on all four runs - equals the surrogate artifact hash (cbcd2a8b...) | **resolved** (verified 2026-10-02; hash read at `file.hash.sha256`, not `winlog.event_data.Hashes`) |
-| RUN-08 provenance | Ledger rebuilt with real Elasticsearch ids + exact UTC timestamps for every stage reference (S1 chain 09:33:20-22Z, S3 09:33:25Z, S4/S5 09:33:23Z, S7b 09:37:24Z, S8a 09:37:06Z/09:39:35Z, S8b 09:39:45Z, S9 09:39:48Z, S12 09:43:20Z, S13 09:44-45Z, S14 09:45:55Z, R23 source notes + alert ids) | **resolved** (2026-10-02) |
-| Collection and tool correlation | S10 collection reads observed as 5145 C$ (the runbook reads Finance/IT content THROUGH C$, 228 events in RUN-08); R20 documents the host-level join and the analyst hash cross-check (E11.file.hash.sha256 vs E1.process.hash) | **resolved as documented** - R16 covers the S10 reads (mechanism = C$); binary identity is a documented procedural step, not an EQL join |
-| Historical fidelity | Real Windows telemetry and bounded surrogate mechanisms are exercised | Credential provenance, original malware internals, external cloud transfer, and encryption are not reproduced |
-
-S12's earlier missing-Type-10 concern and E7's earlier disabled-event concern have been resolved in the
-recorded runs. The limitations above refer to different remaining evidence requirements. Updating a
-configuration or passing the acceptance assertions does not retroactively add missing fields or records
-to an earlier run.
-
-Run-specific reports and ledgers distinguish observed results from design intent. Some supporting design
-documents retain historical state descriptions; use an explicitly identified run when comparing claims.
-
-## Repository map
+## Repository structure
 
 | Directory | Contents |
 |---|---|
-| [phases/](phases/) | Phase narratives and investigation context |
-| [docs/](docs/) | Historical mapping, architecture, runbook, and correlation design |
-| [detections/](detections/) | Query sources, NDJSON exports, and detection catalogue |
-| [evidence/](evidence/) | Run ledgers, manifests, receipts, and verification outputs |
-| [reports/](reports/) | Run timelines, detection results, and limitations |
+| [docs/](docs/) | Architecture, campaign mapping, runbook, and correlation design |
+| [detections/](detections/) | Rule catalogue, query sources, and NDJSON exports |
+| [evidence/](evidence/) | Run ledgers, manifests, receipts, and verification records |
+| [reports/](reports/) | Run timelines and detection findings |
 | [configs/](configs/) | BALANCED and CAPTURE Sysmon profiles |
-| [payloads/](payloads/) | Macro/HTA/DLL/beacon and bounded lab surrogates |
+| [payloads/](payloads/) | Macro, HTA, DLL, beacon, and bounded simulation components |
 | [scripts/](scripts/) | C2-SIM, evidence tooling, rule generator, diagnostics, tests, and verifiers |
+| [phases/](phases/) | Phase narratives and investigation context |
 
-Generated documents, per-run configuration, and runtime tooling belong in the gitignored `stage/`
-directory.
+Runtime configuration and generated tooling use the gitignored `stage/` directory.
 
-## Environment and experiment boundaries
+## Environment
 
 | Component | Recorded configuration |
 |---|---|
-| Virtualization | VMware Workstation; WS01/FS01/DC01 and auxiliary Kali |
-| Domain | `c0015.lab` / `C0015`; initial user `duc.user`, administrative lab account `it.admin` |
-| Elastic stack | Elasticsearch / Kibana / Elastic Agent 9.5.3; Fleet-managed Windows endpoints |
-| Sysmon | 15.21, schema 4.91; [BALANCED profile](configs/sysmon/sysmon-c0015-balanced.xml) |
-| Tooling | Python 3.12.x and PowerShell 7.x, as recorded in the lab notes |
-| Transfer / remote tools | rclone 1.75.1; ProcessHacker 2.39; portable AnyDesk build not pinned in the run record |
+| Virtualization | VMware Workstation |
+| Directory services | `c0015.lab` / `C0015` |
+| Elastic | Elasticsearch, Kibana, and Elastic Agent 9.5.3 |
+| Sysmon | 15.21; schema 4.91; [BALANCED configuration](configs/sysmon/sysmon-c0015-balanced.xml) |
+| Runtime tooling | Python 3.12.x and PowerShell 7.x |
+| Transfer tooling | rclone 1.75.1; internal WebDAV sink |
 
-Administrative credentials are provisioned for the lab; the LSASS surrogate does not establish that
-credentials were extracted or acquired through the source campaign's unknown path. Runtime credentials
-are kept out of committed configuration and supplied to the verification tools through the environment.
+The lab uses controlled surrogates and a reversible impact corpus. Campaign execution covers S1–S14;
+post-run validation, recovery, and cleanup are documented separately.
 
-Transfer experiments terminate at the internal sink. The impact surrogate is bounded, allowlist-capped,
-reversible, and does not perform real ransomware encryption or self-propagation. Remote-access tooling
-is used for lab sessions; any observed vendor-relay traffic is not used as the simulator's C2 channel.
+## References
 
-## Sources and technical reading
-
-- [MITRE ATT&CK Campaign C0015](https://attack.mitre.org/campaigns/C0015/)
+- [MITRE ATT&CK — Campaign C0015](https://attack.mitre.org/campaigns/C0015/)
 - [The DFIR Report — CONTInuing the Bazar Ransomware Story](https://thedfirreport.com/2021/11/29/continuing-the-bazar-ransomware-story/)
-- [Lab architecture](docs/architecture.md)
-- [Historical mapping and fidelity](docs/attack-chain-plan.md)
-- [Operator runbook](docs/attack-runbook.md)
+- [Campaign mapping and fidelity](docs/attack-chain-plan.md)
 - [Correlation architecture](docs/correlation-architecture.md)
 - [Payload and C2 design](docs/payloads-and-c2.md)
 
 Licensed under [MIT](LICENSE).
-
-
-
-
-
-
-
