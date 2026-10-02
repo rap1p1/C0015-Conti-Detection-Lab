@@ -296,7 +296,7 @@ retention and the runtime C2 log; the recorded scorecard preserves the result fr
 |---|---|---|
 | S6 | The target-manifest stage is explicitly NOT RUN in all four ledgers; the runbook calls it skipped by design | No claim of automatic target-selection orchestration |
 | S12 | Type-10 interactive logons are observed; R19 is positive in RUN-06/07/08 | Session lifetime/disconnect evidence was not collected; stage characterization remains PARTIAL |
-| E7 | ImageLoad is enabled in the committed BALANCED profile; RUN-07 cites an unsigned module-load event joined to the pivot entity | The cited E7 hash field is unpopulated; independent artifact hashes do not fill that event field |
+| E7 | ImageLoad enabled (BALANCED); E7 unsigned load joined to the pivot entity with ****`file.hash.sha256` present (ECS) on all four runs - equals the surrogate artifact hash (cbcd2a8b...) | **resolved** (verified 2026-10-02; hash read at `file.hash.sha256`, not `winlog.event_data.Hashes`) |
 | RUN-08 provenance | The report and scorecard record a successful replay | Ledger timestamps include seven placeholders such as `09:33:1xZ`; many event refs lack an Elasticsearch ID, and some timings disagree with the report |
 | Collection and tool correlation | Admin-share access and tool drop/run signals are observable | R16 does not cover ordinary Finance/IT share reads; R20 joins on host and does not prove binary identity |
 | Historical fidelity | Real Windows telemetry and bounded surrogate mechanisms are exercised | Credential provenance, original malware internals, external cloud transfer, and encryption are not reproduced |
@@ -355,3 +355,4 @@ is used for lab sessions; any observed vendor-relay traffic is not used as the s
 - [Payload and C2 design](docs/payloads-and-c2.md)
 
 Licensed under [MIT](LICENSE).
+
