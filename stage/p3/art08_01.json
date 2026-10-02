@@ -1,0 +1,68 @@
+{
+  "artifact_id": "ART-08-01",
+  "run_id": "RUN-20261002-05",
+  "schema_version": "1.0",
+  "producer_phase": 8,
+  "consumer_phase": 9,
+  "payload": {
+    "files": [
+      {
+        "path": "Finance\\budget-forecast.txt",
+        "size": 23,
+        "sha256": "FB9BAA9DBA9F603C5FCE54350DEC9C64140B670C54634170C62DFD1BE5014509"
+      },
+      {
+        "path": "Finance\\budget-q3.txt",
+        "size": 35,
+        "sha256": "C9600769029E2E4BEC9424A2FD7D8100E99839E05E9AD341F4F80B6F964B7FD5"
+      },
+      {
+        "path": "Finance\\client-onboarding.txt",
+        "size": 30,
+        "sha256": "8C792D5D661A898FB98522792EAD148A980012C8DB2BCA3C742DE040CB1E23B7"
+      },
+      {
+        "path": "Finance\\import-template.txt",
+        "size": 26,
+        "sha256": "F6A58069B692114B256C5B4F2997D14F2612F785E0F44AA1511C49FDACB9AA35"
+      },
+      {
+        "path": "Finance\\payroll-notes.txt",
+        "size": 24,
+        "sha256": "C5D05F13523F1F5D2C74464974A397A90CF08D17766D4CC0149955C5A52A30B1"
+      },
+      {
+        "path": "Finance\\q3-vendors.txt",
+        "size": 32,
+        "sha256": "C0309AAF76888A296AB0A8F07BD98BA8731AC83BDD4F0AC8CB27722B3995C958"
+      },
+      {
+        "path": "IT\\ad-groups-audit.txt",
+        "size": 29,
+        "sha256": "5C258B70EEE46A2D6D9FA11BBFA6D2CC2E40901C71B6DD63F342887CBFB96CD4"
+      },
+      {
+        "path": "IT\\backup-schedule.txt",
+        "size": 27,
+        "sha256": "5BE46DD97A733054AA702F8D5230CFB296A72CCE54A6D7D19A393BC487308B1D"
+      },
+      {
+        "path": "IT\\network-map.txt",
+        "size": 25,
+        "sha256": "E2FE594AF50587C71EBA82C4732020DF4E39DA5E98DF9DF4152E3E505BAF5683"
+      },
+      {
+        "path": "IT\\server-inventory.txt",
+        "size": 27,
+        "sha256": "E71065AB76E34A25863523DF0954EBDCD6BF347DED392945157780E807C16A70"
+      },
+      {
+        "path": "IT\\vault-notes.txt",
+        "size": 31,
+        "sha256": "7C17E07E853017F880DA301F4AE0DD9C09BC4468F51D6D94E79F1BB0952E128D"
+      }
+    ],
+    "total_bytes": 309
+  },
+  "payload_sha256": "D39761C6B56E4FBC2D0FCDC56162196DE38F819DFA5E4A8E76F5E3201EA3FD69"
+}
