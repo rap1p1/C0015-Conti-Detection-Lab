@@ -23,7 +23,7 @@ RUN_ID_RE = re.compile(r"^RUN-\d{8}-\d{2,}$")
 TOKEN_RE = re.compile(r"^S[12]-[0-9a-f]{16}$")
 SECRET_KEY_RE = re.compile(r"^(password|passwd|pwd|secret|api[_-]?key|private[_-]?key|credential_value)$", re.I)
 ART_IDS = {
-    "ART-04-01", "ART-04-02", "ART-05-01", "ART-06-01", "ART-07-01",
+    "ART-04-01", "ART-04-02", "ART-05-01", "ART-06-01", "ART-06-02", "ART-07-01",
     "ART-08-01", "ART-09-01", "ART-10-01", "ART-12-01", "ART-13-01",
     "ART-14-01", "ART-15-01",
 }
@@ -249,3 +249,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

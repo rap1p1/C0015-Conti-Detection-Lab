@@ -1,0 +1,13 @@
+{
+  "artifact_id": "ART-15-01",
+  "run_id": "RUN-20261002-09",
+  "schema_version": "1.0",
+  "producer_stage": "S15",
+  "generated_utc": "2026-10-02T13:24:04Z",
+  "verification": {
+    "tool": "scripts/verify/verify_final_phases.py",
+    "window": "2026-10-02T13:01:00Z -> 2026-10-02T13:35:00Z",
+    "result": "ACCEPTED"
+  },
+  "notes": "Post-run validation. S6 target-selection executed server-side (ART-06-02). S12: interactive T10 logon 13:17:54Z observed with session state (rdp-tcp#9 Conn); 4778/4779 disconnect events were not generated (abrupt client close) - documented gap."
+}

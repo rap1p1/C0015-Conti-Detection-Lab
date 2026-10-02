@@ -48,15 +48,17 @@ WIN = {
     "RUN-20261002-06": ("2026-10-02T07:49:00Z", "2026-10-02T08:14:00Z"),
     "RUN-20261002-07": ("2026-10-02T08:50:00Z", "2026-10-02T09:15:00Z"),
     "RUN-20261002-08": ("2026-10-02T09:33:00Z", "2026-10-02T09:56:00Z"),
+    "RUN-20261002-09": ("2026-10-02T12:55:00Z", "2026-10-02T13:35:00Z"),
 }
 TOKEN = {
     "RUN-20261002-05": "S1-9a7cab91e7fd4f9f",
     "RUN-20261002-06": "S1-0d84eba20418da28",
     "RUN-20261002-07": "S1-353be732c7d5d5d2",
     "RUN-20261002-08": "S1-6eb01d7793ddfe8b",
+    "RUN-20261002-09": "S1-38bf53a55e9ef37c",
 }
-EXPECT_T10 = {"RUN-20261002-05": True, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True}
-EXPECT_R19_ALERTS = {"RUN-20261002-05": False, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True}
+EXPECT_T10 = {"RUN-20261002-05": True, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True, "RUN-20261002-09": True}
+EXPECT_R19_ALERTS = {"RUN-20261002-05": False, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True, "RUN-20261002-09": True}
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -383,6 +385,8 @@ def _add_seconds(ts, secs):
 
 if __name__ == "__main__":
     main()
+
+
 
 
 

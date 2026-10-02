@@ -1,0 +1,20 @@
+{
+  "artifact_id": "ART-06-02",
+  "run_id": "RUN-20261002-09",
+  "schema_version": "1.0",
+  "producer_phase": 6,
+  "consumer_phase": 7,
+  "payload": {
+    "artifact_id": "ART-06-02",
+    "kind": "target-selection-decision",
+    "run_id": "RUN-20261002-09",
+    "stage": "S6",
+    "selected_host": "FS01",
+    "selected_ip": "192.168.50.30",
+    "basis": "scenario target (discovery listing unavailable)",
+    "method": "server-side orchestration (c2sim select_target)",
+    "decision_utc": "2026-10-02T13:12:37Z",
+    "next_stage": "phase7-session2 (WMI pivot -> rundll32 -> beacon)"
+  },
+  "payload_sha256": "5D62F723EDB19887EAF534CB475460A0D1FA4AFA329B970F7EFA60F51B15D9AD"
+}

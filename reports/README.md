@@ -10,3 +10,4 @@ Reports are written after the run and cross-checked against
 `evidence/runs/<run_id>/` and `detections/README.md`. They are the recommended
 entry point for readers who do not want to replay the raw telemetry.
 
+

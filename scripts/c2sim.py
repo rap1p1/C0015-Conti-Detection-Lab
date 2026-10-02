@@ -168,7 +168,10 @@ def select_target(token):
     line, and returns a benign echo command for the beacon (kept visible in OS
     telemetry). Returns (cmd_str, artifact_path)."""
     s = STATE["sessions"].get(token)
-    run_id = (s or {}).get("run") or "RUN-unknown"
+    run_raw = (s or {}).get("run") or ""
+    if not run_raw:
+        run_raw = "RUN-19700101-00"  # placeholder for session-less tests (no artifact evidence)
+    run_id = run_raw if run_raw[:12] == "RUN-" else "RUN-19700101-00"
     # basis: the discovery results for this session (net view /all) list FS01
     listed = "FS01" in " ".join(r.get("output", "") for r in (s or {}).get("results", [])[-8:])
     decision = {

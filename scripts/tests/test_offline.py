@@ -183,17 +183,23 @@ class C2SimTests(unittest.TestCase):
 
     def test_task_sequence_and_cap(self):
         c2.register_ok("phase3", "WS01", "S1-0123456789abcdef", None)
-        # the discovery batch is served once in order, then T-BEACON-SLEEP (idle)
+        # the discovery batch is served once in order, then S6 target selection
+        # (OP-CMD with the selection echo; server-side artifact write skipped for
+        # no-run sessions), then T-BEACON-SLEEP (idle)
         expected = [
             "T-DISCOVER-CORPUS", "T-DISCOVER-SYSTEM", "T-DISCOVER-DOMAINGROUPS",
             "T-DISCOVER-LOCALGROUPS", "T-DISCOVER-TRUSTS", "T-DISCOVER-NETVIEWALL",
-            "T-DISCOVER-TIME", "T-DISCOVER-PING", "T-BEACON-SLEEP",
+            "T-DISCOVER-TIME", "T-DISCOVER-PING", "OP-CMD", "T-BEACON-SLEEP",
         ]
         for i, t in enumerate(expected):
             task, cmd, _ = c2.next_task("S1-0123456789abcdef")
             self.assertEqual(task, t, f"step {i}")
-            self.assertIsNone(cmd)
-            ok, _ = c2.result_ok("S1-0123456789abcdef", t, 100)
+            if t == "OP-CMD":
+                self.assertIsNotNone(cmd)  # S6 selection echo command
+                task = "OP-CMD"
+            else:
+                self.assertIsNone(cmd)
+            ok, _ = c2.result_ok("S1-0123456789abcdef", task, 100)
             self.assertTrue(ok)
         # exhausted batch -> idle sleep
         self.assertEqual(c2.next_task("S1-0123456789abcdef"), ("T-BEACON-SLEEP", None, 0))

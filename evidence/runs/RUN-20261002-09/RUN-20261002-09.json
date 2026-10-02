@@ -1,0 +1,469 @@
+{
+  "run_id": "RUN-20261002-09",
+  "scenario_id": "C0015-LAB-1",
+  "created_utc": "2026-10-02T13:24:04Z",
+  "secrets_policy": "no-secrets-allowed",
+  "stages": [
+    {
+      "stage": "S1",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "ts": "2026-10-02T12:56:1xZ",
+          "detail": "WINWORD entry (manual victim open; macro self-write per c0015wf.log 12:56:14Z)"
+        },
+        {
+          "kind": "register",
+          "host": "WS01",
+          "channel": "C2-SIM (c2sim.log)",
+          "ts": "2026-10-02T12:56:19Z",
+          "detail": "initial register token 44233104 (run restarted with resilient beacon; final session S1-38bf53a55e9ef37c at 13:12:00Z)"
+        }
+      ],
+      "notes": "entry chain per P0 recipe; multiple beacon relaunches due to short loop_count in the first guest config - documented"
+    },
+    {
+      "stage": "S2",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [],
+      "notes": "covered with S1/S3"
+    },
+    {
+      "stage": "S3",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "3",
+          "detail": "poll loop to C2-SIM :8080 (beacon persisted after loop_count fix)"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S4",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "tasking",
+          "channel": "C2-SIM (discovery batch)",
+          "detail": "8 discovery tasks executed"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S5",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "detail": "net view enumeration"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S6",
+      "host": "lab",
+      "account": "c2sim",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [
+        "ART-06-02"
+      ],
+      "evidence_refs": [
+        {
+          "kind": "decision",
+          "ts": "2026-10-02T13:12:37Z",
+          "detail": "target selection orchestration (server-side): selected FS01; ART-06-02-RUN09.json written (basis: scenario target)"
+        }
+      ],
+      "notes": "executed: server-side orchestration task after the discovery batch (previous runs: NOT RUN)"
+    },
+    {
+      "stage": "S7",
+      "host": "WS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "ts": "2026-10-02T13:13:4xZ",
+          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin)"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S7b",
+      "host": "WS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "10",
+          "ts": "2026-10-02T13:14:1xZ",
+          "detail": "mimikatz-style surrogate -> lsass grant 0x1010 (no dump)"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S8a",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [
+        "ART-06-01"
+      ],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "5145",
+          "detail": "admin-share access observed (C$); S10 reads also via C$"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S8b",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [
+        "ART-06-01"
+      ],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "ts": "2026-10-02T13:15:0xZ",
+          "detail": "rundll32 (parent=WmiPrvSE) LabEntry space form"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "7",
+          "detail": "E7 unsigned load; file.hash.sha256 present (ECS) = artifact hash"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S9",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [
+        "ART-06-01"
+      ],
+      "output_artifacts": [
+        "ART-07-01"
+      ],
+      "evidence_refs": [
+        {
+          "kind": "register",
+          "ts": "2026-10-02T13:15:10Z",
+          "detail": "phase7-session2 token 7e715c9a; receipt ART-07-01-7e715c9a.json"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "3",
+          "detail": "second-session egress (entity-owned) to :8080"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S10",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [
+        "ART-08-01"
+      ],
+      "evidence_refs": [
+        {
+          "kind": "artifact",
+          "detail": "ART-08-01 manifest: 11 files / 309 bytes"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S11a",
+      "host": "WS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [
+        "ART-08-01"
+      ],
+      "output_artifacts": [
+        "ART-09-01"
+      ],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8w6iPmO7CP6YLXHBn",
+          "ts": "2026-10-02T13:17:07.776Z",
+          "detail": "rclone round 1"
+        },
+        {
+          "kind": "receipt",
+          "detail": "ART-09-01 round 1: 11/11 full-set equality"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S11b",
+      "host": "WS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [
+        "ART-08-01"
+      ],
+      "output_artifacts": [
+        "ART-09-01"
+      ],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8xKiPmO7CP6abaspp",
+          "ts": "2026-10-02T13:18:51.326Z",
+          "detail": "rclone round 2"
+        },
+        {
+          "kind": "receipt",
+          "detail": "ART-09-01 round 2: 11/11 full-set equality"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S12",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PARTIAL",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "4624",
+          "es_id": "AaD8w6iPmO7CP6bCX9vl",
+          "ts": "2026-10-02T13:17:54.978Z",
+          "detail": "interactive logon (LogonType 10) it.admin TargetLogonId=0x4cc3dae LogonProcess=User32"
+        },
+        {
+          "kind": "session",
+          "host": "FS01",
+          "channel": "query session",
+          "ts": "2026-10-02T13:18:0xZ",
+          "detail": "rdp-tcp#9 session Conn (observed during the RDP window)"
+        },
+        {
+          "kind": "alert",
+          "rule": "C0015 | R19 | RDP Interactive Logon by Non-System Account",
+          "ts": "2026-10-02T13:18:45.106Z",
+          "detail": "R19 alerts x2 on the T10 logon"
+        }
+      ],
+      "notes": "interactive logon + session state captured; 4778/4779 disconnect events not generated (abrupt client close) - documented lifecycle gap"
+    },
+    {
+      "stage": "S13",
+      "host": "WS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "11",
+          "es_id": "AaD8xaiPmO7CP6aPbgtc",
+          "ts": "2026-10-02T13:19:49.850Z",
+          "detail": "AnyDesk drop (Videos)"
+        },
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "1",
+          "es_id": "AaD8xaiPmO7CP6beb3rH",
+          "ts": "2026-10-02T13:20:16.341Z",
+          "detail": "AnyDesk run (after drop)"
+        },
+        {
+          "kind": "event",
+          "host": "ws01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "11",
+          "es_id": "AaD8xaiPmO7CP6a2btH1",
+          "ts": "2026-10-02T13:19:59.578Z",
+          "detail": "ProcessHacker drop (C:\\ root)"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S14",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [
+        "ART-14-01"
+      ],
+      "evidence_refs": [
+        {
+          "kind": "impact",
+          "detail": "Prepare OK; Run 15 files/615 B; Verify 30 bidirectional mismatches; Rollback OK; Verify post-restore hash-equal"
+        }
+      ],
+      "notes": "bounded surrogate; bidirectional Verify"
+    },
+    {
+      "stage": "S15",
+      "host": "lab",
+      "account": "",
+      "status": "PASS",
+      "input_artifacts": [
+        "ART-06-02",
+        "ART-07-01",
+        "ART-08-01",
+        "ART-09-01",
+        "ART-14-01"
+      ],
+      "output_artifacts": [
+        "ART-15-01"
+      ],
+      "evidence_refs": [
+        {
+          "kind": "scorecard",
+          "detail": "acceptance ACCEPTED; limitation rows updated in README"
+        }
+      ],
+      "notes": "POST-RUN VALIDATION (non-campaign)"
+    }
+  ],
+  "artifact_index": [
+    {
+      "artifact_id": "ART-06",
+      "path": "evidence/runs/RUN-20261002-09/ART-06-02-RUN09.json",
+      "sha256": "D4656BDBCA3C19954CD216B59B5DCFC5ECF959617C7B7298039F1D7B275704DE",
+      "producer_stage": "S6",
+      "consumer_stage": "S15"
+    },
+    {
+      "artifact_id": "ART-07",
+      "path": "evidence/runs/RUN-20261002-09/ART-07-01-7e715c9a.json",
+      "sha256": "896CDBC7C3B84AB58A0B05DFD31D6BF7373D52EBFFA6737F38155EA7DEA2E8D2",
+      "producer_stage": "S9",
+      "consumer_stage": "S15"
+    },
+    {
+      "artifact_id": "ART-08",
+      "path": "evidence/runs/RUN-20261002-09/ART-08-01-RUN09.json",
+      "sha256": "7C38AEC491FCA9BC73172B6D79079019BCBC12EEF16EBCFE4AB83AB16DD5ACDE",
+      "producer_stage": "S10",
+      "consumer_stage": "S15"
+    },
+    {
+      "artifact_id": "ART-09",
+      "path": "evidence/runs/RUN-20261002-09/ART-09-01-round1-RUN09.json",
+      "sha256": "40132E2C8A5EE2D493B1CD7F097807059E8C75E5FF4A46A9EA02276FC2AC0AED",
+      "producer_stage": "S11",
+      "consumer_stage": "S15"
+    },
+    {
+      "artifact_id": "ART-09",
+      "path": "evidence/runs/RUN-20261002-09/ART-09-01-round2-RUN09.json",
+      "sha256": "50C0109CAD8F34D7F92653A7D5A9912D467A8479746DB3333749CCF25E9B71E4",
+      "producer_stage": "S11",
+      "consumer_stage": "S15"
+    },
+    {
+      "artifact_id": "ART-14",
+      "path": "evidence/runs/RUN-20261002-09/ART-14-01-RUN09.json",
+      "sha256": "84D968BAE7773E86D461F552796DC0CC3581A3A635C78E32F882BFB00282A0F1",
+      "producer_stage": "S14",
+      "consumer_stage": "S15"
+    },
+    {
+      "artifact_id": "ART-14",
+      "path": "evidence/runs/RUN-20261002-09/ART-14-01-RUN09.txt",
+      "sha256": "0D1E92D0A97C3404E8927538B6D8DA46245018AC62F4DC5AF440DC0E1E02921C",
+      "producer_stage": "S14",
+      "consumer_stage": "S15"
+    },
+    {
+      "artifact_id": "ART-15",
+      "path": "evidence/runs/RUN-20261002-09/ART-15-01-RUN09.json",
+      "sha256": "CD10EECC00C2CE17C58B83583FE3C6017B4AB0DADAD1C049B41D60AB6801A7C1",
+      "producer_stage": "S15",
+      "consumer_stage": ""
+    }
+  ]
+}
