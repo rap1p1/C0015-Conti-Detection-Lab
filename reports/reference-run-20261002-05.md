@@ -25,7 +25,7 @@ remote-tool deployment (S13) → bounded impact with verified rollback (S14).
 | 05:45:12 | receipt ART-07-01-18c677ef | server-side |
 | 05:48–51 | collection staging (11 files) + zips | E11 + S5145 (381; C$:377) |
 | 05:58:35 / 06:01:29 | rclone rounds 1 + 2 → sink :9001 | E1 rclone, E3, receipts 11/11 hash each |
-| 05:46–06:01 | RDP session observed (Conn); network logons (4624 T3); no T10 | 4624 + query session |
+| 06:00:27 | interactive it.admin logon (LogonType 10, fs01) | 4624 x2 (logon ids 0x2d1c6d0/0x2d1c733) |
 | 06:02:21–55 | AnyDesk drop (Videos\) + run; ProcessHacker drop (C:\) | E11 + E1 |
 | 06:04:06–07 | impact: corpus + note writes | E11; Run 15 files; Rollback hash-equal |
 
@@ -34,8 +34,8 @@ remote-tool deployment (S13) → bounded impact with verified rollback (S14).
 At run time the suite had 22 rules (R01–R21); R21 was retired after the run, so the current suite is 21 rules (R01–R20). Alerting rules: R17 (WMI pivot), R18 (proxy-spawned
 egress). Raw stored counts for the window (uppercase bounds; suppression applies at
 execution): R16=340 (no suppression configured), R14b=288 (BB), R10=78, R14a=72,
-R12=33, R11=9, R18=9, R13=8, R17=3, R15=2, R20=3. R19 produced no match (no
-completed Type-10 RDP logon in the window). R21 was retired after this run.
+R12=33, R11=9, R18=9, R13=8, R17=3, R15=2, R20=3. R19 produced no alert in this window (rule imported after the run window; the Type-10
+logons at 06:00:27Z are noted in the ledger). R21 was retired after this run.
 
 Building-block consumption: R17 correlates with R14a/R14b/R16 and the earlier
 discovery rules; R18 correlates with R05/R09/R10/R11/R04 (see the correlation map in
@@ -43,9 +43,9 @@ discovery rules; R18 correlates with R05/R09/R10/R11/R04 (see the correlation ma
 
 ## Partial stages and limitations
 
-- **S12 (RDP) — PARTIAL**: network logons (4624 T3) and a session in `Conn` state were
-  observed; a fully interactive (Type 10) logon was not completed in the lab, so R19
-  lacks a positive test for this run.
+- **S12 (RDP) — PARTIAL**: interactive it.admin logons (4624 LogonType 10) were recorded at
+  06:00:27Z (logon ids 0x2d1c6d0/0x2d1c733). R19 produced no alert in this window because the rule
+  was imported after the run window; session lifetime was not captured.
 - **S14 impact** is a bounded, allowlist-capped, reversible surrogate; the corpus/backup
   comparison at run time was one-directional (corpus vs backup); the surrogate code has since been hardened to a bidirectional comparison - the running verification for future runs must come from a new run.
 - **S11**: no rclone-specific detection rule exists; the transfer is evidenced by the

@@ -70,10 +70,10 @@ follow the same conventions:
 | **S14** Impact (T1486 surrogate/T1083) | bulk rename + extension change; ransom-note file; post-impact listing | E11, E2 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME*), `file.extension` (novel class), `file.path` (`*Impact*`) | — (impact writes monitored via E11 sweep); recovery evidence = Rollback + hash compare |
 | **S15** E2E / IR | full ledger + receipts + scorecard | — | run_id + artifact hashes | ART-15-01 coverage scorecard |
 
-## Run coverage (latest: RUN-20261002-05)
+## Run coverage (reference run: RUN-20261002-06; first run: RUN-20261002-05)
 
 Raw alert counts as stored in the alert index for the run window (BB-ON rows are hidden
-from the default view): R16=340 (no suppression on this rule; treat as upper bound), R14b=288(BB), R10=78, R14a=72,
+from the default view): RUN-20261002-06 raw stored counts: R16=273, R06=257(suppressed), R14b=140(BB), R10=36, R14a=32, R12=30, R18=9, R17=3, R20=3, R15=2, **R19=2 (true positive - Type-10 it.admin logon)**; earlier run: R16=340 (no suppression on this rule; treat as upper bound), R14b=288(BB), R10=78, R14a=72,
 R12=33, R11=9, R18=9, R13=8, R17=3, R15=2, R20=3, R19=0 (no interactive logon in the run window).
 Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 
@@ -114,6 +114,7 @@ Correlation guidance: join by host + EntityID/logon-id (same-host only); E3 time
 lag E1/E11 by 2-3s; alert volume from the schedule (1m interval, 6m look-back) is
 mitigated by the suppression groups listed above — the counts in the coverage section
 are raw stored counts and must be treated as upper bounds until dedup is confirmed per rule.
+
 
 
 

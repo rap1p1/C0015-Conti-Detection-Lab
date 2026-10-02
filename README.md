@@ -16,7 +16,7 @@ handoffs, and a detection suite validated against a recorded reference run.
 1. [reports/reference-run-20261002-05.md](reports/reference-run-20261002-05.md) — what was observed, which
    rules matched, what stayed partial.
 2. [detections/README.md](detections/README.md) — the rule suite (R01-R20), stage mapping and coverage.
-3. [evidence/runs/RUN-20261002-05/](evidence/runs/RUN-20261002-05/) — ledger with event references and
+3. [evidence/runs/RUN-20261002-06/](evidence/runs/RUN-20261002-06/) — ledger with event references and
    hash-verified artifacts.
 4. Verification: `python scripts/validate_repo.py` (local; JSON/schema/hash/source-export sync/offline tests);
    Elastic-gated checks are documented in `scripts/verify/`.
@@ -46,7 +46,7 @@ flowchart LR
 | C2 host | operator (this repository) | C2-SIM, HTTP staging, internal sink, Elastic access |
 | Elastic/Fleet | telemetry backend | managed stack; ingestion aliases `logs-windows.sysmon_operational-c0015*`, `logs-system.security-c0015*` |
 
-## Validated results (reference run RUN-20261002-05)
+## Validated results (reference run RUN-20261002-06)
 
 - **Entry chain (S1)**: the entry document's macro **self-writes** config.ini/bootstrap.hta/c0015_beacon.ps1
   (no tooling on disk before the open) → mshta → HTA → regsvr32 → beacon (registered session with token).
@@ -56,7 +56,7 @@ flowchart LR
 - **Final phases (S10-S15)**: collection (11 files, ART-08-01), **real rclone** in two rounds to the
   internal WebDAV sink (ART-09-01 receipts, 11/11 hash equality per round), RDP network-auth logons
   (no completed interactive logon — **S12 partial**), AnyDesk/ProcessHacker drops (E11/E1), and a bounded
-  impact surrogate with **bidirectional verify + rollback** (ART-14-01).
+  impact surrogate with **bidirectional verify + rollback** (ART-14-01) - exercised by RUN-20261002-06; the earlier run (RUN-20261002-05) used the one-directional verify then in force.
 - **Detection**: 21 rules (R01-R20) enabled; alerting rules R17/R18 correlated with their building blocks
   per the correlation map; alert counts recorded as raw stored values (upper bounds).
 
@@ -91,7 +91,7 @@ docs/         canonical technical records (chain, runbook, architecture, correla
 detections/   rule suite R01-R20: queries/*.eql (sources) + exports/*.ndjson (generated) + README
 reports/      executive report per reference run
 payloads/     lab tooling per chain stage (beacon, dll, hta, impact, docm, lsass, packaging)
-scripts/      infrastructure: C2-SIM, watchdog, evidence toolkit, rule generator, verifiers, CI validator
+scripts/      infrastructure: C2-SIM, watchdog, evidence toolkit, rule generator, verifiers, local validator
 configs/      agent/Sysmon configuration
 evidence/     runs/<run_id>/: ledger (schema-conform, event references) + hash-verified artifacts
 stage/        runtime files (generated document, per-run configs, tools) — gitignored
@@ -99,9 +99,9 @@ stage/        runtime files (generated document, per-run configs, tools) — git
 
 ## Detection engineering
 
-Twenty Elastic EQL rules (R01-R20) implement a layered model mirroring the intrusion chronology: initial
+21 rules across R01-R20 (R14a/R14b included) implement a layered model mirroring the intrusion chronology: initial
 access (R01-R08), beacon live-off-the-land activity (R09-R13), credential access and lateral movement
-(R14a-R18), and remote access (R19-R20 — the RDP and portable-tool steps). The alerting set — **R17**
+(R14a-R18), and remote access (R19-R20 — the RDP and portable-tool steps; R19 was positively tested on RUN-20261002-06). The alerting set — **R17**
 (WMI pivot to an unsigned module) and **R18** (proxy-spawned beacon egress) — is high severity; the
 remaining rules operate as correlation building blocks with suppression on noisy sources (see the
 building-block → alerting correlation map in `detections/README.md`). Every rule uses a deterministic
@@ -127,7 +127,7 @@ empty queries; `scripts/validate_repo.py` enforces JSON/schema/hash/query-sync/o
 - [docs/payloads-and-c2.md](docs/payloads-and-c2.md) — payload and C2 design.
 ## Environment versions (reference run)
 
-| Component | Version (as used in RUN-20261002-05) |
+| Component | Version (as used in RUN-20261002-06) |
 |---|---|
 | VMware Workstation | host-side; VMs WS01/FS01/DC01 (Windows 10 / Windows 10 Pro 19045 / Server), Kali |
 | Elastic / Fleet | managed stack (ingestion aliases above) |
@@ -136,5 +136,6 @@ empty queries; `scripts/validate_repo.py` enforces JSON/schema/hash/query-sync/o
 | Sysmon | 15.21 (schema 4.91), profile `configs/sysmon/sysmon-c0015-balanced.xml` |
 | rclone | 1.75.1 (transferred with the documented flags) |
 | ProcessHacker / AnyDesk | 2.39 / standalone build |
+
 
 

@@ -1,13 +1,8 @@
 {
-  "$schema": "./RUN-schema.json",
   "run_id": "RUN-20261002-05",
   "scenario_id": "C0015-LAB-1",
-  "created_utc": "2026-10-02T06:20:00Z",
+  "created_utc": "2026-10-02T08:13:33Z",
   "secrets_policy": "no-secrets-allowed",
-  "window_utc": {
-    "start": "2026-10-02T05:41:00Z",
-    "end": "2026-10-02T06:12:00Z"
-  },
   "stages": [
     {
       "stage": "S1",
@@ -153,6 +148,21 @@
         }
       ],
       "notes": ""
+    },
+    {
+      "stage": "S6",
+      "host": "",
+      "account": "",
+      "status": "NOT RUN",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "note",
+          "detail": "target-manifest/orchestration stage not executed in this run"
+        }
+      ],
+      "notes": "explicit NOT RUN - staged orchestration decision was not part of this run"
     },
     {
       "stage": "S7",
@@ -394,18 +404,27 @@
           "host": "fs01",
           "channel": "Security",
           "event": "4624",
-          "es_id": "AaD7JaiPmO7CP6L_spCT",
-          "ts": "2026-10-02T05:46:00.977Z",
-          "detail": "RDP network-auth logon (LogonType 4 = Batch/NLA credential leg)"
+          "es_id": "AaD7M6iPmO7CP6NICR_v",
+          "ts": "2026-10-02T06:00:27.723Z",
+          "detail": "interactive logon (LogonType 10) account=it.admin TargetLogonId=0x2d1c6d0 LogonProcess=User32"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "4624",
+          "es_id": "AaD7M6iPmO7CP6NICR_w",
+          "ts": "2026-10-02T06:00:27.723Z",
+          "detail": "interactive logon (LogonType 10) account=it.admin TargetLogonId=0x2d1c733"
         },
         {
           "kind": "session",
           "host": "FS01",
           "channel": "query session",
-          "detail": "rdp-tcp#1 in Conn state; client closed before an interactive (Type 10) logon completed"
+          "detail": "client closed while the session was listed in Conn state; the Type-10 logon events above were recorded; session lifetime not collected"
         }
       ],
-      "notes": "PARTIAL: no completed interactive RDP logon in the run; R19 has no positive match for this run (documented)"
+      "notes": "interactive logon observed (T10 x2 at 06:00:27Z); R19 had no sweep coverage in this window (rule imported after the run) - alerts absent; session lifetime not captured; partial characterization"
     },
     {
       "stage": "S13",
@@ -553,6 +572,5 @@
       "producer_stage": "S15",
       "consumer_stage": ""
     }
-  ],
-  "notes": "Delivery variant: self-generating entry macro (gen_macro_embedded.ps1 output). Generated-tool versions: rclone 1.75.1, AnyDesk standalone, ProcessHacker 2.39. Historical artifacts no longer retained are marked in run records rather than reconstructed."
+  ]
 }

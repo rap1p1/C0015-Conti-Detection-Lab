@@ -1,13 +1,8 @@
 {
-  "$schema": "./RUN-schema.json",
   "run_id": "RUN-20261002-06",
   "scenario_id": "C0015-LAB-1",
-  "created_utc": "2026-10-02T08:20:00Z",
+  "created_utc": "2026-10-02T08:13:33Z",
   "secrets_policy": "no-secrets-allowed",
-  "window_utc": {
-    "start": "2026-10-02T07:49:00Z",
-    "end": "2026-10-02T08:12:00Z"
-  },
   "stages": [
     {
       "stage": "S1",
@@ -155,6 +150,21 @@
       "notes": ""
     },
     {
+      "stage": "S6",
+      "host": "",
+      "account": "",
+      "status": "NOT RUN",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        {
+          "kind": "note",
+          "detail": "target-manifest/orchestration stage not executed in this run"
+        }
+      ],
+      "notes": "explicit NOT RUN - staged orchestration decision was not part of this run"
+    },
+    {
       "stage": "S7",
       "host": "WS01",
       "account": "C0015\\it.admin",
@@ -167,7 +177,7 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T07:51:0xZ",
+          "ts": "2026-10-02T07:51:1xZ",
           "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin)"
         },
         {
@@ -175,9 +185,9 @@
           "host": "fs01",
           "channel": "Security",
           "event": "4624",
-          "es_id": "AaD7l6iPmO7CP6NJ2jmE",
-          "ts": "2026-10-02T07:49:40.996Z",
-          "detail": "network logon it.admin (LogonType 3)"
+          "es_id": "AaD7maiPmO7CP6PP7JQ-",
+          "ts": "2026-10-02T07:52:34.287Z",
+          "detail": "network logon it.admin (LogonType 3) - pivot authentication"
         }
       ],
       "notes": "logon near window start (residual session-2 auth) also present"
@@ -226,8 +236,9 @@
           "host": "fs01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "11",
-          "ts": "2026-10-02T07:52:4xZ",
-          "detail": "143.dll + beacon + config staged under C:\\C0015"
+          "es_id": "AaD7maiPmO7CP6PP7JQ6",
+          "ts": "2026-10-02T07:52:34.323Z",
+          "detail": "143.dll staged under C:\\C0015"
         }
       ],
       "notes": "S5145 count in window recorded in the report"
@@ -250,6 +261,15 @@
           "es_id": "AaD7mqiPmO7CP6Mi7exq",
           "ts": "2026-10-02T07:52:56.086Z",
           "detail": "rundll32 (parent=WmiPrvSE) cmd: ... c0015_143_surrogate.dll LabEntry (space form)"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Microsoft-Windows-Sysmon/Operational",
+          "event": "7",
+          "es_id": "AaD7mqiPmO7CP6Mi7exu",
+          "ts": "2026-10-02T07:52:56.100Z",
+          "detail": "unsigned module load Signed=false path=C:\\C0015\\c0015_143_surrogate.dll (hash field not populated in this event)"
         }
       ],
       "notes": "comma form returns 9 - space form is the pivot spelling"
@@ -363,7 +383,8 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T08:02:3xZ",
+          "es_id": "AaD7n6iPmO7CP6QZBbpW",
+          "ts": "2026-10-02T07:58:13.004Z",
           "detail": "rclone.exe round 2 -> sink round2/DATA"
         },
         {
@@ -386,18 +407,28 @@
           "host": "fs01",
           "channel": "Security",
           "event": "4624",
-          "es_id": "AaD7l6iPmO7CP6NJ2jmE",
-          "ts": "2026-10-02T07:49:40.996Z",
-          "detail": "4624 network logon (T3) in the window"
+          "es_id": "AaD7naiPmO7CP6Mq9rLB",
+          "ts": "2026-10-02T07:56:06.447Z",
+          "detail": "interactive logon (LogonType 10) account=it.admin TargetLogonId=0x35a46e2 LogonProcess=User32 (source IP not present in the event)"
+        },
+        {
+          "kind": "alert",
+          "rule": "C0015 | R19 | RDP Interactive Logon by Non-System Account",
+          "alert_ids": [
+            "af223b2f17c704416fad14406f8b9baa8d24a03604b8a8038d78757849d0f602",
+            "780290000f8299e9ad0c1daf893894ca68bc66ed47844f8aa4844b8e07cb6879"
+          ],
+          "ts": "2026-10-02T07:56:38Z",
+          "detail": "two R19 alerts on the Type-10 logon"
         },
         {
           "kind": "session",
           "host": "FS01",
           "channel": "query session",
-          "detail": "no interactive (Type 10) session completed in the window"
+          "detail": "interactive logon observed; session lifetime not collected (limitation)"
         }
       ],
-      "notes": "PARTIAL: an interactive it.admin logon (4624 LogonType 10) at 2026-10-02T07:56:38Z on fs01 was observed in the window - R19 true positive (2 alerts); session lifetime not captured"
+      "notes": "interactive logon observed (R19 true positive); session lifetime not captured - partial characterization"
     },
     {
       "stage": "S13",
@@ -536,6 +567,5 @@
       "producer_stage": "S15",
       "consumer_stage": ""
     }
-  ],
-  "notes": "Re-run with canonical hashes, bidirectional impact Verify and env-only tooling; acceptance verifier ACCEPTED."
+  ]
 }
