@@ -64,7 +64,7 @@ function Copy-Out {
 function Show-GuestOut {
     param([string]$HostPath, [string]$Label)
     $p = Get-Item $HostPath -ErrorAction SilentlyContinue
-    if (-not $p) { Write-Host "  $Label: (no output file)" -ForegroundColor Yellow; return }
+    if (-not $p) { Write-Host "  ${Label}: (no output file)" -ForegroundColor Yellow; return }
     Write-Host "===== $Label =====" -ForegroundColor Cyan
     Get-Content $p
 }
