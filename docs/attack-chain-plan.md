@@ -245,7 +245,7 @@ sub-blocks that preserve the source timeline (day 1 -> day 2 -> day 4).
 - **Analysis/replay-only:** historical injections (143 -> svchost; D8B3 -> Winlogon) are not executed; the
   telemetry study is S9b.
 - **Fidelity:** mechanism HIGH; inject target PARTIAL (not reproduced).
-- **Telemetry:** E1 (cmd/powershell console-loader child of wmiprvse), E7 (DLL hash, loaded by the loader host),
+- **Telemetry:** E1 (rundll32 child of wmiprvse), E7 (DLL hash, loaded by rundll32),
   E11 (token file — supplementary), E3 (callback to 192.168.50.1:8080; attribution caveat), server-side receipt
   `ART-07-01` + server log.
 - **Evidence rule:** a marker or DLL existence alone is NOT sufficient; the server-side receipt plus callback
@@ -462,6 +462,7 @@ PASS, and the chain is not end-to-end.
   (no dump), S14 (impact — bounded simulator, separate approval), D574 case (DNS-only, documented at S3).
 - **Not enough evidence (kept unchanged):** post-09-19 claims (auth bridge, DLL branch, WMI canary, collection
   run, DET-008) are `[NOT-VERIFIED-IN-REPO]`; Phase 1 PID/entity conflict remains `UNRESOLVED`.
+
 
 
 

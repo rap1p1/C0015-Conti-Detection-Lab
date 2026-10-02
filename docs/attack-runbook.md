@@ -188,10 +188,10 @@ Ledger: S8 evidence (transfer) — separate from execution; do NOT infer transfe
 ### S8b — WMI remote process creation (T1047, explicit credential; on WS01)
 ```
 Machine: WS01 interactive (operator)
-Input:   ART-04-02 + explicit it.admin credential (runas prompt) + console-loader staged on FS01
+Input:   ART-04-02 + explicit it.admin credential (runas prompt) + 143.dll surrogate staged on FS01
 NOTE: rundll32.exe (GUI subsystem) cannot load any DLL via WMI process call create in session-0 —
       ReturnValue=9 "Path not found" (no window station; proven with user32.dll,MessageBeep). WMI pivot kept;
-      the SAME c0015_143_surrogate.dll is loaded by a console-loader host (C:\C0015\s8b_loader.ps1 =
+      the SAME c0015_143_surrogate.dll is loaded by WMI in the space form (rundll32.exe C:\C0015\c0015_143_surrogate.dll LabEntry) -
       PowerShell P/Invoke LoadLibrary/GetProcAddress -> LabEntry):
 Command: runas /user:C0015\it.admin "cmd /k wmic /node:FS01 process call create \"cmd.exe /c powershell -NoProfile -ExecutionPolicy Bypass -File C:\C0015\s8b_loader.ps1\""
          (run RUN-20260930-01 result: ReturnValue=0, ProcessId=964)
@@ -289,5 +289,6 @@ Status: S1-S3 VERIFIED on lab (ledger RUN-20261001-01); S4 = CORPUS-only in that
 back to T-NOOP due to a stale config.ini - regenerate config per Part B before the next run); S5-S15 are
 operator/design steps with exact machine/command/evidence/ledger rows above; the chain is NOT end-to-end
 until one continuous run carries handoff evidence for every stage under a single run_id.
+
 
 
