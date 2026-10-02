@@ -4,7 +4,7 @@
 # Output: status lines only (stdout redirect by vmrun caller).
 # ============================================================
 $ErrorActionPreference = 'Continue'
-$hostName = $env:C0015_PREFLIGHT_HOST
+$hostName = "$($env:C0015_PREFLIGHT_HOST)".Trim()
 if (-not $hostName) { $hostName = $env:COMPUTERNAME }
 function S { param([string]$m) Write-Output ('[preflight] {0}' -f $m) }
 

@@ -46,6 +46,22 @@ credential → rundll32 → 143.dll** → session-2 (FS01) → thu thập. Lab t
 | G7 | S8b host loader thay rundll32 (WMI-side) | Rule rundll32-side không thấy phần WMI | Che cả 2: E1 cha-wmi + E7; hoặc dựng lại WMI→rundll32 khi có môi trường có interactive logon (chưa khả thi hiện tại) |
 | G8 | C2-SIM chết 03:04:38 (không tự restart) | Gián đoạn session; evidence khe hở | launch_servers/guard: auto-restart + pid healthcheck |
 
+## 4b. RERUN-V2 — KẾT QUẢ DIAG (2026-10-02, đã verify trên Elastic) → G1/G2/G4/G7/G8 RESOLVED
+
+| Gap | Trạng thái | Bằng chứng / thay đổi |
+|---|---|---|
+| **G1** | ✅ **RESOLVED (là false-gap của verify script)** | Security events ĐÃ ingest, nhưng dưới dataset **`system.security`** (`.ds-logs-system.security-*`, 154k docs) chứ không phải `windows.security` — verify script + docs tra sai index. Trong cửa sổ run cũ 02:00–04:30Z 10-01: **4624=414, 4672=328, 4648=24, 4688=11, 4625=3**. `verify_run_evidence.py` đã sửa [9] sang system.security. (5140/5145 = 0 → audit policy chưa bật Detailed File Share, không phải ingest.) |
+| **G2** | ✅ **SOLVED — root cause thật = wmic parse dấu phẩy + Defender signature** | (1) `wmic process call create "<cmd>"` tách tham số bằng **dấu phẩy**: `...143.dll,LabEntry` → CommandLine bị cắt → CreateProcess "path not found" = ReturnValue 9 (không liên quan window-station/session-0 — rundll32-alone trả 0 đã chứng minh rundll32 chạy được session-0). **Fix: space-form** `...143.dll LabEntry` → **ReturnValue 0** + rundll32 gọi đúng export. (2) FS01 bị revert snapshot → Defender RTM bật lại → signature **`Trojan:Win32/RyukLocalspawn.A`** chặn `wmic ... rundll32` → "Access is denied" (bắt đúng pattern Ryuk/Conti WMI-lateral!). **Verified trên Elastic 02:09:55Z: E1 `rundll32 pid=5220 parent=WmiPrvSE.exe cmd=...143.dll LabEntry` + E7 hash `cbcd2a8b…`==ART-06-01 + E11 marker + beacon-3 phase7-session2 + receipt ART-07-01** → chữ ký camp `wmiprvse→rundll32→143.dll` tái hiện nguyên vẹn. |
+| **G4** | ✅ **Đóng được** | E3 `:8000` giờ có sẵn (S8a tool fetch qua `Invoke-WebRequest`): verify [8] mới chạy được; window rerun sẽ capture. |
+| **G7** | ✅ **RESOLVED (cùng G2)** | WMI-side giờ là rundll32 thật; `s8b_loader.ps1` còn làm fallback. |
+| **G8** | ✅ **RESOLVED (commit e793d7e)** | `scripts/c2sim_guard.py` + `launch_servers.ps1`: auto-respawn + stderr capture (`c2sim.err.log`) + stop-flag; `-Stop` giết guard + child + http. |
+| FS01 state | ⚠️ **đã revert snapshot** (RTM/ASR/exclusions mất) → re-preflight | `preflight_vmrun.ps1` + `defender_off.ps1` (chạy SYSTEM qua schtasks) đã bật lại: RTM off, ASR `d1e49aac` off, exclusions, WMI firewall (WS01 mở mới cho operator hop), EnableLUA=0 (WS01), Trust Center Word (VBAWarnings/AccessVBOM/ProtectedView off). |
+
+**Rule-writing cập nhật theo kết quả v2:**
+- S8b: rule `E1 parent=wmiprvse & child=rundll32 + E7 unsigned-DLL + E3 :8080` **sống lại** (đúng camp); giữ behavior-rule fallback cho loader-host (G7 cũ).
+- S7b: rule E10 lsass (0x1010/0x1fffff, non-system) — nguồn có thể là chain wmiprvse→powershell→mimikatz hoặc beacon-elevated.
+- S7/S8a: join LogonId giờ khả thi — dùng `winlog.logon.id` (4648.SubjectLogonId ↔ 4624.TargetLogonId / TargetLogonGuid).
+
 ## 5. Hướng dẫn chạy lại từ đầu → cuối (CHÍNH XÁC — bản verified)
 > Lệnh "chuẩn" đã được chứng minh ra đúng evidence. Mỗi mục ghi máy + nơi lấy evidence.
 
