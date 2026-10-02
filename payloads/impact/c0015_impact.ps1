@@ -50,7 +50,7 @@ $runId    = [string]$m.run_id
 # The manifest IS the allowlist (operator authorizes the root per run);
 # this list is only a second safety net: refuse drive roots and
 # system-critical trees.
-$forbidden = @('C:\Windows','C:\Program Files','C:\Program Files (x86)','C:\ProgramData','C:\Tools')
+$forbidden = @('C:\Windows','C:\Program Files','C:\Program Files (x86)','C:\ProgramData','C:\Users','C:\Tools')
 function Test-AllowedRoot {
     param([string]$r)
     $full = [IO.Path]::GetFullPath($r).TrimEnd('\')
@@ -99,6 +99,10 @@ switch ($Action) {
         Write-Output "Run OK: files=$done bytes=$bytes elapsed=$([math]::Round(((Get-Date)-$start).TotalSeconds,1))s"
     }
     'Rollback' {
+        # same root-validity guards as Run: refuse forbidden-adjacent or drive roots
+        if ($forbidden | Where-Object { $root -like "$_*" }) { throw "root refused: $root" }
+        $qual = [IO.Path]::GetPathRoot($root)
+        if ($root -eq $qual.TrimEnd('\')) { throw "drive root refused: $root" }
         if (Test-Path -LiteralPath $backup) {
             Get-ChildItem -LiteralPath $root -Recurse -File -Force -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -like "*$ext" -or $_.Name -eq $noteName } |
@@ -108,9 +112,12 @@ switch ($Action) {
         } else { throw "backup dir missing: $backup" }
     }
     'Verify' {
-        # T1083: post-impact listing + hash comparison vs backup
+        # T1083: post-impact listing + bidirectional hash comparison vs backup.
+        # Both directions are checked: corpus files missing from the backup AND
+        # backup files missing from the corpus count as mismatches.
         $cur = Get-CorpusFiles
-        Write-Output "Verify listing: $($cur.Count) files under $root"
+        $backupFiles = @(Get-ChildItem -LiteralPath $backup -Recurse -File -Force -ErrorAction SilentlyContinue)
+        Write-Output "Verify listing: $($cur.Count) corpus files, $($backupFiles.Count) backup files under $root"
         $mismatch = 0
         foreach ($f in $cur) {
             $rel = $f.FullName.Substring($root.Length).TrimStart('\')
@@ -120,7 +127,12 @@ switch ($Action) {
             $h2 = (Get-FileHash -LiteralPath $b -Algorithm SHA256).Hash
             if ($h1 -ne $h2) { $mismatch++ }
         }
-        if ($mismatch -eq 0) { Write-Output "Verify OK: corpus matches backup (count/hash)" }
+        foreach ($b in $backupFiles) {
+            $rel = $b.FullName.Substring($backup.Length).TrimStart('\')
+            $f = Join-Path $root $rel
+            if (-not (Test-Path -LiteralPath $f)) { $mismatch++; continue }
+        }
+        if ($mismatch -eq 0) { Write-Output "Verify OK: corpus matches backup (bidirectional count/hash)" }
         else { Write-Output "Verify FAIL: $mismatch mismatches" }
     }
 }

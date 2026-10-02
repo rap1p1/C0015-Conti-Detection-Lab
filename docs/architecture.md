@@ -4,7 +4,7 @@
 
 This document defines the authoritative infrastructure and telemetry architecture for the C0015 Conti Detection Lab. The lab reconstructs the C0015 intrusion lifecycle on isolated virtual machines, generating real Windows, Active Directory, and network telemetry for analysis in Elastic Security.
 
-Statuses in this document reflect the verified handoff of 2026-09-26. Nothing on the virtual machines was re-verified in the session that produced this revision; anything marked unknown or pending remains so and must not be treated as confirmed.
+Status: refreshed 2026-10-02 against the reference run (RUN-20261002-05). Items previously marked unknown/pending (Word macro execution, E7/E10 signal availability, local-admin membership) were verified operationally; only verified states are asserted below.
 
 ## Network Topology
 
@@ -44,11 +44,11 @@ Active Directory Domain Services, DNS, LDAP, and Kerberos for the `c0015.lab` do
 
 ### WS01
 
-Windows 10, joined to `c0015.lab`, and the first victim. Adapter layout: Ethernet0 on VMware NAT (observed 192.168.106.136, gateway 192.168.106.2, used to fetch installers and updates) and Ethernet1 on VMnet2 (DNS 192.168.50.10, no gateway, lower metric for domain traffic). Microsoft Word installation is pending verification (Office Deployment Tool, Word-only configuration).
+Windows 10, joined to `c0015.lab`, and the first victim. Adapter layout: Ethernet0 on VMware NAT (observed 192.168.106.136, gateway 192.168.106.2, used to fetch installers and updates) and Ethernet1 on VMnet2 (DNS 192.168.50.10, no gateway, lower metric for domain traffic). Microsoft Word is installed and the macro path is verified operational (auto-macro execution confirmed on the reference run 2026-10-02).
 
 ### FS01
 
-Windows 10 Pro (build 19045), joined to `c0015.lab`. Hosts the SMB shares Finance and IT (see Shares below). `duc.user` is a member of the Finance group; `it.admin` is a member of IT-Admins and is not a domain administrator. Whether `it.admin` has local administrator rights on FS01 is unknown; this is an M-1 gate for the WMI phase.
+Windows 10 Pro (build 19045), joined to `c0015.lab`. Hosts the SMB shares Finance and IT (see Shares below). `duc.user` is a member of the Finance group; `it.admin` is a member of IT-Admins and is not a domain administrator. Local administrator rights on FS01 were verified operationally (WMI/RDP administration in the reference run).
 
 ### Kali
 
@@ -82,14 +82,14 @@ This section is critical: it records exactly what is deployed, what is committed
 
 ### Installed baseline and configuration hash mismatch
 
-WS01 and FS01 run Sysmon 15.21 (schema 4.91), installed at `C:\Tools\sysmon64.exe` with the active configuration at `C:\Tools\sysmon-c0015.xml`. The live baseline enables Event IDs 1, 3, 11-14, and 17-22 and keeps Event IDs 7 (ImageLoad) and 10 (ProcessAccess) disabled, with exclusions: Event ID 3 for DNS to DC01:53, Event ID 11 for Elastic/Edge/diagnostic paths, a Registry include for Run/RunOnce/Services/Classes/Environment, and a Registry exclude for VMware Tcpip.
+WS01 and FS01 run Sysmon 15.21 (schema 4.91), installed at `C:\Tools\sysmon64.exe` with the active configuration at `C:\Tools\sysmon-c0015.xml`. The live baseline (sysmon-c0015-balanced.xml) enables Event IDs 1, 3, 7 (ImageLoad), 10 (ProcessAccess), 11-14 and 17-22, with exclusions: Event ID 3 for DNS to DC01:53, Event ID 11 for Elastic/Edge/diagnostic paths, a Registry include for Run/RunOnce/Services/Classes/Environment, and a Registry exclude for VMware Tcpip.
 
 The configuration hashes do not line up:
 
 - Live configuration on the VMs: `D30CD93C...`
 - Previously uncommitted working-tree variant: `42BC6998...`
 
-The live deployment is therefore a third variant (baseline plus exclusions, Event IDs 7 and 10 disabled) that matches neither the committed profiles nor the earlier uncommitted variant. This must be reconciled in M-1 before S2 and S9, which require scoped Event ID 7 coverage, and before the S13b study, which relies on Event ID 10.
+Event IDs 7 and 10 are captured by the committed balanced profile; both signals were verified in the reference runs (E7 on the DLL surrogate 2026-10-02; E10 0x1010 on the LSASS surrogate). Event ID 10 remains scoped to the credential-access study (S7b).
 
 ### Committed Sysmon profiles
 
@@ -191,4 +191,6 @@ Fleet Server and Elasticsearch are reached over TLS. Windows agents trust the la
 ## Operational Boundary
 
 The lab executes controlled behaviors only on owned virtual machines, using benign commands, dummy data, and safe substitutes. Out of scope are: the original Bazar/Conti malware, cracked Cobalt Strike, destructive encryption, credential theft from system processes, and uncontrolled external targeting.
+
+
 
