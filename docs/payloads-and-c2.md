@@ -92,7 +92,7 @@ Constrained HTTP server running on the lab host / Kali, playing the C2 role for 
 - **Not reproduced (fidelity partial):** Malleable C2 / JA3 / cert profile, sleep 60 s / jitter 37, injection into
   svchost/Winlogon (boundary) — replaced by bounded, logged sleep; detections must not rely on a fixed interval.
 - **Expected telemetry:** beacon (powershell) on WS01 for session 1; for the S8/S9 pivot FS01 **E1 cmd/powershell
-  (console-loader host) parent wmiprvse.exe** + **E7 ImageLoad `c0015_143_surrogate.dll`** (by the loader host —
+  (rundll32, space-form pivot) parent wmiprvse.exe** + **E7 ImageLoad `c0015_143_surrogate.dll`** (by rundll32 —
   rundll32 as host is adapted, see below) + E11 + E3 callback (ProcessGuid caveat — P1-B lesson), server log +
   receipt.
 
@@ -137,5 +137,6 @@ to GOAD-Light and an exact match to the campaign structure (1 workstation beachh
 2. Deploy payloads: build the DLL (mingw) -> per-run `config.ini` -> docm macro -> run S1-S3 with C2-SIM v2 + beacon.
 3. BadBlood on DC01 (if richer discovery data is desired).
 4. (Optional) Sliver per the Section 2.2 conditions — only after CALDERA is running stably.
+
 
 
