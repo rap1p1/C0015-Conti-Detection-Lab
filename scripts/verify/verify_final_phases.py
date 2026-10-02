@@ -5,7 +5,7 @@ Queries Elastic (Sysmon + Security) for the run window and prints per-stage
 observations. Host-side evidence (receipts, sink files) is asserted too.
 
 Usage:
-  python stage/analysis/verify_final_phases.py [w0] [w1]
+  python scripts/verify/verify_final_phases.py [w0] [w1]
 """
 import json
 import os
@@ -232,3 +232,4 @@ run(
     [lambda s: f"ts={s['@timestamp']}", lambda s: f"file={s['file']['path']}"],
 )
 print("\nverify window:", W0, "->", W1)
+

@@ -27,8 +27,8 @@ Mode:
 
 Passwords: -CredFile only (DPAPI Export-CliXml, gitignored); never plaintext.
 Usage:
-  powershell -ExecutionPolicy Bypass -File stage/analysis/wmi_rundll32_diag.ps1 -Probe  -CredFile stage/lab-credentials-itadmin.xml
-  powershell -ExecutionPolicy Bypass -File stage/analysis/wmi_rundll32_diag.ps1 -Chain  -CredFile stage/lab-credentials-itadmin.xml
+  powershell -ExecutionPolicy Bypass -File scripts/verify/wmi_rundll32_diag.ps1 -Probe  -CredFile stage/lab-credentials-itadmin.xml
+  powershell -ExecutionPolicy Bypass -File scripts/verify/wmi_rundll32_diag.ps1 -Chain  -CredFile stage/lab-credentials-itadmin.xml
 #>
 [CmdletBinding()]
 param(

@@ -5,7 +5,7 @@
 - FS01 loader E1 chain + E7 + E11 + E3 callback entities
 - mimikatz E10 lsass grants + accessor identity
 - FS01 E11 of the 3 staged files
-Prints report; writes stage/analysis/run-window-evidence.md
+Prints report; writes scripts/verify/run-window-evidence.md
 """
 import base64, json, os, ssl, urllib.request
 
@@ -209,5 +209,5 @@ for h in ev:
     s = h["_source"]
     P("    ts=%s path=%s" % (s.get("@timestamp"), s.get("file", {}).get("path")))
 
-open("stage/analysis/run-window-evidence.md", "w", encoding="utf-8").write("\n".join(R))
+open("scripts/verify/run-window-evidence.md", "w", encoding="utf-8").write("\n".join(R))
 print("\n".join(R))
