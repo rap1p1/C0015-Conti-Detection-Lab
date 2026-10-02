@@ -22,7 +22,8 @@ and bounded impact with bidirectional verify completed by 08:00:27Z.
 | 07:51:48 | LSASS surrogate E10 0x1010 | E1 → E10 |
 | 07:52:56 | WMI pivot: rundll32 (par=WmiPrvSE, LabEntry) | E1 + E7 (ART-06-01 hash) |
 | 07:53:00 / 07:53:02 | receipt ART-07-01-0e9f226e + second-session egress | server-side + E3 |
-| 07:56:06 | **it.admin interactive logon (LogonType 10, fs01)** | 4624 event `AaD7naiPmO7CP6Mq9rLB` (logonid 0x35a46e2) |\n| 07:56:38 | R19 alerts on the T10 logon | alert ids `af223b2f…`/`78029000…` |
+| 07:56:06 | **it.admin interactive logon (LogonType 10, fs01)** | 4624 event `AaD7naiPmO7CP6Mq9rLB` (logonid 0x35a46e2) |
+| 07:56:38 | R19 alerts on the T10 logon | alert ids `af223b2f…`/`78029000…` |
 | 07:58:09 / 07:58:11 | rclone round 1 → sink :9001 | E1 + E3; receipt 11/11 |
 | 07:58:13 | rclone round 2 (E1 id AaD7n6iPmO7CP6QZBbpW) | receipt 11/11 (sink_files observed per round) |
 | 07:59:05–38 | AnyDesk drop (Videos\) + run; ProcessHacker drop (C:\) | E11 + E1 |
@@ -57,3 +58,4 @@ hash equality, manifest_hash equality).
 
 - Ledger + artifacts: `evidence/runs/RUN-20261002-06/`
 - Rule index: `detections/README.md`
+
