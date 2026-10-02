@@ -5,7 +5,7 @@
   "producer_stage": "S15",
   "generated_utc": "2026-10-02T06:22:00Z",
   "verification": {
-    "tool": "stage/analysis/verify_final_phases.py",
+    "tool": "scripts/verify/verify_final_phases.py",
     "window": "2026-10-02T05:41:00Z -> 2026-10-02T06:12:00Z",
     "result": "PASS"
   },
@@ -45,4 +45,5 @@
   },
   "artifacts_indexed": ["ART-07-01-18c677ef", "ART-08-01", "ART-09-01 r1", "ART-09-01 r2", "ART-14-01", "ART-15-01"]
 }
+
 
