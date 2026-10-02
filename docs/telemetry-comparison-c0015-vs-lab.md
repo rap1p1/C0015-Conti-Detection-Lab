@@ -31,3 +31,17 @@ Phạm vi: S1 → S9 (hết phase operator). Nguồn "camp gốc": DFIR C0015 (2
 ## Mức fidelity
 S1–S6 + S9: **HIGH** (chain + entity + receipt khớp). S7: **PARTIAL** (thiếu Security channel). S7b: **HIGH** trên
 Sysmon, khác model binary. S8: **PARTIAL–HIGH** — T1047 verified, rundll32-side verified, cha khác (lab constraint).
+
+## Rerun-v2 `RUN-20261002-01` (2026-10-02) — kết quả sau khi fix gaps
+
+| Stage | Kết quả v2 (verified Elastic) | Thay đổi so với run cũ |
+|---|---|---|
+| S1–S3 | ✅ E1 `WINWORD→mshta→regsvr32→beacon` (r=431231) + E11 markers + E3 `:8000` | Entry chạy qua victim-open (task interactive, duc.user, sau khi gỡ lock `~$test.docm`); token MỚI `S1-d69660288bcb6d33` |
+| S4–S5 | ✅ discovery runbook 11 lệnh + `net view \\FS01` (results qua `/results`) | — |
+| S7 | ✅ **Security LIVE** (G1): cửa sổ có 4624=191 / 4625=84 / 4648=138 / 4672=180 | Verify script sửa index `.ds-logs-system.security-*` (trước đây tra nhầm windows.security) |
+| S7b | ✅ **E10 mimikatz→lsass grant=0x1010** (03:05:06Z) + E11 mimikatz (T1105 :8000) + NTLM captured | **Operator 100% remote**: elevate beacon-2 `wmiprvse→powershell` (WMI local) + tasking `mimikatz "privilege::debug" "sekurlsa::logonpasswords"` — không console |
+| S8a | ✅ FS01 E11 3 file (143.dll/beacon/config-phase7) 03:07-08Z | Tools đến qua **T1105** (`:8000` fetches — **G4 đóng**, verify [8]: 7 downloads in-window) rồi SMB C$ copy |
+| S8b | ✅ **E1 rundll32 pid 8172 parent=WmiPrvSE.exe** `...143_surrogate.dll LabEntry` (space-form) + **E7 hash=ART-06-01** + E11 marker — **đúng chữ ký camp `wmiprvse→rundll32→143.dll`** | **G2/G7 SOLVED**: root cause cũ = `wmic` cắt command line ở dấu phẩy (ReturnValue 9); fix = space-form; Defender `RyukLocalspawn.A` (chặn wmic→rundll32 khi RTM bật sau snapshot-revert) đã tắt |
+| S9 | ✅ register `phase7-session2` (03:08:59Z) → **receipt `ART-07-01-2f3afc34`** + E3 FS01→:8080 | — |
+
+**Kết luận v2**: toàn bộ S1–S9 = **HIGH fidelity** (chữ ký camp đầy đủ: entry từ docm, operator remote, WMI pivot rundll32 nguyên vẹn, auth telemetry có trên ES). G1/G2/G4/G7/G8 đã xử lý — chi tiết & rule pointer ở `operator-phase-context-gaps-runbook.md` §4b.
