@@ -20,7 +20,7 @@ _CTX.verify_mode = ssl.CERT_NONE
 
 ES = os.environ.get("ES_URL", "https://100.77.46.126:9200")
 USER = os.environ.get("ES_USER", "elastic")
-PASS = os.environ.get("ES_PASS", "SeFM0MuAVg2mx1ZJ1lEB")
+PASS = os.environ["ES_PASS"]  # required; never hardcode
 W0 = sys.argv[1] if len(sys.argv) > 1 else "2026-10-02T05:41:00Z"
 W1 = sys.argv[2] if len(sys.argv) > 2 else "2026-10-02T06:12:00Z"
 SYS = ".ds-logs-windows.sysmon_operational-*"
@@ -232,4 +232,5 @@ run(
     [lambda s: f"ts={s['@timestamp']}", lambda s: f"file={s['file']['path']}"],
 )
 print("\nverify window:", W0, "->", W1)
+
 

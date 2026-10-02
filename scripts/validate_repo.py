@@ -43,6 +43,13 @@ STAGE_RE = re.compile(r"^S[0-9]+[ab]?$")
 STATUSES = {"NOT RUN", "PARTIAL", "PASS", "SENSOR GAP", "INGEST/MAPPING GAP",
             "PREVENTED", "DENIED", "CHAIN BROKEN"}
 SHA_RE = re.compile(r"^[0-9A-F]{64}$")
+import hashlib
+
+
+def _canon_sha256(p):
+    """Canonical hash convention: sha256 of content with CRLF normalized to LF."""
+    raw = pathlib.Path(p).read_bytes()
+    return hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest().upper()
 
 
 def check_ledgers():
@@ -60,6 +67,17 @@ def check_ledgers():
         for a in d.get("artifact_index", []):
             check(re.match(r"^ART-[0-9]{2}-[0-9]{2}$", a.get("artifact_id", "")), f"{ledger}: artifact_id")
             check(SHA_RE.match(a.get("sha256", "")), f"{ledger}: artifact sha256 {a.get('path')}")
+            ap = ROOT / a["path"]
+            check(ap.exists(), f"{ledger}: artifact file missing {a['path']}")
+            if ap.exists():
+                check(_canon_sha256(ap) == a["sha256"],
+                      f"{ledger}: artifact hash mismatch (canonical) {a['path']}")
+        for rec in (ROOT / "evidence" / "runs").glob("RUN-*/ART-09-01-*.json"):
+            r = json.loads(rec.read_text(encoding="utf-8"))
+            check(SHA_RE.match(r.get("manifest_sha256", "")), f"{rec}: manifest_sha256 shape")
+            check(bool(r.get("sink_files")), f"{rec}: sink_files missing (observed values required)")
+            check(len(r.get("sink_files", [])) == r.get("total_files", -1),
+                  f"{rec}: sink_files count != total_files")
 
 
 def _norm(q):

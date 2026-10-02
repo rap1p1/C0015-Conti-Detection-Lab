@@ -10,7 +10,7 @@ import urllib.request
 import base64
 
 ES = "https://100.77.46.126:9200"
-AUTH = "Basic " + base64.b64encode(b"elastic:SeFM0MuAVg2mx1ZJ1lEB").decode()
+AUTH = "Basic " + base64.b64encode(f"{os.environ[\"ES_USER\"]}:{os.environ[\"ES_PASS\"]}".encode()).decode()
 SYS = ".ds-logs-windows.sysmon_operational-*"
 SEC = ".ds-logs-system.security-*"
 W0, W1 = "2026-10-02T05:41:00Z", "2026-10-02T06:12:00Z"

@@ -18,7 +18,7 @@ handoffs, and a detection suite validated against a recorded reference run.
 2. [detections/README.md](detections/README.md) — the rule suite (R01-R20), stage mapping and coverage.
 3. [evidence/runs/RUN-20261002-05/](evidence/runs/RUN-20261002-05/) — ledger with event references and
    hash-verified artifacts.
-4. Verification: `python scripts/validate_repo.py` (offline) and the CI workflow (`.github/workflows/validate.yml`);
+4. Verification: `python scripts/validate_repo.py` (local; JSON/schema/hash/source-export sync/offline tests);
    Elastic-gated checks are documented in `scripts/verify/`.
 
 ## Lab topology
@@ -107,7 +107,7 @@ remaining rules operate as correlation building blocks with suppression on noisy
 building-block → alerting correlation map in `detections/README.md`). Every rule uses a deterministic
 `rule_id` (SHA-256 of the rule name; renames migrate server-side) and is written without
 environment-specific values. `scripts/rules/gen_rules_ndjson.ps1` rebuilds the exports and fails fast on
-empty queries; `scripts/validate_repo.py` + CI enforce JSON/schema/query-sync/offline-test checks.
+empty queries; `scripts/validate_repo.py` enforces JSON/schema/hash/query-sync/offline-test checks locally.
 
 ## Confinement
 
@@ -136,3 +136,4 @@ empty queries; `scripts/validate_repo.py` + CI enforce JSON/schema/query-sync/of
 | Sysmon | 15.21 (schema 4.91), profile `configs/sysmon/sysmon-c0015-balanced.xml` |
 | rclone | 1.75.1 (transferred with the documented flags) |
 | ProcessHacker / AnyDesk | 2.39 / standalone build |
+
