@@ -67,5 +67,6 @@ Full index, stage mapping and run coverage: [detections/README.md](detections/RE
 - [docs/telemetry-comparison-c0015-vs-lab.md](docs/telemetry-comparison-c0015-vs-lab.md) — event-level parity.
 - [docs/payloads-and-c2.md](docs/payloads-and-c2.md) — payload and C2 design.
 - `phases/phaseN/` — per-phase plans and run records.
-- [evidence/run-ledger/](evidence/run-ledger/) — ledger schema and the reference run.
+- [evidence/runs/RUN-20261002-05/](evidence/runs/RUN-20261002-05/) — ledger schema and the reference run.
+
 

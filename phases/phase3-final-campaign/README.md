@@ -37,8 +37,9 @@ all stages on Elastic, with detection rules R19-R20 covering the phase.
 - [final-campaign-plan.md](final-campaign-plan.md) — the plan with the DFIR cross-check table,
   run procedure, sink design and confinement posture.
 - [detection-run-20261002-05.md](detection-run-20261002-05.md) — alert coverage and operational notes.
-- Evidence: `../../evidence/run-ledger/RUN-20261002-05.json` + ART-07-01/08-01/09-01×2/14-01/15-01.
+- Evidence: `../../evidence/runs/RUN-20261002-05/RUN-20261002-05.json` + ART-07-01/08-01/09-01×2/14-01/15-01.
 - Verify tool: `../../scripts/verify/verify_final_phases.py` (documented in `../../scripts/README.md`).
+
 
 
 

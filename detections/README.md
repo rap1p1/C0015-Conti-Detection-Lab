@@ -9,8 +9,8 @@ follow the same conventions:
 - EQL on Sysmon (`logs-windows.sysmon_operational-c0015*`) or Security
   (`logs-system.security-c0015*`); interval 1m, look-back 6m; alert suppression (5m) on
   entity/logon keys to remove sweep duplication.
-- Rebuild + import: `powershell scripts/rules/gen_rules_ndjson.ps1` → `curl -F "file=@detections/eql/C0015-S4-S9-elastic-rules.ndjson" -u elastic:... http://<kibana>:5601/api/detection_engine/rules/_import?overwrite=true`
-  (S1-S3 rules ship as `detections/eql/C0015-S1-S3-elastic-rules.ndjson`).
+- Rebuild + import: `powershell scripts/rules/gen_rules_ndjson.ps1` → `curl -F "file=@detections/queries/c0015-rules-r12-r20.ndjson" -u elastic:... http://<kibana>:5601/api/detection_engine/rules/_import?overwrite=true`
+  (S1-S3 rules ship as `detections/queries/c0015-rules-r01-r11.ndjson`).
 
 ## Rule index
 
@@ -114,3 +114,4 @@ Correlation guidance: join by host + EntityID/logon-id (same-host only); E3 time
 lag E1/E11 by 2-3s; alert volume from the schedule (1m interval, 6m look-back) is
 mitigated by the suppression groups listed above — the counts in the coverage section
 are raw stored counts and must be treated as upper bounds until dedup is confirmed per rule.
+

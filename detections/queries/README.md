@@ -29,9 +29,10 @@ loader). The full index, severity, suppression and stage mapping live in
 | `r19-rdp-interactive-logon.eql` | R19 | S12 |
 | `r20-portable-remote-access-tool.eql` | R20 | S13 |
 
-Import artifacts: `C0015-S1-S3-elastic-rules.ndjson` (R01-R11) and
-`C0015-S4-S9-elastic-rules.ndjson` (R12-R20) — regenerated on every run of the generator.
+Import artifacts: `c0015-rules-r01-r11.ndjson` (R01-R11) and
+`c0015-rules-r12-r20.ndjson` (R12-R20) — regenerated on every run of the generator.
 
 
 
 Rule renames on 2026-10-02 (schema-stable rule_id note): R12 -> 'PowerShell-Driven Discovery via Nested CMD', R16 -> 'Admin Share Access (SMB)', R20 -> 'Portable Remote-Access or Process Tool Dropped and Executed'. Renames change the deterministic rule_id - the server-side old rules were deleted and the renamed ones imported (migration map kept in git history).
+

@@ -37,5 +37,6 @@ unsigned module — **high, alerting**), R18 (proxy-spawned PS egress — **high
 
 - [operator-phase-context-gaps-runbook.md](operator-phase-context-gaps-runbook.md) — G1/G2/G4/G7/G8
   resolutions and the verified run recipes.
-- Rules: `../detections/eql/r10-...` through `r18-...`; mapping in `../detections/README.md`.
+- Rules: `../detections/queries/r10-...` through `r18-...`; mapping in `../detections/README.md`.
 - Runbook data: `../scripts/runbooks/c0015-phase2.json`; fixtures in `../scripts/fixtures/`.
+

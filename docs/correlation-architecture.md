@@ -12,7 +12,7 @@
 
 | Dimension | Keys / fields | Rules |
 |---|---|---|
-| `scenario_id` / `run_id` | `C0015-LAB-<n>` / `RUN-YYYYMMDD-<seq>` | **Telemetry never carries run_id** in the event log (there is no standard field); run_id lives in the **run ledger** (`evidence/run-ledger/RUN-<id>.json`) and in artifacts (`artifact_id`). The ledger maps run_id to host/account/time-window/task list; correlation attributes a run back to run_id using window + host + account, then cross-checks the ledger. A `wmic ... process call create` command may embed run_id in the command line, but that is **enrichment only** if the schema allows it — not required. |
+| `scenario_id` / `run_id` | `C0015-LAB-<n>` / `RUN-YYYYMMDD-<seq>` | **Telemetry never carries run_id** in the event log (there is no standard field); run_id lives in the **run ledger** (`evidence/runs/RUN-20261002-05/RUN-<id>.json`) and in artifacts (`artifact_id`). The ledger maps run_id to host/account/time-window/task list; correlation attributes a run back to run_id using window + host + account, then cross-checks the ledger. A `wmic ... process call create` command may embed run_id in the command line, but that is **enrichment only** if the schema allows it — not required. |
 | Identity | host.name, user.name / user.id (SID), winlog.logon.id (LogonId), event.outcome, auth type (winlog.logon.type) | LogonId is a strong key **only within the same host**: join S4624 <-> S4672 on FS01 using the **FS01 LogonId**, together with host and a boot/time anchor. **Never join WS01 S4648 (source) <-> FS01 S4624 by LogonId**, even when the values coincide; correlate through the target account, source/destination IP, time window and auth context (LogonGuid only when actually present, non-zero and verified). user.name joins are limited to same-user aggregation (as C1 does today). |
 | Process | process.entity_id (ProcessGuid), process.parent.entity_id, process.pid + host + time, process.name, process.executable, process.command_line | ProcessGuid is the join key for E1 -> E7 -> E11 -> E3 **within the same host only**. **Never join PIDs across hosts or runs** (P1-B lesson: E3 PID 6032 and E11 PID 6032 are only valid when the host and the run are the same). **Never decode the ProcessGuid suffix as a PID.** An empty ProcessGuid (`00000000-...` / null) means no process-level join. |
 | Artifact | file.path, file.hash.sha256, file.size, process (producer/consumer), event.code (11/1/7/23/26...) | Hash is the cross-host key: the DLL hash matches between producer (Kali) and consumer (E7) — already used well in P1-C. Artifact IDs (`ART-*`) connect through the run ledger plus staging/sink receipts. E11 records file create/overwrite, not normal reads; no guarantee every write or rename produces an event. 5145 is a share access check, not proof that the full content was collected; 4663 (SACL) shows that file access happened; conclude collection only with a manifest/receipt. |
@@ -65,7 +65,7 @@ Phase-2 (S4–S9) expected telemetry + verification skeletons per stage:
   callback, E11 artifacts. **Join:** ProcessGuid ancestry (host WS01), 10-minute window. **Needed:** `process.parent.entity_id`
   mapping verified (used in the EQL prototypes); E3 attribution budget as in P1-B.
 - **Logic (pending full field-schema verification):** `sequence by host: E1(office) -> E1(cmd) -> E1(mshta) ->
-  E1(regsvr32)` (EQL — `detections/eql/*` prototypes already exist for cmd -> child) + E7 unsigned DLL from
+  E1(regsvr32)` (EQL — `detections/queries/*` prototypes already exist for cmd -> child) + E7 unsigned DLL from
   `C:\Users\Public\*` + E3 -> Kali/host C2-SIM. **Sample events needed:** 1 full P1 run with clean ProcessGuid + 1
   control (a normal document).
 - **Status:** `NOT RUN` (DH-01..06 are hypotheses).
@@ -184,6 +184,7 @@ validated when the items it depends on are at INGEST VERIFIED.
 8. Ingest verification: for each host, take at least one local E1/E7/E11 event and find the matching event in Elastic by
    host, channel, RecordID and time; check E255, ingest errors, latency and EVTX growth over 5-10 minutes. Agent
    Healthy alone does not prove ingestion.
+
 
 
 

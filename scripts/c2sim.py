@@ -61,7 +61,7 @@ MAX_RESULT_BYTES = 262144   # v3: per-command result bound (configurable via --m
 MAX_CMD_BYTES = 4096        # cap for one operator-entered command string
 
 STATE = {"sessions": {}}  # token -> {stage, host, ip, registered_utc, tasks_done, queue}
-OPTS = {"ledger_dir": Path("evidence/run-ledger"), "dl_dir": Path("scripts/fixtures"),
+OPTS = {"ledger_dir": Path("evidence/runs/RUN-20261002-05"), "dl_dir": Path("scripts/fixtures"),
         "log": None, "max_result": MAX_RESULT_BYTES, "runbook_dir": Path("scripts/runbooks"),
         "max_queue": 64, "results_max": 32}
 
@@ -362,7 +362,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ip", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8080)
-    ap.add_argument("--ledger", default="evidence/run-ledger")
+    ap.add_argument("--ledger", default="evidence/runs/RUN-20261002-05")
     ap.add_argument("--dl-dir", default="scripts/fixtures")
     ap.add_argument("--log", default=None)
     ap.add_argument("--max-result", type=int, default=MAX_RESULT_BYTES)
@@ -379,3 +379,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

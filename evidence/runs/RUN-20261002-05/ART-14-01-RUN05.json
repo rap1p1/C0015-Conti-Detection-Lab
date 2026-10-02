@@ -3,7 +3,7 @@
   "run_id": "RUN-20261002-05",
   "schema_version": "1.0",
   "kind": "impact-metrics-summary",
-  "output_ref": "evidence/run-ledger/ART-14-01-RUN05.txt",
+  "output_ref": "evidence/runs/RUN-20261002-05/ART-14-01-RUN05.txt",
   "actions": [
     {
       "result": "PASS",
@@ -30,3 +30,4 @@
   "producer_stage": "S14",
   "consumer_stage": "S15"
 }
+

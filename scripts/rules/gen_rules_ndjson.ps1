@@ -1,5 +1,5 @@
-# gen_rules_ndjson.ps1 - build detections/eql/C0015-S4-S9-elastic-rules.ndjson
-# (rules R12-R20) mirroring the R01-R11 export metadata shape.
+# gen_rules_ndjson.ps1 - build detections/exports bundles (R01-R11, R12-R20)
+# Sources: detections/queries/*.eql  |  Exports: detections/exports/*.ndjson
 $ErrorActionPreference = 'Stop'
 $repo = 'E:\lab\C0015-Conti-Detection-Lab'
 $commit = (git -C $repo rev-parse HEAD).Trim()
@@ -27,7 +27,8 @@ function New-Rule {
   param([string]$Id, [string]$RuleId, [string]$Name, [string]$Descr, [string]$Note, [string]$Sev,
         [int]$Risk, [string[]]$FP, [object]$Threat, [string[]]$Idx, [string]$Query, [string]$BBlock)
   # Deterministic uuid4 (forced version/variant nibbles) derived from the rule name so
-  # re-imports overwrite the same rule instead of duplicating it.
+  # re-imports overwrite the same rule instead of duplicating it. Renaming a rule
+  # changes its id - migrate server-side (delete old, import new) on renames.
   $hash = ([System.Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Name)) |
            ForEach-Object { $_.ToString('x2') }) -join ''
   $uuid = '{0}-{1}-4{2}-8{3}-{4}' -f $hash.Substring(0,8), $hash.Substring(8,4),
@@ -51,12 +52,17 @@ function New-Rule {
   return $o
 }
 
+$qDir   = "$repo\detections\queries"
 $sysmon = @('logs-windows.sysmon_operational-c0015*')
 $sec    = @('logs-system.security-c0015*')
-# NOTE: every rule file below MUST also exist in detections/eql/ and in this loader
-# list - a missing entry imports with an empty query and fails at execution.
-$q = @{}; foreach ($r in 'r12-powershell-nested-cmd-launching-discovery','r13-share-enumeration-commands','r14a-network-logon-by-user','r14b-elevated-privileges-assigned-to-user','r15-lsass-credential-access','r16-admin-share-remote-file-write','r17-wmiprvse-spawns-process-loading-unsigned-module','r18-proxy-spawned-powershell-egress','r19-rdp-interactive-logon','r20-portable-remote-access-tool') {
-  $q[$r] = (Get-Content -LiteralPath "$repo\detections\eql\$r.eql" -Raw).Trim()
+
+# Load queries for R12-R20 (bundle r12-r20) and R01-R11 (bundle r01-r11).
+$ids412 = 'r12-powershell-nested-cmd-launching-discovery','r13-share-enumeration-commands','r14a-network-logon-by-user','r14b-elevated-privileges-assigned-to-user','r15-lsass-credential-access','r16-admin-share-remote-file-write','r17-wmiprvse-spawns-process-loading-unsigned-module','r18-proxy-spawned-powershell-egress','r19-rdp-interactive-logon','r20-portable-remote-access-tool'
+$q = @{}
+foreach ($r in $ids412) { $q[$r] = (Get-Content -LiteralPath "$qDir\$r.eql" -Raw).Trim() }
+$q1 = @{}
+foreach ($r in (Get-ChildItem -LiteralPath $qDir -File | Where-Object { $_.Name -match '^r(0\d|1[01])-' } | Select-Object -ExpandProperty BaseName)) {
+  $q1[$r] = (Get-Content -LiteralPath "$qDir\$r.eql" -Raw).Trim()
 }
 
 $rules = @()
@@ -105,7 +111,7 @@ S7 authentication signal. Requires the Logon/Logoff audit policy (enabled by def
 
 ## Data and schedule
 
-Security channel, index logs-system.security-c0015*. Interval 1m, look-back 5m. winlog.logon.id is not populated for 4624 (SubjectLogonId=0x0) - correlate 4624 with 4672 via TargetLogonId/SubjectLogonId manually.
+Security channel, index logs-system.security-c0015*. Interval 1m, look-back 5m. winlog.logon.id is not populated for 4624 (SubjectLogonId=0x0) - correlate 4624 with 4672 via TargetLogonId/SubjectLogonId manually, within the same host only.
 
 ## Investigation
 
@@ -135,7 +141,7 @@ $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Descr 'Detects OpenProcess on lsass.exe with a credential-access access mask (0x1010/0x1418/0x1fffff) from a non-system source via Sysmon E10 (S7b, T1003.001).' `
   -Note '## Scope
 
-S7b credential access. System/ambient sources (wininit/csrss/services/svchost/MsMpEng/Registry/wmiprvse) and query-info-only grants (0x1000/0x101000) are excluded. Works for the surrogate executable and in-process variants.
+S7b credential-access surface. System/ambient sources (wininit/csrss/services/svchost/MsMpEng/Registry/wmiprvse) and query-info-only grants (0x1000/0x101000) are excluded. E10 access alone does not prove credential extraction.
 
 ## Data and schedule
 
@@ -143,7 +149,7 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Interval 1m, l
 
 ## Investigation
 
-Identify the source process (name/entity/account); join its E1 for the command line; look for dump files (E11 lsass*.dmp) as confirmation.' `
+Identify the source process (name/entity/account); join its E1 for the command line; look for decoy/dump files (E11 lsass*.dmp) as confirmation context.' `
   -Sev medium -Risk 47 -FP @('AV/EDR or administration tools (ProcDump, Process Explorer) legitimately touching lsass.') `
   -Threat (Tech $tCred 'T1003' 'OS Credential Dumping' 'T1003.001' 'LSASS Memory') -Idx $sysmon -Query $q['r15-lsass-credential-access'] -BBlock 'default'
 
@@ -152,7 +158,7 @@ $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Descr 'Detects access to admin shares (C$/ADMIN$) recorded by Security 5145 - an access check whose strongest instrument is the S8a tool handoff (T1570). Requires the Detailed File Share audit policy; the predicate does not distinguish read, write or result outcomes.' `
   -Note '## Scope
 
-S8a lateral tool transfer. Sysmon E11 on the SMB target does not keep UNC path/user information, so Security 5145 is the authoritative source.
+S8a lateral tool transfer. Sysmon E11 on the SMB target does not keep UNC path/user information, so Security 5145 is the authoritative source. The rule matches share/path only - it is an access indicator, not a write-specific detector.
 
 ## Data and schedule
 
@@ -203,7 +209,7 @@ $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Descr 'Detects RDP interactive logon (Security 4624 LogonType 10) by a real account - the day-2 RDP movement of the campaign (S12, T1021.001).' `
   -Note '## Scope
 
-S12 remote desktop movement. Requires the Logon/Logoff audit policy (success) and the Other Logon/Logoff Events subcategory for 4778/4779 session events.
+S12 remote desktop movement. Requires the Logon/Logoff audit policy (success) and the Other Logon/Logoff Events subcategory for 4778/4779 session events. Note: LogonType 3/4 alone (network/batch) do not prove a successful interactive RDP session; only Type 10 (RemoteInteractive) does.
 
 ## Data and schedule
 
@@ -217,10 +223,10 @@ Confirm the source IP (winlog.event_data.IpAddress) and correlate the TargetLogo
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R20 | Portable Remote-Access or Process Tool Dropped and Executed' `
-  -Descr 'Detects a portable tool (remote-access software: AnyDesk/RustDesk/TeamViewer; process-administration utility: ProcessHacker) dropped into a non-standard location (Videos or drive root) and executed - E11 then E1 sequence (S13, T1219.002 for remote-access; ProcessHacker maps to process-discovery tooling, not remote access).' `
+  -Descr 'Detects a portable tool (remote-access software: AnyDesk/RustDesk/TeamViewer; process-administration utility: ProcessHacker) dropped into a non-standard location (Videos or drive root) and executed - E11 then E1 sequence (S13, T1219.002 for remote access; ProcessHacker maps to process-discovery tooling, not remote access).' `
   -Note '## Scope
 
-S13 tool deployment mirroring the report (AnyDesk under Videos\, ProcessHacker at C:\ root).
+S13 tool deployment mirroring the report (AnyDesk under Videos\, ProcessHacker at C:\ root). The sequence joins by host.name only - it does not prove that the executed binary is the dropped file; treat as correlation.
 
 ## Data and schedule
 
@@ -233,10 +239,8 @@ Confirm the binary hash against vendor signatures; check the tool''s connection 
   -Threat (Tech $tC2 'T1219' 'Remote Access Software' 'T1219.002' 'Remote Access Software') -Idx $sysmon -Query $q['r20-portable-remote-access-tool'] -BBlock 'default'
 
 # ---------------------------------------------------------------------------
-# S1-S3 rules (R01-R11) — same metadata shape, English notes, sysmon index.
+# S1-S3 rules (R01-R11) - same metadata shape, English notes, sysmon index.
 # ---------------------------------------------------------------------------
-$q2 = @{}; foreach ($r in (Get-ChildItem -LiteralPath "$repo\detections\eql" -File | Where-Object { $_.Name -match '^r(0\d|1[01])-' } | Select-Object -ExpandProperty BaseName)) { $q2[$r] = (Get-Content -LiteralPath "$repo\detections\eql\$r.eql" -Raw).Trim() }
-
 $s3rules = @()
 $specs = @(
   @{ id='r01-office-spawns-script-host-shell'; name='C0015 | R01 | Office Spawning a Script Host or Shell';
@@ -252,8 +256,8 @@ $specs = @(
      note='## Scope`n`nS1 DLL-as-JPG load. Building block: ON.`n`n## Investigation`n`nCheck Signed=false + hash; correlate with E11 of the staged file and the subsequent beacon (R05/R06).';
      threat=(Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.010' 'Regsvr32') },
   @{ id='r04-script-or-proxy-staging-file-write'; name='C0015 | R04 | Script or Proxy Writing to a Staging Path';
-     desc='Detects script/proxy processes writing to staging paths (%PUBLIC%, temp, ProgramData) via E11 - catches the macro self-write and tool drops (S1/S2/S10, T1105).';
-     note='## Scope`n`nAny staged file write in the intrusion (macro-written config/HTA/beacon, downloaded DLL, collection zips). Building block: ON.`n`n## Investigation`n`nReview the written file names and the writing process; a write by WINWORD into %PUBLIC% is the entry-document pattern.';
+     desc='Detects script/proxy processes writing to staging paths (%PUBLIC%, temp, ProgramData) via E11 (S1/S2/S10, T1105 staging).';
+     note='## Scope`n`nStaged file writes from script/proxy processes. The entry macro''s own writes are WINWORD-originated E11 events and fall outside this predicate - coverage claim is limited accordingly. Building block: ON.`n`n## Investigation`n`nReview the written file names and the writing process.';
      threat=(Tech $tC2 'T1105' 'Ingress Tool Transfer') },
   @{ id='r05-proxy-loader-spawning-powershell'; name='C0015 | R05 | Regsvr32 or Rundll32 Spawning PowerShell';
      desc='Detects regsvr32/rundll32 spawning powershell (E1) - the DLL surrogate hands off to the session beacon (S2, T1218.010).';
@@ -268,9 +272,9 @@ $specs = @(
      note='## Scope`n`nS1 three-step chain. Building block: ON.`n`n## Investigation`n`nA full match is the entry signature; partial matches still worth review.';
      threat=(Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.005' 'Mshta') },
   @{ id='r08-unsigned-module-load-to-powershell'; name='C0015 | R08 | Unsigned Module Load Followed by a PowerShell Child';
-     desc='Detects a process that loads an unsigned module (E7) and then spawns powershell (E1 subsystem) - loader-to-beacon hand-off (S1/S2).';
+     desc='Detects a process that loads an unsigned module (E7) and then spawns powershell (E1) - loader-to-beacon hand-off (S1/S2). The predicate does not imply process injection.';
      note='## Scope`n`nS1/S2 unsigned-library hand-off. Building block: ON.`n`n## Investigation`n`nConfirm module hash and the child entity; chain into R06/R09.';
-     threat=(Tech $tDefEv 'T1055' 'Process Injection') },
+     threat=(Tech $tExec 'T1059' 'Command and Scripting Interpreter' 'T1059.001' 'PowerShell') },
   @{ id='r09-proxy-spawned-powershell-network-egress'; name='C0015 | R09 | Proxy-Spawned PowerShell Making a Network Connection';
      desc='Detects powershell spawned by a signed proxy making a network connection (E1 then E3, entity join) - beacon callback (S2-S3).';
      note='## Scope`n`nS2-S3 callback after proxy hand-off. Building block: ON.`n`n## Investigation`n`nSame entity vs R18 (which adds the rundll32/regsvr32 parent); treat as the session indicator.';
@@ -285,10 +289,9 @@ $specs = @(
      threat=(Tech $tDiscov 'T1057' 'Process Discovery') }
 )
 foreach ($sp in $specs) {
-  $script:cur = $sp.id
   $s3rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) -Name $sp.name -Descr $sp.desc `
     -Note ($sp.note -replace "`n", "`r`n") -Sev low -Risk 21 -FP @('Legitimate use of the same living-off-the-land binaries.') `
-    -Threat $sp.threat -Idx $sysmon -Query $q2[$sp.id] -BBlock 'default'
+    -Threat $sp.threat -Idx $sysmon -Query $q1[$sp.id] -BBlock 'default'
 }
 $s3supp = @{
   'C0015 | R06 | Script Host Network Egress'                          = @{ group_by = @('process.entity_id'); duration = @{ value = 5; unit = 'm' } }
@@ -296,26 +299,15 @@ $s3supp = @{
   'C0015 | R11 | Nested CMD Launching a Discovery-Capable Tool'        = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
 }
 $s3rules = foreach ($r in $s3rules) { if ($s3supp.ContainsKey([string]$r.name)) { $r['alert_suppression'] = $s3supp[[string]$r.name] }; $r }
-($s3rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\eql\C0015-S1-S3-elastic-rules.ndjson" -Encoding UTF8
-Write-Output "written S1-S3: $($s3rules.Count) rules"
 
-# Fail-fast validation: every rule must carry a non-empty query - missing sources
-# have previously shipped as empty bundles (R10/R11, 2026-10).
-$allrules = @($s3rules) + @($rules)
-foreach ($r in $allrules) {
-  if ([string]::IsNullOrWhiteSpace([string]$r.query)) { throw "empty query for rule: $($r.name)" }
-  if ([string]::IsNullOrWhiteSpace([string]$r.name)) { throw "rule without name" }
-}
-$ids = @($allrules.rule_id)
-if (($ids | Select-Object -Unique).Count -ne $ids.Count) { throw "duplicate rule_id in export" }
-$out = "$repo\detections\eql\C0015-S4-S9-elastic-rules.ndjson"
-# Alert suppression: group within a 5m window to remove sweep duplication caused by
-# the 1m interval + 6m look-back (observed on RUN-20261002-05: R06 loop, R10-R12 batches).
+# ---------------------------------------------------------------------------
+# Alert suppression (R12-R20 bundle) to absorb sweep duplication.
+# ---------------------------------------------------------------------------
 $supp = @{
   'C0015 | R06 | Script Host Network Egress'                                    = @{ group_by = @('process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R10 | PowerShell Spawning Nested CMD Processes'                       = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R11 | Nested CMD Launching a Discovery-Capable Tool'                  = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
-  'C0015 | R12 | PowerShell-Driven Discovery via Nested CMD'      = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
+  'C0015 | R12 | PowerShell-Driven Discovery via Nested CMD'                     = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R13 | Share Enumeration via net view or Get-SmbShare'                 = @{ group_by = @('process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R14a | Network Logon by Non-System Account'                           = @{ group_by = @('host.name', 'winlog.event_data.TargetLogonId'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R15 | LSASS Access with Credential-Access Grant'                      = @{ group_by = @('process.entity_id'); duration = @{ value = 5; unit = 'm' } }
@@ -323,9 +315,19 @@ $supp = @{
   'C0015 | R18 | Proxy-Spawned PowerShell Making an Egress Connection'           = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
 }
 $rules = foreach ($r in $rules) { if ($supp.ContainsKey([string]$r.name)) { $r['alert_suppression'] = $supp[[string]$r.name] }; $r }
-($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath $out -Encoding UTF8
-Write-Output "written: $out ($($rules.Count) rules)"
 
+# ---------------------------------------------------------------------------
+# Fail-fast validation: non-empty queries, named rules, unique ids.
+# ---------------------------------------------------------------------------
+$allrules = @($s3rules) + @($rules)
+foreach ($r in $allrules) {
+  if ([string]::IsNullOrWhiteSpace([string]$r.query)) { throw "empty query for rule: $($r.name)" }
+  if ([string]::IsNullOrWhiteSpace([string]$r.name)) { throw "rule without name" }
+}
+$ids = @($allrules.rule_id)
+if (($ids | Select-Object -Unique).Count -ne $ids.Count) { throw "duplicate rule_id in export" }
 
-
-
+($s3rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r01-r11.ndjson" -Encoding UTF8
+Write-Output "written S1-S3: $($s3rules.Count) rules"
+($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r12-r20.ndjson" -Encoding UTF8
+Write-Output "written S4-S9: $($rules.Count) rules"

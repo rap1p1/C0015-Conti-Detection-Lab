@@ -36,7 +36,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = (Get-Item (Join-Path $PSScriptRoot '..\..')).FullName
 $C2 = "http://${C2Ip}:${C2Port}"
-$ledger = Join-Path $repo 'evidence/run-ledger'
+$ledger = Join-Path $repo 'evidence/runs/RUN-20261002-05'
 $logPath = Join-Path $repo 'c2sim.log'
 
 function Step { param([string]$m) Write-Host $m -ForegroundColor Cyan }
@@ -232,5 +232,6 @@ switch ($Action) {
         Invoke-Phase3
     }
 }
+
 
 

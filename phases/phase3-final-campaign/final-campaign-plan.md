@@ -11,7 +11,7 @@ concretizing the final stages against the validated lab state (RUN-20261002-04).
 - **Repo language: English** for ALL repository content (docs, code comments, commits).
 - One run = one `run_id` (`RUN-YYYYMMDD-<seq>`), one continuous kill chain S1→S15;
   every stage links to the next through artifacts and correlation keys (below).
-- Evidence policy: no secrets in repo/logs; ledgers per `evidence/run-ledger/RUN-schema.json`;
+- Evidence policy: no secrets in repo/logs; ledgers per `evidence/runs/RUN-20261002-05/RUN-schema.json`;
   artifacts as `ART-XX-XX-<token8>.json` with sha256 in the index; server-side receipts
   (`ART-07-01`, `ART-09-01`) are independent confirmation sources.
 
@@ -201,6 +201,7 @@ mapping in a follow-up.
 
 Decisions (operator-approved): rclone→local sink (rev 1), RustDesk+local relay (AnyDesk-like),
 ProcessHacker E10-no-dump. No external credentials are required for the final campaign.
+
 
 
 

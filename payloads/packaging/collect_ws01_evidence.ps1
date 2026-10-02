@@ -64,7 +64,7 @@ $run_id = Get-IniValue $ConfigPath 'lab' 'run_id'
 if (-not $run_id) { $run_id = 'UNKNOWN' }
 $dllName = Get-IniValue $ConfigPath 'bootstrap' 'dll_name'
 if (-not $dllName) { $dllName = 'c0015-comparefor.jpg' }
-if (-not $OutPath) { $OutPath = Join-Path $PSScriptRoot "../../evidence/run-ledger/ws01-evidence-$run_id-structured.json" }
+if (-not $OutPath) { $OutPath = Join-Path $PSScriptRoot "../../evidence/runs/RUN-20261002-05/ws01-evidence-$run_id-structured.json" }
 $OutPath = [IO.Path]::GetFullPath($OutPath)
 
 $ch = 'Microsoft-Windows-Sysmon/Operational'
