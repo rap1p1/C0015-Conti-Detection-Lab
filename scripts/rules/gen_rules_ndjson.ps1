@@ -236,7 +236,7 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Sequence of 2 
 
 Confirm the binary hash against vendor signatures; check the tool''s connection targets (E3) - public relays versus lab-local listeners; correlate with R15 if the tool touches lsass.' `
   -Sev medium -Risk 47 -FP @('Users manually installing legitimate remote-control software.') `
-  -Threat (Tech $tC2 'T1219' 'Remote Access Software' 'T1219.002' 'Remote Access Software') -Idx $sysmon -Query $q['r20-portable-remote-access-tool','r22-ransomware-note-class','r23-note-spread-distinct-paths','r24-transfer-tool-egress'] -BBlock 'default'
+  -Threat (Tech $tC2 'T1219' 'Remote Access Software' 'T1219.002' 'Remote Access Software') -Idx $sysmon -Query $q['r20-portable-remote-access-tool'] -BBlock 'default'
 
 # ---------------------------------------------------------------------------
 function New-ThresholdRule {
@@ -413,6 +413,7 @@ if (($ids | Select-Object -Unique).Count -ne $ids.Count) { throw "duplicate rule
 Write-Output "written S1-S3: $($s3rules.Count) rules"
 ($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r12-r24.ndjson" -Encoding UTF8
 Write-Output "written S4-S9: $($rules.Count) rules"
+
 
 
 
