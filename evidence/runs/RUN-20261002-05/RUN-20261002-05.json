@@ -89,8 +89,9 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "3",
-          "ts": "2026-10-02T05:41:45Z+",
-          "detail": "poll loop to C2-SIM :8080 (continuous; suppression-validated)"
+          "es_id": "AaD7IqiPmO7CP6IqoRpB",
+          "ts": "2026-10-02T05:41:46.005Z",
+          "detail": "first poll egress :8080"
         }
       ],
       "notes": "first-session callback loop observed for the run duration"
@@ -177,8 +178,7 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T05:44:0xZ",
-          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin)"
+          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin) (timing approximate, sourced from run notes)"
         },
         {
           "kind": "event",
@@ -236,8 +236,7 @@
           "host": "fs01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "11",
-          "ts": "2026-10-02T05:45:1xZ",
-          "detail": "143.dll + beacon + config staged under C:\\C0015"
+          "detail": "143.dll + beacon + config staged under C:\\C0015 (timing approximate, sourced from run notes)"
         }
       ],
       "notes": "S5145 total 381 in window (C$:377, Finance:2, IPC$:2); Sysmon E11 on the SMB target lacks UNC/user attribution - 5145 is the authoritative source"

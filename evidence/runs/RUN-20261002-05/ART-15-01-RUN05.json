@@ -19,7 +19,7 @@
     "S9": "ART-07-01-18c677ef 05:45:12Z",
     "S10": "ART-08-01 manifest 11 files; E11 collect + collect5.zip",
     "S11a": "rclone E1 05:58:35 + E3 :9001; ART-09-01 round1 11/11 hash",
-    "S12": "S4624 it.admin T3/T4 06:00:30Z+; session Conn (partial)",
+    "S12": "interactive it.admin logons (T10 x2) at 06:00:27Z; no R19 alerts (rule coverage started after the window); session Conn (partial)",
     "S11b": "rclone E1 06:01:29; ART-09-01 round2 11/11 hash",
     "S13": "E11 AnyDesk Videos\\ + C:\\ProcessHacker.exe + E1 runs",
     "S14": "impact 15 files Run/Verify(15 mismatch)/Rollback/Verify(hash-OK)",

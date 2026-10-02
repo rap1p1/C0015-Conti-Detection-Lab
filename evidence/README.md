@@ -4,7 +4,7 @@ Evidence policy:
 
 - **One run = one directory**: `runs/<run_id>/` holds the ledger (`RUN-<id>.json`),
   the artifact files and their raw outputs. The ledger schema lives at
-  `runs/RUN-schema.json` and is enforced by `scripts/validate_repo.py`.
+  `runs/RUN-schema.json`; the schema is the contract for the verified ledger format.
 - **Artifacts are handoff proofs**: `ART-XX-01-<token>.json` files carry sha256 payloads
   and producer/consumer stage; server-side receipts (ART-07-01, ART-09-01) confirm
   transfers independently — the receipt hash must equal the manifest hash.
@@ -17,3 +17,4 @@ Evidence policy:
 
 Reference run: [runs/RUN-20261002-05/](runs/RUN-20261002-05/) — summary in
 `../reports/reference-run-20261002-05.md`.
+

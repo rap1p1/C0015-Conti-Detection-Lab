@@ -10,7 +10,7 @@ all stages on Elastic, with detection rules R19-R20 covering the phase.
 |---|---|---|---|---|
 | S10 Collection | T1005/T1039/T1074.001 | ShareFinder re-run; staging; exfiltration from a different server | beacon UNC collection → `\\FS01\C$\C0015\collect\` (11 files) | E11 + S5145 (381; C$:377) + ART-08-01 |
 | S11a/b Transfer | T1567.002/T1030 | **rclone → MEGA** (two rounds, `--bwlimit 10M --transfers 7`) | **real rclone** → **local WebDAV sink** on the C2 host (:**9001**) | E1 rclone + E3 :9001 + ART-09-01 receipts (11/11 hash both rounds) |
-| S12 RDP | T1021.001 | day-2 RDP to the backup server via the beacon | RDP `mstsc` + `cmdkey`, `it.admin` → FS01 | Security 4624 T3/T4 (interactive T10 pending) |
+| S12 RDP | T1021.001 | day-2 RDP to the backup server via the beacon | RDP `mstsc` + `cmdkey`, `it.admin` → FS01 | Security 4624 T3 network; T10 observed (lifetime not captured) |
 | S13 Remote tools | T1219.002 | AnyDesk in `Videos\`; ProcessHacker at `C:\` | real AnyDesk (`Videos\`, lab-internal) + ProcessHacker | E11 drop paths + E1 runs |
 | S14 Impact | T1486/T1083 | `locker.bat` → Conti (`-m -net -size 10` over `\\HOST\C$`), `readme.txt` note, post-impact listing | `c0015_impact.ps1` bounded surrogate: Prepare→Run(15 files)→Verify(15 mismatches)→Rollback→Verify(hash-equal) | E11 corpus + note; ART-14-01 |
 
@@ -39,6 +39,7 @@ all stages on Elastic, with detection rules R19-R20 covering the phase.
 - [detection-run-20261002-05.md](detection-run-20261002-05.md) — alert coverage and operational notes.
 - Evidence: `../../evidence/runs/RUN-20261002-05/RUN-20261002-05.json` + ART-07-01/08-01/09-01×2/14-01/15-01.
 - Verify tool: `../../scripts/verify/verify_final_phases.py` (documented in `../../scripts/README.md`).
+
 
 
 

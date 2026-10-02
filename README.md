@@ -18,7 +18,7 @@ handoffs, and a detection suite validated against a recorded reference run.
 2. [detections/README.md](detections/README.md) — the rule suite (R01-R20), stage mapping and coverage.
 3. [evidence/runs/RUN-20261002-06/](evidence/runs/RUN-20261002-06/) — ledger with event references and
    hash-verified artifacts.
-4. Verification: `python scripts/validate_repo.py` (local; JSON/schema/hash/source-export sync/offline tests);
+4. Verification: acceptance checks in `scripts/verify/verify_final_phases.py <RUN_ID>` (Elastic, env credentials); offline component tests via `python -m unittest discover -s scripts/tests` (20 tests);
    Elastic-gated checks are documented in `scripts/verify/`.
 
 ## Lab topology
@@ -61,7 +61,7 @@ flowchart LR
   per the correlation map; alert counts recorded as raw stored values (upper bounds).
 
 Limitations are documented per stage in the [report](reports/reference-run-20261002-05.md) and in the
-ledger — notably: no Type-10 RDP logon (R19 untested positively), no rclone-specific rule (evidence via
+ledger — notably: Type-10 RDP logons ARE recorded (run-06: event 07:56:06Z with R19 true positive; run-05: two T10 at 06:00:27Z with no R19 coverage in-window), session lifetime was not captured (S12 partial), no rclone-specific rule (evidence via
 events + receipts), R16 as an access indicator rather than a write detector, and upload-chunking (T1030
 variants) left as design-only.
 
@@ -79,7 +79,7 @@ variants) left as design-only.
 | S9 | T1071.001 | Cobalt Strike session 2 | beacon (phase7-session2, FS01) | E3 :8080 + receipt ART-07-01 | R18 |
 | S10 | T1005/T1039/T1074.001 | ShareFinder re-run, staging | beacon UNC collection → `C:\C0015\collect\` | E11 + S5145 | R16 |
 | S11a/b | T1567.002/T1030 | **rclone → MEGA** (two rounds) | real rclone → **local WebDAV sink** (:9001) | E1 rclone, E3 :9001, receipt ART-09-01 | evidence + receipts |
-| S12 | T1021.001 | RDP to the backup server (day 2) | RDP `mstsc` + `cmdkey` | Security 4624 T3 network / T10 RemoteInteractive (T10 pending) | R19 |
+| S12 | T1021.001 | RDP to the backup server (day 2) | RDP `mstsc` + `cmdkey` | Security 4624 T3 network / T10 RemoteInteractive (T10 observed; lifetime not captured) | R19 |
 | S13 | T1219.002 | AnyDesk in `Videos\`, ProcessHacker at `C:\` | real AnyDesk (lab-internal) + ProcessHacker | E11 drop paths + E1 | R20 |
 | S14 | T1486/T1083 | `locker.bat` + Conti (`-m -net -size 10 ...`) | `c0015_impact.ps1` bounded surrogate (reversible) | E11 bulk rename + note | — (monitored via E11 sweep) |
 
@@ -91,7 +91,7 @@ docs/         canonical technical records (chain, runbook, architecture, correla
 detections/   rule suite R01-R20: queries/*.eql (sources) + exports/*.ndjson (generated) + README
 reports/      executive report per reference run
 payloads/     lab tooling per chain stage (beacon, dll, hta, impact, docm, lsass, packaging)
-scripts/      infrastructure: C2-SIM, watchdog, evidence toolkit, rule generator, verifiers, local validator
+scripts/      infrastructure: C2-SIM, watchdog, evidence toolkit, rule generator, verifiers
 configs/      agent/Sysmon configuration
 evidence/     runs/<run_id>/: ledger (schema-conform, event references) + hash-verified artifacts
 stage/        runtime files (generated document, per-run configs, tools) — gitignored
@@ -107,7 +107,7 @@ remaining rules operate as correlation building blocks with suppression on noisy
 building-block → alerting correlation map in `detections/README.md`). Every rule uses a deterministic
 `rule_id` (SHA-256 of the rule name; renames migrate server-side) and is written without
 environment-specific values. `scripts/rules/gen_rules_ndjson.ps1` rebuilds the exports and fails fast on
-empty queries; `scripts/validate_repo.py` enforces JSON/schema/hash/query-sync/offline-test checks locally.
+empty queries; Offline component tests cover the evidence tooling and C2-SIM logic (`python -m unittest discover -s scripts/tests`).
 
 ## Confinement
 
@@ -136,6 +136,10 @@ empty queries; `scripts/validate_repo.py` enforces JSON/schema/hash/query-sync/o
 | Sysmon | 15.21 (schema 4.91), profile `configs/sysmon/sysmon-c0015-balanced.xml` |
 | rclone | 1.75.1 (transferred with the documented flags) |
 | ProcessHacker / AnyDesk | 2.39 / standalone build |
+
+
+
+
 
 
 

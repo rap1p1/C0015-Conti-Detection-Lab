@@ -89,8 +89,9 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "3",
-          "ts": "2026-10-02T07:50:05Z+",
-          "detail": "poll loop to C2-SIM :8080 (continuous; suppression-validated)"
+          "es_id": "AaD7l6iPmO7CP6Oa4QUD",
+          "ts": "2026-10-02T07:50:04.496Z",
+          "detail": "first poll egress :8080"
         }
       ],
       "notes": ""
@@ -177,8 +178,7 @@
           "host": "ws01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "1",
-          "ts": "2026-10-02T07:51:1xZ",
-          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin)"
+          "detail": "elevate via wmic local create (ReturnValue 0) -> beacon-2 (it.admin) (timing approximate, sourced from run notes)"
         },
         {
           "kind": "event",
@@ -323,8 +323,9 @@
           "host": "fs01",
           "channel": "Microsoft-Windows-Sysmon/Operational",
           "event": "11",
-          "ts": "2026-10-02T07:56:5xZ",
-          "detail": "collect6.zip staging write"
+          "ts": "2026-10-02T07:54:23.749Z",
+          "detail": "collect6.zip staging write",
+          "es_id": "AaD7m6iPmO7CP6OO8hxC"
         }
       ],
       "notes": "collection via UNC reads of \\\\FS01\\C$\\Shares"

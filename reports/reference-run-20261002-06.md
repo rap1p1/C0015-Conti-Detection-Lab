@@ -22,9 +22,9 @@ and bounded impact with bidirectional verify completed by 08:00:27Z.
 | 07:51:48 | LSASS surrogate E10 0x1010 | E1 → E10 |
 | 07:52:56 | WMI pivot: rundll32 (par=WmiPrvSE, LabEntry) | E1 + E7 (ART-06-01 hash) |
 | 07:53:00 / 07:53:02 | receipt ART-07-01-0e9f226e + second-session egress | server-side + E3 |
-| 07:56:38 | **it.admin interactive logon (LogonType 10, fs01)** | 4624 → R19 true positive |
+| 07:56:06 | **it.admin interactive logon (LogonType 10, fs01)** | 4624 event `AaD7naiPmO7CP6Mq9rLB` (logonid 0x35a46e2) |\n| 07:56:38 | R19 alerts on the T10 logon | alert ids `af223b2f…`/`78029000…` |
 | 07:58:09 / 07:58:11 | rclone round 1 → sink :9001 | E1 + E3; receipt 11/11 |
-| ~08:02 | rclone round 2 | receipt 11/11 (sink_files observed per round) |
+| 07:58:13 | rclone round 2 (E1 id AaD7n6iPmO7CP6QZBbpW) | receipt 11/11 (sink_files observed per round) |
 | 07:59:05–38 | AnyDesk drop (Videos\) + run; ProcessHacker drop (C:\) | E11 + E1 |
 | 08:00:27 | impact: note write; 15 files transformed | E11; Verify 30 bidirectional mismatches → Rollback → hash-equal |
 
@@ -39,7 +39,7 @@ At run time the suite had 21 rules (R01-R20); R21 had been retired before this r
 
 ## Stage status and limitations
 
-- All stages PASS except **S12 (RDP) PARTIAL**: an interactive it.admin logon
+- All stages PASS (S6 is **NOT RUN** - orchestration stage, skipped) except **S12 (RDP) PARTIAL**: an interactive it.admin logon
   (4624 T10) was observed at 07:56:38Z giving R19 its positive match, but session
   lifetime/state after client close was not captured, so the stage is not claimed
   as fully characterized.
