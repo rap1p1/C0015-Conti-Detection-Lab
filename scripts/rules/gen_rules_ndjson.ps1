@@ -1,7 +1,7 @@
 # gen_rules_ndjson.ps1 - build detections/exports bundles (R01-R11, R12-R20)
 # Sources: detections/queries/*.eql  |  Exports: detections/exports/*.ndjson
 $ErrorActionPreference = 'Stop'
-$repo = 'E:\lab\C0015-Conti-Detection-Lab'
+$repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $commit = (git -C $repo rev-parse HEAD).Trim()
 $now = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
 

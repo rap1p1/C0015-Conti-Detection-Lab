@@ -60,3 +60,4 @@ out["S14"] = [ev(x, "impact note write") for x in q(SYS, [{"term": {"event.code"
            + [ev(x, "impact corpus write") for x in q(SYS, [{"term": {"event.code": "11"}}, {"wildcard": {"file.path": "*Impact-Corpus*"}}], 1)]
 
 print(json.dumps(out, indent=1))
+

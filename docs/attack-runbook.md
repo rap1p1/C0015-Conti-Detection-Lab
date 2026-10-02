@@ -172,7 +172,7 @@ Run 3 control cases with net use (password via prompt, never on CLI/log):
   A denied   : net use \\FS01\IPC$ /user:C0015\duc.user *   -> expect access denied
   B allowed  : net use \\FS01\IPC$ /user:C0015\it.admin *   -> OK (this is control proof, NOT the WMI cred)
   C revoked  : use a revoked/second account -> denied
-Record ART-05-01 (logon evidence bundle: S4648/S4624/4672 refs + LogonId) on C2 host.
+Record ART-05-01 (logon evidence bundle: S4648/S4624/4672 refs; LogonId joins are valid only within the same host) on C2 host.
 Architecture note: an IPC$ session does NOT change the process token; S8b must re-supply
 the credential explicitly (runas/CIM -Credential). ART-05-01 is EVIDENCE, not control input.
 Ledger: S7 = VERIFIED when denied/allowed/denied observed (4625/4624/4672) + LogonId linked
@@ -287,6 +287,7 @@ Status: S1-S3 VERIFIED on lab (ledger RUN-20261001-01); S4 = CORPUS-only in that
 back to T-NOOP due to a stale config.ini - regenerate config per Part B before the next run); S5-S15 are
 operator/design steps with exact machine/command/evidence/ledger rows above; the chain is NOT end-to-end
 until one continuous run carries handoff evidence for every stage under a single run_id.
+
 
 
 

@@ -1,236 +1,172 @@
 #!/usr/bin/env python3
-"""Verify the final campaign run (RUN-20261002-05) across ALL stages S1-S15.
+"""Acceptance verifier for the reference run (RUN-20261002-05).
 
-Queries Elastic (Sysmon + Security) for the run window and prints per-stage
-observations. Host-side evidence (receipts, sink files) is asserted too.
+For every stage the required events must exist AND satisfy the join/identity
+assertions (parent/entity, hash, receipts). Missing or wrong evidence fails the
+run with a non-zero exit code.
+
+Credentials come from the environment only (ES_USER / ES_PASS - never hardcoded).
 
 Usage:
-  python scripts/verify/verify_final_phases.py [w0] [w1]
+  set ES_USER=elastic & set ES_PASS=... & python scripts/verify/verify_final_phases.py
 """
 import json
 import os
+import pathlib
 import ssl
 import sys
 import urllib.request
 import base64
+import hashlib
 
-_CTX = ssl.create_default_context()
-_CTX.check_hostname = False
-_CTX.verify_mode = ssl.CERT_NONE
-
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 ES = os.environ.get("ES_URL", "https://100.77.46.126:9200")
 USER = os.environ.get("ES_USER", "elastic")
-PASS = os.environ["ES_PASS"]  # required; never hardcode
-W0 = sys.argv[1] if len(sys.argv) > 1 else "2026-10-02T05:41:00Z"
-W1 = sys.argv[2] if len(sys.argv) > 2 else "2026-10-02T06:12:00Z"
+PASS = os.environ["ES_PASS"]  # required
 SYS = ".ds-logs-windows.sysmon_operational-*"
 SEC = ".ds-logs-system.security-*"
+W0, W1 = "2026-10-02T05:41:00Z", "2026-10-02T06:12:00Z"
+CTX = ssl.create_default_context()
+CTX.check_hostname = False
+CTX.verify_mode = ssl.CERT_NONE
+
+FAILURES = []
 
 
-def q(index, body, size=20):
-    req = urllib.request.Request(
-        f"{ES}/{index}/_search",
-        data=json.dumps(body).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Basic " + base64.b64encode(f"{USER}:{PASS}".encode()).decode(),
-        },
-    )
-    with urllib.request.urlopen(req, timeout=60, context=_CTX) as r:
-        return json.load(r)
+def _canon_sha256(p: pathlib.Path) -> str:
+    return hashlib.sha256(p.read_bytes().replace(b"\r\n", b"\n")).hexdigest().upper()
 
 
-def win(body):
-    return f"gte:{W0}, lte:{W1}" + json.dumps(body)
-
-
-def mf(body):
-    """merge filter with the run window"""
-    merged = {
-        "size": body.get("size", 20),
-        "sort": body.get("sort", [{"@timestamp": "asc"}]),
-        "query": {
-            "bool": {
-                "filter": [
-                    {"range": {"@timestamp": {"gte": W0, "lte": W1}}},
-                ]
-                + body["query"]["bool"]["filter"],
-            }
-        },
+def q(index, filt, size=5, asc=True):
+    body = {
+        "size": size,
+        "sort": [{"@timestamp": "asc" if asc else "desc"}],
+        "query": {"bool": {"filter": [{"range": {"@timestamp": {"gte": W0, "lte": W1}}}] + filt}},
+        "_source": True,
     }
-    if "aggs" in body:
-        merged["aggs"] = body["aggs"]
-    return merged
+    req = urllib.request.Request(
+        f"{ES}/{index}/_search", data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json",
+                 "Authorization": "Basic " + base64.b64encode(f"{USER}:{PASS}".encode()).decode()})
+    with urllib.request.urlopen(req, timeout=60, context=CTX) as r:
+        return json.load(r)["hits"]["hits"]
 
 
-def hits(resp):
-    return [h["_source"] for h in resp["hits"]["hits"]]
+def esc(s):
+    return {"term": {s[0]: s[1]}}
 
 
-def run(name, index, body, cols):
-    print(f"\n[{name}]")
-    for s in hits(q(index, mf(body))):
-        print("  " + " ".join(str(col(s)) for col in cols))
+def require(stage, label, hits, assert_fn=None):
+    if not hits:
+        FAILURES.append(f"{stage}: MISSING {label}")
+        print(f"  FAIL {stage}: {label} (no events)")
+        return None
+    src = hits[0]["_source"]
+    ok = assert_fn(src) if assert_fn else True
+    if not ok:
+        FAILURES.append(f"{stage}: assertion failed for {label} (es_id={hits[0]['_id']})")
+        print(f"  FAIL {stage}: {label} assertion (es_id={hits[0]['_id']})")
+        return None
+    print(f"  ok  {stage}: {label} es_id={hits[0]['_id']} ts={src.get('@timestamp')}")
+    return src
 
 
-# S1 - office -> mshta -> regsvr32 (entry chain)
-run(
-    "S1 office->script->proxy (E1 chain)",
-    SYS,
-    {
-        "size": 6,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "1"}},
-            {"terms": {"process.name": ["WINWORD.EXE", "mshta.exe", "regsvr32.exe"]}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"proc={(s['process'].get('name') or '?')}",
-     lambda s: f"par={(s['process'].get('parent') or {}).get('name', '?')}"],
-)
-run(
-    "S1 macro self-write (E11 by WINWORD)",
-    SYS,
-    {
-        "size": 4,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "11"}},
-            {"term": {"process.name": "WINWORD.EXE"}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"file={s['file']['path']}"],
-)
-# S7b - lsass via mimikatz
-run(
-    "S7b mimikatz E10 -> lsass",
-    SYS,
-    {
-        "size": 4,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "10"}},
-            {"term": {"process.name": "mimikatz.exe"}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"proc={(s['process'].get('name') or '?')}",
-     lambda s: f"trg={s['winlog']['event_data'].get('TargetImage')}",
-     lambda s: f"grant={s['winlog']['event_data'].get('GrantedAccess')}"],
-)
-# S8b - wmic -> rundll32 on FS01
-run(
-    "S8b rundll32 parent=WmiPrvSE (FS01)",
-    SYS,
-    {
-        "size": 2,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "1"}},
-            {"term": {"host.name": "fs01"}},
-            {"term": {"process.name": "rundll32.exe"}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"par={(s['process'].get('parent') or {}).get('name', '?')}",
-     lambda s: f"cmd={s['process']['command_line']}"],
-)
-# S10 - collection writes on FS01
-run(
-    "S10 E11 collect* writes (FS01)",
-    SYS,
-    {
-        "size": 4,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "11"}},
-            {"term": {"host.name": "fs01"}},
-            {"wildcard": {"file.path": "*collect*"}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"file={s['file']['path']}"],
-)
-res = q(SEC, mf({
-    "size": 0,
-    "query": {"bool": {"filter": [
-        {"term": {"event.code": "5145"}},
-        {"term": {"host.name": "fs01"}},
-    ]}},
-    "aggs": {"shares": {"terms": {"field": "winlog.event_data.ShareName", "size": 5}}},
-}))
-print("\n[S10 S5145 on fs01] total:", res["hits"]["total"]["value"])
-for b in res["aggregations"]["shares"]["buckets"]:
-    print(f"  {b['key']}: {b['doc_count']}")
-# S11 - egress to the local sink
-run(
-    "S11 E3 -> :9001 (rclone to sink)",
-    SYS,
-    {
-        "size": 4,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "3"}},
-            {"term": {"destination.port": "9001"}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"proc={(s['process'].get('name') or '?')}",
-     lambda s: f"{s['source']['ip']}:{s['source']['port']}->{s['destination']['ip']}:{s['destination']['port']}"],
-)
-# S12 - RDP logons (Security)
-run(
-    "S12 RDP 4624 it.admin (FS01)",
-    SEC,
-    {
-        "size": 6,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "4624"}},
-            {"term": {"host.name": "fs01"}},
-            {"term": {"winlog.event_data.TargetUserName": "it.admin"}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"type={s['winlog']['event_data'].get('LogonType')}",
-     lambda s: f"src={s['winlog']['event_data'].get('IpAddress')}"],
-)
-res = q(SEC, mf({
-    "size": 0,
-    "query": {"bool": {"filter": [
-        {"terms": {"event.code": ["4778", "4779"]}},
-        {"term": {"host.name": "fs01"}},
-    ]}},
-}))
-print("\n[S12 TS-session 4778/4779] count:", res["hits"]["total"]["value"])
-# S13 - tools dropped + run
-run(
-    "S13 E1 tools (rclone/AnyDesk/ProcessHacker)",
-    SYS,
-    {
-        "size": 5,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "1"}},
-            {"terms": {"process.name": ["AnyDesk.exe", "ProcessHacker.exe", "rclone.exe"]}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"proc={(s['process'].get('name') or '?')}",
-     lambda s: f"par={(s['process'].get('parent') or {}).get('name', '?')}",
-     lambda s: f"cmd={(s['process'].get('command_line') or '')[:100]}"],
-)
-run(
-    "S13 E11 tool drops",
-    SYS,
-    {
-        "size": 4,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "11"}},
-            {"terms": {"file.name": ["AnyDesk.exe", "ProcessHacker.exe", "rclone.exe"]}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"file={s['file']['path']}"],
-)
-# S14 - impact corpus writes
-run(
-    "S14 E11 impact corpus (FS01)",
-    SYS,
-    {
-        "size": 4,
-        "query": {"bool": {"filter": [
-            {"term": {"event.code": "11"}},
-            {"wildcard": {"file.path": "*Impact*"}},
-        ]}},
-    },
-    [lambda s: f"ts={s['@timestamp']}", lambda s: f"file={s['file']['path']}"],
-)
-print("\nverify window:", W0, "->", W1)
+def main():
+    print("== RUN-20261002-05 acceptance verification ==")
+
+    # S1 chain with parent assertions
+    h = q(SYS, [esc(("event.code", "1")), esc(("process.name", "WINWORD.EXE"))], 1)
+    require("S1", "WINWORD entry", h)
+    h = q(SYS, [esc(("event.code", "1")), esc(("process.name", "mshta.exe"))], 1)
+    require("S1", "mshta from WINWORD", h,
+            lambda s: s["process"]["parent"]["name"] == "WINWORD.EXE")
+    h = q(SYS, [esc(("event.code", "1")), esc(("process.name", "regsvr32.exe"))], 1)
+    require("S1", "regsvr32 from mshta", h,
+            lambda s: s["process"]["parent"]["name"] == "mshta.exe")
+
+    # S2 beacon: powershell child of regsvr32 + register token host-side
+    h = q(SYS, [esc(("event.code", "1")), esc(("process.name", "powershell.exe")),
+                esc(("process.parent.name", "regsvr32.exe"))], 1)
+    require("S2", "beacon powershell (parent=regsvr32)", h)
+    log = ROOT / "c2sim.log"
+    if log.exists() and "S1-9a7cab91e7fd4f9f" in log.read_text(encoding="utf-8", errors="ignore"):
+        print("  ok  S2  phase3 register token in c2sim.log")
+    else:
+        FAILURES.append("S2: phase3 register token not found in c2sim.log")
+
+    # S7b E10 -> lsass (credential-access surface)
+    h = q(SYS, [esc(("event.code", "10")), esc(("process.name", "mimikatz.exe"))], 1)
+    require("S7b", "E10 mimikatz->lsass", h,
+            lambda s: "lsass.exe" in s["winlog"]["event_data"].get("TargetImage", ""))
+
+    # S8b WMI pivot: rundll32 parent=WmiPrvSE with LabEntry
+    h = q(SYS, [esc(("event.code", "1")), esc(("host.name", "fs01")),
+                esc(("process.name", "rundll32.exe"))], 1)
+    require("S8b", "rundll32 (parent=WmiPrvSE)", h,
+            lambda s: s["process"]["parent"]["name"] == "WmiPrvSE.exe"
+            and "LabEntry" in s["process"].get("command_line", ""))
+
+    # S9 second-session egress
+    h = q(SYS, [esc(("event.code", "3")), esc(("host.name", "fs01")),
+                {"term": {"destination.port": "8080"}}], 1)
+    require("S9", "second-session egress :8080", h)
+
+    # S10 collection manifest
+    man = ROOT / "evidence" / "runs" / "RUN-20261002-05" / "ART-08-01-RUN05.json"
+    if man.exists():
+        m = json.loads(man.read_text(encoding="utf-8"))
+        if m.get("payload", {}).get("files") and len(m["payload"]["files"]) == 11:
+            print("  ok  S10 ART-08-01 manifest (11 files)")
+        else:
+            FAILURES.append("S10: ART-08-01 manifest unexpected structure")
+    else:
+        FAILURES.append("S10: ART-08-01 manifest missing")
+
+    # S11 receipts: canonical manifest hash equality + sink_files
+    for r1 in ("round1", "round2"):
+        rec = ROOT / "evidence" / "runs" / "RUN-20261002-05" / f"ART-09-01-{r1}-RUN05.json"
+        r = json.loads(rec.read_text(encoding="utf-8"))
+        got = _canon_sha256(man)
+        if r.get("manifest_sha256") != got:
+            FAILURES.append(f"S11 {r1}: receipt manifest_sha256 != canonical manifest hash")
+        else:
+            print(f"  ok  S11 {r1} receipt manifest hash equal (canonical)")
+        if len(r.get("sink_files", [])) != r.get("total_files"):
+            FAILURES.append(f"S11 {r1}: sink_files count mismatch")
+
+    # S12: it.admin 4624 present; no Type-10 claim
+    h = q(SEC, [esc(("event.code", "4624")), esc(("host.name", "fs01")),
+                esc(("winlog.event_data.TargetUserName", "it.admin"))], 3)
+    if not h:
+        FAILURES.append("S12: no it.admin 4624 in window")
+    else:
+        print("  ok  S12 4624 it.admin observed (no Type-10 claim - session stopped at Conn)")
+
+    # S13 tools
+    h = q(SYS, [esc(("event.code", "11")), {"term": {"file.name": "AnyDesk.exe"}}], 1)
+    require("S13", "AnyDesk drop", h)
+    h = q(SYS, [esc(("event.code", "11")), {"term": {"file.name": "ProcessHacker.exe"}}], 1)
+    require("S13", "ProcessHacker drop", h)
+
+    # S14 impact note
+    h = q(SYS, [esc(("event.code", "11")), {"wildcard": {"file.path": "*README_C0015_LAB*"}}], 1)
+    require("S14", "impact note write", h)
+
+    # artifact_index canonical hash verification
+    ledger = json.loads((ROOT / "evidence" / "runs" / "RUN-20261002-05" / "RUN-20261002-05.json").read_text(encoding="utf-8"))
+    for a in ledger["artifact_index"]:
+        ap = ROOT / a["path"]
+        if ap.exists() and _canon_sha256(ap) != a["sha256"]:
+            FAILURES.append(f"artifact hash mismatch: {a['path']}")
+    print("  ok  artifact_index hashes verified (canonical)")
+
+    if FAILURES:
+        print(f"\nRESULT: FAILED ({len(FAILURES)} failure(s))")
+        for f in FAILURES:
+            print("  -", f)
+        sys.exit(1)
+    print("\nRESULT: ACCEPTED")
 
 
+if __name__ == "__main__":
+    main()

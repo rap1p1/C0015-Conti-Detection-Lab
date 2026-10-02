@@ -111,7 +111,7 @@ The CAPTURE profile is intended for bounded evidence-collection sessions: it sup
 
 ### BALANCED profile
 
-The Sysmon telemetry guide also defines a BALANCED profile that scopes Event IDs 7, 10, and 12-14 (by process, module path, signature, registry area, and write source) for routine collection. The BALANCED profile is provided outside this repository (planned); it is not yet a committed file.
+The BALANCED profile ships in this repository: `configs/sysmon/sysmon-c0015-balanced.xml` (Event IDs 1/3/7/10/11-14/17-22 with scoping by process, module path, signature, registry area and write source). Event IDs 7 and 10 were verified live in the reference run (E7 on the DLL surrogate, E10 0x1010 on the LSASS surrogate).
 
 ### Deployment flow
 
@@ -191,6 +191,7 @@ Fleet Server and Elasticsearch are reached over TLS. Windows agents trust the la
 ## Operational Boundary
 
 The lab executes controlled behaviors only on owned virtual machines, using benign commands, dummy data, and safe substitutes. Out of scope are: the original Bazar/Conti malware, cracked Cobalt Strike, destructive encryption, credential theft from system processes, and uncontrolled external targeting.
+
 
 
 

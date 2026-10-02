@@ -521,14 +521,14 @@
     {
       "artifact_id": "ART-09-01",
       "path": "evidence/runs/RUN-20261002-05/ART-09-01-round1-RUN05.json",
-      "sha256": "3A73DCC2F083EB388C02299CA8EB6E4CB10CB743C8EC39004FB3284E9EDC1FC1",
+      "sha256": "6DDBCD6A521C0080ED709404BDBA87B144ED3362C6F6BD30458D3B7D7D9320CD",
       "producer_stage": "S11a",
       "consumer_stage": "S15"
     },
     {
       "artifact_id": "ART-09-01",
       "path": "evidence/runs/RUN-20261002-05/ART-09-01-round2-RUN05.json",
-      "sha256": "3829692662D1754638775C5C5BBAD2D68291512D7C213F6EE8E928F00E65487F",
+      "sha256": "C1C57FC66F8867AA8489614CE92554511E8BA3A069FAE0FF2B2127D1B069FB5B",
       "producer_stage": "S11b",
       "consumer_stage": "S15"
     },
