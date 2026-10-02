@@ -1,4 +1,4 @@
-# eql — Rule files R01-R20
+# queries — Rule sources R01-R20
 
 One `.eql` file per rule; regenerated into import NDJSON by
 `../scripts/rules/gen_rules_ndjson.ps1` (which must list every rule id in its `$q`
@@ -35,4 +35,5 @@ Import artifacts: `c0015-rules-r01-r11.ndjson` (R01-R11) and
 
 
 Rule renames on 2026-10-02 (schema-stable rule_id note): R12 -> 'PowerShell-Driven Discovery via Nested CMD', R16 -> 'Admin Share Access (SMB)', R20 -> 'Portable Remote-Access or Process Tool Dropped and Executed'. Renames change the deterministic rule_id - the server-side old rules were deleted and the renamed ones imported (migration map kept in git history).
+
 
