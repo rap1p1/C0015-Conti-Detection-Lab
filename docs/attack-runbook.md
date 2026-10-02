@@ -187,16 +187,14 @@ Ledger: S8 evidence (transfer) — separate from execution; do NOT infer transfe
 ```
 ### S8b — WMI remote process creation (T1047, explicit credential; on WS01)
 ```
-Machine: WS01 interactive (operator)
-Input:   ART-04-02 + explicit it.admin credential (runas prompt) + 143.dll surrogate staged on FS01
-NOTE: rundll32.exe (GUI subsystem) cannot load any DLL via WMI process call create in session-0 —
-      ReturnValue=9 "Path not found" (no window station; proven with user32.dll,MessageBeep). WMI pivot kept;
-      the SAME c0015_143_surrogate.dll is loaded by WMI in the space form (rundll32.exe C:\C0015\c0015_143_surrogate.dll LabEntry) -
-      PowerShell P/Invoke LoadLibrary/GetProcAddress -> LabEntry):
-Command: runas /user:C0015\it.admin "cmd /k wmic /node:FS01 process call create \"cmd.exe /c powershell -NoProfile -ExecutionPolicy Bypass -File C:\C0015\s8b_loader.ps1\""
-         (run RUN-20260930-01 result: ReturnValue=0, ProcessId=964)
+Machine: WS01 elevated session-1 beacon (operator tasking)
+Input:   ART-04-02 + explicit it.admin credential + 143.dll surrogate staged on FS01
+NOTE: wmic process call create splits arguments on commas (ReturnValue=9 for the comma form);
+      the SPACE FORM is required for the export call:
+Command: wmic /node:FS01 process call create "C:\Windows\System32\rundll32.exe C:\C0015\c0015_143_surrogate.dll LabEntry"
+         (verified RUN-20261002-01/-05: ReturnValue=0; E1 parent=WmiPrvSE; E7 hash == ART-06-01)
 Expected evidence:
-  WS01: S4648 (explicit credential) ; FS01: S4624 Type3 + S4672 + E1 wmiprvse->cmd->powershell (loader) + E7 ImageLoad (hash) + E11
+  WS01: S4648 (explicit credential) ; FS01: S4624 Type3 + S4672 + E1 wmiprvse->rundll32 + E7 ImageLoad (hash) + E11
 Gate (4): process on FS01 / which identity (S4648 + S4624/4672; LogonId joins are valid ONLY within the same host - LogonId is not globally unique) / which process (+DLL hash) / callback S9
 Ledger: S8 = VERIFIED only when the 4-gate evidence set is present in the same run_id
 ```
