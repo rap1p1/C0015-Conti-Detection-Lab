@@ -182,3 +182,23 @@ Telemetry kỳ vọng S1–S3 (không đổi): E1 `WINWORD→mshta→regsvr32` +
 - diag3 native I/O cũng 0 output ở instance không chạy ⇒ vấn đề ở tầng "macro có chạy không", không phải write-code.
 
 **Kết luận**: mode tin cậy hiện tại = seed fallback (đã chứng minh nhiều lần). Để "entry 100% từ macro": cần quan sát console UI của Word trong session duc.user (bắt dialog ẩn/first-run) hoặc dùng manual open; WriteFiles code đã được viết lại hướng native-I/O (chống COM-fail) sẵn sàng re-validate.
+
+## 10. Goal #3 — docm TỰ SINH HẾT PAYLOAD TỪ ĐẦU: SOLVED (2026-10-02, verified)
+
+RUN chứng minh 05:05Z: mở c0015_goal3.docm (manual victim-open, auto-macro) →
+macro (AutoOpen, standard module) tự viết config.ini(1734)/bootstrap.hta(4358)/c0015_beacon.ps1(6093)
+(E11 proc=WINWORD) → mshta chạy HTA → download c0015-comparefor.jpg(90407) → regsvr32 → dll-executed →
+beacon register phase3 (token a7d4f6e1, ok=True). c0015wf.log ghi từng bước WriteFiles err=0.
+
+4 root cause đã sửa (commit 422ed91):
+1. installer dùng `$doc.VBProject` thay `$word.VBE.ActiveVBProject` (trước: project rơi vào Normal.dotm →
+   docm lưu KHÔNG macro);
+2. inject vào STANDARD MODULE 'c0015Payload' (ThisDocument derive Document → collision member → "member
+   already exists");
+3. module emission viết lại sạch từ generator (hết junk sau End Sub; sửa `sh.Run` quote-soup → `sh.Run
+   mshtaPath & " " & htaPath, 0, False`);
+4. trigger = `Public Sub AutoOpen()` duy nhất (standard module).
+
+Điều kiện lab cần nhớ: victim-open MANUAL (Word session interactive), Word sạch (xoá Resiliency/DocumentRecovery
+sau crash trước khi mở), auto-macro bật. Ghi chú: đôi khi mshta hiện "script error: write to file failed
+(code 0)" thoáng qua ở bước ghi marker nhưng file vẫn ghi thành công (E11 xác nhận) - script tiếp tục chạy.
