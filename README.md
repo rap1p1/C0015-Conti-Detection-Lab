@@ -21,7 +21,7 @@ handoffs, and a detection suite validated against a recorded reference run.
 4. Verification: acceptance checks in `scripts/verify/verify_final_phases.py <RUN_ID>` (Elastic, env credentials); offline component tests via `python -m unittest discover -s scripts/tests` (20 tests);
    Elastic-gated checks are documented in `scripts/verify/`.
 
-## Lab topology
+## Project architecture and workflow
 
 ```mermaid
 flowchart TD
@@ -156,11 +156,6 @@ style evidence fill:#fff1f2,stroke:#fda4af,color:#881337
   impact surrogate with **bidirectional verify + rollback** (ART-14-01) - exercised by RUN-20261002-06; the earlier run (RUN-20261002-05) used the one-directional verify then in force.
 - **Detection**: 24 rules (R01-R24, R21 retired); alerting rules R17/R18/R23 correlated with their building blocks
   per the correlation map; alert counts recorded as raw stored values (upper bounds).
-
-Limitations are documented per stage in the [report](reports/reference-run-20261002-05.md) and in the
-ledger — notably: Type-10 RDP logons ARE recorded (run-06: event 07:56:06Z with R19 true positive; run-05: two T10 at 06:00:27Z with no R19 coverage in-window), session lifetime was not captured (S12 partial), S11 has a transfer-tool rule (R24); evidence cross-checked via
-events + receipts), R16 as an access indicator rather than a write detector, and upload-chunking (T1030
-variants) left as design-only.
 
 ## Campaign chain — original tools and lab surrogates
 
