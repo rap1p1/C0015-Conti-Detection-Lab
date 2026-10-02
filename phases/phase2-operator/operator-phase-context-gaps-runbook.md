@@ -9,7 +9,7 @@ Elastic = Sysmon only (Security chưa ingest).
 
 Camp gốc: operator từ runbook → discovery → thử/hiệu chỉnh credential → **WMI(process call create) với explicit
 credential → rundll32 → 143.dll** → session-2 (FS01) → thu thập. Lab tái hiện cùng thứ tự; telemetry chi tiết ở
-`docs/telemetry-comparison-c0015-vs-lab.md`.
+`../../docs/telemetry-comparison-c0015-vs-lab.md`.
 
 ## 2. Evidence máy + khung giờ đã chạy (2026-10-01, Z)
 

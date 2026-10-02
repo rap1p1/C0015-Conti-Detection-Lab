@@ -1,7 +1,7 @@
 # Rerun v2 — operator 100% remote, delivery chỉ từ file macro, fix WMI→rundll32 (thiết kế)
 
 Trạng thái: **DESIGN** (chờ user duyệt access: vmrun creds, Elastic creds, it.admin, station, docm automation).
-Run trước tham chiếu: `RUN-20260930-01` (ledger + telemetry: `docs/telemetry-comparison-c0015-vs-lab.md`,
+Run trước tham chiếu: `RUN-20260930-01` (ledger + telemetry: `../../docs/telemetry-comparison-c0015-vs-lab.md`,
 `../phase2-operator/operator-phase-context-gaps-runbook.md`).
 
 ## 0. Mục tiêu rerun
@@ -93,7 +93,7 @@ G7a; hoặc WMI từ C2 → FS01 trực tiếp (bỏ hop WS01→FS01, ghi PARTIA
 | G8 | Watchdog c2sim: respawn + healthcheck port + ghi stderr | `scripts/c2sim_guard.py` (mới), `payloads/packaging/launch_servers.ps1` (chạy guard thay c2sim trực tiếp; `-Stop` giết guard + con) |
 | G2 | Diag matrix (6 variant) trước khi chốt; nếu variant dùng `Invoke-CimMethod`/wmic-sạch trả 0 → **retract "window-station constraint"** trong mọi doc, S8b chuyển sang rundll32 thật | `stage/analysis/wmi_rundll32_diag.ps1` (mới) |
 | G4 | verify thêm: E3 `:8000` (S1 DLL + S7b/S8a tool fetches) + kiểm tra index `logs-windows.security-*` | `stage/analysis/verify_run_evidence.py` |
-| G1 | Fleet policy `C0015-Windows-Endpoints` thêm input `windows.security` (channel Security) — qua Kibana/Fleet API (tunnel SSH tới ELASTIC01) | tài liệu hóa `docs/elastic-security-ingest.md` (viết sau khi có creds) |
+| G1 | Fleet policy `C0015-Windows-Endpoints` thêm input `windows.security` (channel Security) — qua Kibana/Fleet API (tunnel SSH tới ELASTIC01) | tài liệu hóa `../../docs/architecture.md` (viết sau khi có creds) |
 | G3 | Giữ rule E10 (0x1010/0x1fffff, nguồn non-system); ghi nguồn mới (wmiprvse chain) | docs update |
 | G6/G5 | Rule dùng `process.entity_id` + parent, dedup theo entity | docs update |
 
@@ -202,4 +202,5 @@ beacon register phase3 (token a7d4f6e1, ok=True). c0015wf.log ghi từng bước
 Điều kiện lab cần nhớ: victim-open MANUAL (Word session interactive), Word sạch (xoá Resiliency/DocumentRecovery
 sau crash trước khi mở), auto-macro bật. Ghi chú: đôi khi mshta hiện "script error: write to file failed
 (code 0)" thoáng qua ở bước ghi marker nhưng file vẫn ghi thành công (E11 xác nhận) - script tiếp tục chạy.
+
 

@@ -1,7 +1,7 @@
 # Final Campaign Plan — S10–S15 (Phase 3) with S1–S9 correlation anchors
 
 Status: **PLAN** (approved design; execution on operator approval). Supersedes the
-phase-3 notes in ``docs/attack-chain-plan.md` by
+phase-3 notes in ``../../docs/attack-chain-plan.md` by
 concretizing the final stages against the validated lab state (RUN-20261002-04).
 
 ---
@@ -17,7 +17,7 @@ concretizing the final stages against the validated lab state (RUN-20261002-04).
 
 ## 1. Research basis (C0015 — DFIR Report, 2021-11-29 "CONTInuing the Bazar Ransomware Story")
 
-Historical chain points that the final phases mirror (per `docs/attack-chain-plan.md`,
+Historical chain points that the final phases mirror (per `../../docs/attack-chain-plan.md`,
 section 5, all marked `[OBSERVED-C0015]`):
 
 | Phase | Historical behavior `[OBSERVED-C0015]` |
@@ -166,7 +166,7 @@ extend the existing S1–S9 mapping with S10–S15 rows.
 5. Verify: `stage/analysis/verify_run_evidence.py` extended with phase-3 sections
    (sink receipts, 4624 T10, 4778, impact manifests, scorecard) — window = full run.
 6. Alerts: per-rule counts on the full window (expected new: R19/R20/R21 + existing
-   R01–R18) — update `docs/detection-run-<run>.md` + README mapping.
+   R01–R18) — update `detection-run-<run>.md` + README mapping.
 7. Ledger `RUN-<final>.json` + receipts committed; cleanup (beacons, servers, Defender
    re-enable decision recorded).
 
@@ -201,5 +201,6 @@ mapping in a follow-up.
 
 Decisions (operator-approved): rclone→local sink (rev 1), RustDesk+local relay (AnyDesk-like),
 ProcessHacker E10-no-dump. No external credentials are required for the final campaign.
+
 
 
