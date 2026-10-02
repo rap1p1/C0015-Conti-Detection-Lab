@@ -27,5 +27,4 @@ powershell -File c0015_impact.ps1 -Manifest impact-manifest.json -Action Verify
 powershell -File c0015_impact.ps1 -Manifest impact-manifest.json -Action Rollback
 ```
 
-Telemetry: high-rate E11 (renames/note), E2 changes; Impact writes are monitored through the corpus E11 sweep.
-
+Telemetry: E11 records observed creates/overwrites and note writes; it does not guarantee a record for every rename. E2 is creation-time change, not rename, and is not a required impact signal. R22/R23 cover note creation/spread. Recovery evidence is content/hash equality; it is not an independent ACL-restoration assessment. RUN-05 used an earlier one-directional comparison; 06–09 record bidirectional verification.

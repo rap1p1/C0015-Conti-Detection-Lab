@@ -1,12 +1,16 @@
-# payloads/lsass — LSASS-access study surrogate
+# LSASS-access study surrogate
 
-Safe stand-in for the credential-access step (S7b, T1003.001-adjacent). The lab uses a
-mimikatz-style executable (a renamed, benign clone) to produce the **detection signal**
-(Sysmon E10 → lsass with a credential-access grant 0x1010) without exposing secrets:
-output contains benign NTLM-shaped placeholders only, nothing is persisted, and the
-surrogate is signed-off for the lab.
+[c0015_mimikatz_surrogate.c](c0015_mimikatz_surrogate.c) produces a credential-access
+**surface** for S7b. It can be packaged as a mimikatz-named executable, but it is not
+real Mimikatz and does not extract credentials. The retained runs use this surrogate.
 
-- Detection: R15 (E10 grant classes, ambient excluded).
-- This folder also documents the **ProcessHacker-without-dump** choice for the final
-  campaign (S13): ProcessHacker is dropped at `C:\` and started for E1/E11 telemetry,
-  but no dump/credential read is performed.
+It opens a handle to LSASS with query/VM_READ rights (**0x1010**), then closes it
+without reading LSASS memory. It emits benign NTLM-shaped placeholders and writes
+a **decoy `lsass.dmp` file**. Therefore “nothing is persisted” is incorrect; the
+persisted data is a lab artifact, not extracted memory or a usable credential.
+Sysmon E10 records access rights, not their use. R15 detects that access surface.
+
+ProcessHacker's S13 deployment is a separate process-tool observation; it is not
+the surrogate source and is not covered by R20's remote-access executable predicate.
+Historical ProcessHacker LSASS use remains inferred. Lab pre-provisioned operator
+identity must not be presented as a credential recovered by this component.

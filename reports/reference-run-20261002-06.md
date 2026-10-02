@@ -1,6 +1,6 @@
 # Reference Run Report — RUN-20261002-06 (final campaign, C0015, re-run)
 
-Window: 2026-10-02 07:49:00Z – 08:12:00Z. Ledger: `evidence/runs/RUN-20261002-06/`.
+Window: 2026-10-02 07:49:00Z – 08:12:00Z. Ledger: [evidence/runs/RUN-20261002-06/](../evidence/runs/RUN-20261002-06/).
 
 ## Summary
 
@@ -40,12 +40,9 @@ At run time the suite had 21 rules (R01-R20); R21 had been retired before this r
 
 ## Stage status and limitations
 
-- All stages PASS (S6 is **NOT RUN** - orchestration stage, skipped) except **S12 (RDP) PARTIAL**: an interactive it.admin logon
-  (4624 T10) was observed at 07:56:38Z giving R19 its positive match, but session
-  lifetime/state after client close was not captured, so the stage is not claimed
-  as fully characterized.
+- S6 is **NOT RUN**; S12 remains **PARTIAL**. The source 4624 Type-10 logon is **07:56:06.447Z**; **07:56:38Z** is R19 alert creation time. The appended 4634 Type-10 logoff is **07:56:38.302Z**, joined on FS01 TargetLogonId **0x35a46e2**. Separate reconnect/disconnect is not verified.
 - S11 evidence = rclone E1/E3 + receipts with observed sink_files (no rclone-specific
-  detection rule).
+  detection rule available at that run; current R24 was added later).
 - Alert volumes are raw stored counts; dedup is enforced by rule-execution suppression.
 
 ## Verification
@@ -56,8 +53,8 @@ hash equality, manifest_hash equality).
 
 ## References
 
-- Ledger + artifacts: `evidence/runs/RUN-20261002-06/`
-- Rule index: `detections/README.md`
+- Ledger + artifacts: [evidence/runs/RUN-20261002-06/](../evidence/runs/RUN-20261002-06/)
+- Rule index: [detections/README.md](../detections/README.md)
 
 
 ## Alert volume breakdown (RUN-20261002-06 window, stored alert docs)
@@ -65,7 +62,7 @@ hash equality, manifest_hash equality).
 | Rule | Alert docs | Suppressed matches (docs_count) | Unique groups | Unique entities | Note |
 |---|---|---|---|---|---|
 | R16 Admin Share Access | 273 | 0 (supp not yet configured in-window) | — | — | suppression host+SubjectLogonId+ShareName 5m added 2026-10-02 after this window |
-| R06 Script Host Egress | 258 | 0 | — | 13 | entity suppression in place; the 13 entities are the real activity count |
+| R06 Script Host Egress | 258 | 0 | — | 13 | entity suppression in place; 13 distinct entities; not a count of individual connections or incidents |
 | R14b Elevated Privileges | 158 | 0 (supp not yet configured in-window) | — | — | suppression host+SubjectLogonId 5m added after this window |
 | R17 WMI pivot (alerting) | 3 | 0 | 1 | 1 | three docs = one activity (sweep duplication) |
 | R18 Proxy egress (alerting) | 9 | 0 | 3 | 3 | three distinct activities |
@@ -73,6 +70,19 @@ hash equality, manifest_hash equality).
 Interpretation: stored alert docs are NOT analyst investigations. After the suppression
 tuning, R16/R14b are expected to collapse to per-logon/per-session groups and R17/R18 to
 their unique sequence counts. kibana.alert.suppression.docs_count was 0 for this window
-because the suppression fields were configured after it; re-measure on the next run.
+does not by itself establish the cause. R16/R14b suppression was added later, while R06 already had suppression configured. Re-measure each rule under its actual configuration.
 
 
+## RDP lifecycle provenance update
+
+The current committed ledger records a same-FS01 **Type-10** logon-to-logoff join:
+
+| Record | UTC event time | Elasticsearch ID |
+|---|---|---|
+| 4624 logon | 2026-10-02T07:56:06.447Z | `AaD7naiPmO7CP6Mq9rLB` |
+| 4634 logoff | 2026-10-02T07:56:38.302Z | `AaD7naiPmO7CP6Oh-IwA` |
+
+Join: **4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)**, with the same recorded account/logon type and logoff after logon.
+This updates earlier “session lifetime not captured” wording; it does not establish
+4778 reconnect or 4779 disconnect. S12 remains PARTIAL in the retained ledger.
+The report uses the timestamp precision committed in the ledger.

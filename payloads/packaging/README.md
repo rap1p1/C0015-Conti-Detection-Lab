@@ -5,7 +5,7 @@ Harness tooling that produces the runnable artifacts and drives the campaign.
 | Script | Purpose |
 |---|---|
 | `run_campaign_orchestrator.ps1` | `-Action Pre\|P1\|P2\|P3\|Artifacts\|Stop` — per-run config, server side, staged files, receipts guide, cleanup |
-| `make_config.ps1` | generates per-run `config.ini` + `config-phase7.ini` (no secrets; token generated at runtime) |
+| `make_config.ps1` | generates the base per-run INI at `OutPath`; phase7 configuration is a separate template/harness input |
 | `gen_macro_embedded.ps1` | builds `stage/ws01/macro_embedded.vba` (self-contained standard-module macro with base64 blobs) |
 | `install_macro_docm.ps1` | injects the VBA into a `.docm` — `$doc.VBProject` + standard module `c0015Payload`, `AutoOpen` trigger, entry-macro guard |
 | `launch_servers.ps1` | starts/stops C2-SIM (guard-aware) + HTTP staging server (`-Stop` stops both) |
@@ -22,6 +22,4 @@ Harness tooling that produces the runnable artifacts and drives the campaign.
   as base64 chunks, joined at runtime (Const-concatenation is fragile), decoded and
   written with native VBA I/O (`Open For Binary` + `Put`), step-logged to
   `C:\Windows\Temp\c0015wf.log`.
-- **Orchestrator Pre** regenerates configs with the run id, seeds nothing on the victim
-  disk (the macro writes everything), and starts the servers (watchdog-aware; the
-  `launch_servers.ps1 -Stop` path stops watchdog + C2-SIM + HTTP together).
+- **Orchestrator Pre** prepares per-run host-side staging and server inputs. The entry macro writes its embedded config/HTA/beacon at runtime; tools and harness/preparation files have separate delivery paths. This does not establish a pristine victim disk without a pre-run inspection. The `launch_servers.ps1 -Stop` path coordinates watchdog, C2-SIM and HTTP shutdown; the WebDAV sink has a separate lifecycle.

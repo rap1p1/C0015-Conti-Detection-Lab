@@ -1,24 +1,29 @@
-# evidence/runs — Run records
+# Run records
 
-Each run is a directory containing its ledger and artifacts.
+Each directory contains `RUN-<id>.json` and that run's artifacts.
+The shared [RUN-schema.json](RUN-schema.json) defines ledger structure.
 
-| Path | Contents |
+| Run directory | Purpose |
 |---|---|
-| `RUN-schema.json` | ledger schema (stages / input+output artifacts / artifact_index with sha256) |
-| `RUN-20261002-06/` | reference run (current): final campaign re-run - canonical hashes, bidirectional Verify, R19 positive |\n| `RUN-20261002-05/` | first full campaign run S1-S15 |
+| [RUN-20261002-09](RUN-20261002-09/) | Latest replay; fixed-target S6 decision and RDP logon-to-logoff evidence |
+| [RUN-20261002-08](RUN-20261002-08/) | Replay with rebuilt event provenance and C$ collection evidence |
+| [RUN-20261002-07](RUN-20261002-07/) | Rule-tuning reference; live R22/R23/R24 coverage and measured alert volume |
+| [RUN-20261002-06](RUN-20261002-06/) | Bidirectional impact verification; R19 positive; earlier rule suite |
+| [RUN-20261002-05](RUN-20261002-05/) | First retained campaign run; one-directional impact comparison; T10 predates R19 coverage |
 
-## RUN-20261002-06 files (current)\n\nMirrors the 05 layout (ledger + ART-07-01/08-01/09-01 x2 with sink_files/14-01/15-01).\n\n## RUN-20261002-05 files (first full run)
+## Common records
 
-| File | Contents |
+| File family | Contents |
 |---|---|
-| `RUN-20261002-05.json` | ledger: 17 stage rows with event references (host/channel/es_id/ts), input/output artifacts, artifact_index with hashes |
-| `ART-07-01-18c677ef.json` | S8b/S9 receipt (second session from the WMI pivot) |
-| `ART-08-01-RUN05.json` | S10 collection manifest (11 files, per-file hashes) |
-| `ART-09-01-round1-RUN05.json` / `round2` | S11a/S11b transfer receipts (11/11 hash match per round against the internal sink) |
-| `ART-14-01-RUN05.json` (summary) + `ART-14-01-RUN05.txt` (console output) | S14 impact metrics (Prepare/Run/Verify/Rollback/Verify) |
-| `ART-15-01-RUN05.json` | S15 coverage record (stage evidence + alert counts) |
+| `RUN-*.json` | Stage status, event/alert references, input/output artifacts, and artifact index |
+| `ART-07-01-<token8>.json` | FS01 session-registration receipt |
+| `ART-08-01-RUN<nn>.json` | Collection manifest |
+| `ART-09-01-round{1,2}-RUN<nn>.json` | Observed sink files and manifest reference for each transfer round |
+| `ART-14-01-RUN<nn>.txt` and `.json` | Impact console output and summary |
+| `ART-15-01-RUN<nn>.json` | Post-run coverage and verification record |
+| `ART-06-02-RUN09.json` | Fixed-target S6 decision, present in RUN-09 |
 
-Registration of a new run: create `runs/<run_id>/` with a ledger per `RUN-schema.json`,
-index the artifacts it produced, and keep the schema unchanged.
-
-
+Filenames and reference completeness vary by run; inspect the ledger's artifact index.
+Keep campaign stages **S1–S14** separate from post-run **S15**. Preserve NOT RUN and
+PARTIAL statuses rather than converting them to PASS because overall acceptance succeeded.
+See the [evidence contract](../README.md) for hash and provenance conventions.

@@ -1,16 +1,21 @@
-# docs — Canonical technical records
+# Technical documentation
 
-Flat set of design/analysis documents that span the phases; phase-specific plans
-and run records live in `../phases/<phase>/`.
+Read the latest [reference report](../reports/reference-run-20261002-09.md) alongside its
+[ledger](../evidence/runs/RUN-20261002-09/RUN-20261002-09.json). Run records describe what
+was observed; design notes describe intent. A later replay does not retroactively validate an older experiment.
 
-| Document | Contents |
+| Document | Purpose |
 |---|---|
-| [attack-chain-plan.md](attack-chain-plan.md) | The canonical S1-S15 chain: historical behavior per stage (`[OBSERVED-C0015]`), lab fidelity, telemetry/evidence rules, safety boundaries. |
-| [attack-runbook.md](attack-runbook.md) | Operator runbook: exact commands and expected evidence per stage (pre-run state + full walkthrough). |
-| [architecture.md](architecture.md) | Lab topology (VMs, VMnet2, host/guest channels), Elastic/Fleet ingestion, C2-SIM + HTTP servers. |
-| [correlation-architecture.md](correlation-architecture.md) | Detection correlation design: event joins (entity/logon-id/window), index layout, sweep mechanics. |
-| [telemetry-comparison-c0015-vs-lab.md](telemetry-comparison-c0015-vs-lab.md) | Event-level parity table: what the real intrusion produced vs what the lab emits (Sysmon/Security). |
-| [payloads-and-c2.md](payloads-and-c2.md) | Payload design notes and C2-SIM behavior (tasking, sessions, receipts). |
+| [Architecture](architecture.md) | Hosts, networks, directory services, telemetry collection, and backend paths |
+| [Campaign mapping](attack-chain-plan.md) | Historical sources, current S1–S14 stage map, and fidelity distinctions |
+| [Runbook](attack-runbook.md) | Machine-specific procedure and expected evidence; command templates require runtime values |
+| [Correlation architecture](correlation-architecture.md) | Entity and logon joins, evidence tiers, and analyst correlation guidance |
+| [Telemetry comparison](telemetry-comparison-c0015-vs-lab.md) | Campaign behavior versus evidence in the retained runs |
+| [Payloads and C2](payloads-and-c2.md) | Implemented components, simulator endpoints, and control model |
 
-Traceability: every stage in `attack-chain-plan.md` maps to a rule in
-`../detections/README.md` and to the per-phase folder in `../phases/`.
+The campaign ends at **S14**. **S15** in historical ledgers is post-run validation.
+The [rule catalogue](../detections/README.md) maps detectable behaviors to rules;
+not every stage has a dedicated rule. S6 is an orchestration decision.
+
+The phase folders retain investigation history. Their design documents are explicitly
+marked as historical where the implementation has superseded the proposed procedure.

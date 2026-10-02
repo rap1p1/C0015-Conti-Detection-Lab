@@ -1,22 +1,21 @@
-# payloads/hta — bootstrap HTA
+# HTA bootstrap
 
-`bootstrap.hta` — the lab's `compareForFor.hta` equivalent (T1218.005 + T1059.007).
+[bootstrap.hta](bootstrap.hta) models scripting, base64 decoding, DLL-as-JPG download,
+and regsvr32 proxy execution. It uses two independent language blocks:
 
-## Flow
+| Block | Implemented behavior |
+|---|---|
+| VBScript | `IniGet` reads the public-path config; `B64Decode` uses MSXML bin.base64; ADODB.Stream writes decoded bytes; MSXML2.XMLHTTP downloads the artifact; WScript.Shell starts regsvr32 |
+| JScript | Writes `js-marker.txt` using FileSystemObject when the public staging folder exists |
 
-1. `Get-Ini` reads `%PUBLIC%\C0015\config.ini` (no hardcoded URLs): `http_host/http_port/
-   dll_name/dll_local_dir/b64_marker_name/b64_value/regsvr32_path`.
-2. Downloads the DLL (masquerading as `.jpg`) via `MSXML2.XMLHTTP` (T1105) into the
-   configured local dir.
-3. Base64-decodes a benign marker value with MSXML `bin.base64` (no `atob()` — the report's
-   HTA used the same mechanism) and writes it.
-4. Executes `regsvr32.exe /s <jpg>` (T1218.010); the DLL surrogate registers and spawns
-   the beacon.
+There is no `atob()` dependency. JScript is not the downloader or base64 decoder in
+the committed HTA. The MSXML decoding mechanism is a laboratory choice; do not claim
+it was proven identical to the historical payload's implementation.
 
-## Key code
+The base config path is a lab-specific convention; most download/path values are
+read from `[bootstrap]`. Missing/incomplete configuration prevents the VBScript
+download/proxy path, but the independent JScript marker can still be written when
+its directory exists. It is not correct to promise no files from the entire HTA.
 
-- `B64Decode` — XMLDOM `persist`/`bin.base64` decode forcing a `data` type node; the
-  classic JScript HTA pattern.
-- All paths/values come from the config; missing config → `exit` (control path, no chain).
-
-Telemetry: E1 (mshta, parent=WINWORD), E3 (download `:8000`), E11 (jpg/markers).
+Expected telemetry: mshta E1, download E3, artifact/marker E11, regsvr32 E1 and loader
+E7. `dll-executed.txt` is produced by the DLL, not by the HTA.

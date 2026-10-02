@@ -1,37 +1,60 @@
-# Detection Run RUN-20261002-05 (Final E2E Campaign)
+# Detection measurement — RUN-20261002-05
 
-Window: 2026-10-02 05:41:00Z -> 06:12:00Z (entry chain at 05:41:41Z, impact at 06:04Z).
+Window: **2026-10-02 05:41:00Z–06:12:00Z**. This is a historical measurement of
+the suite at that run, not the current 24-rule deployment.
 
-> R21 was retired after this run; the alert counts below record the run as executed.
+## Campaign and evidence
 
-## Campaign result
-- S1-S15 completed under one run_id: macro self-write entry (3rd consecutive reproducible
-  entry), remote operator on WS01, WMI pivot to FS01, collection (11 files), real-rclone
-  transfer in two rounds to the local WebDAV sink (11/11 hash match per round), RDP
-  network-auth on FS01, AnyDesk + ProcessHacker drops (Videos\ and C:\), bounded impact
-  (15 files, verified + rolled back to hash-equal state).
-- Receipts/artifacts: ART-07-01-18c677ef, ART-08-01, ART-09-01 (rounds 1+2),
-  ART-14-01, ART-15-01 - indexed in the run ledger.
+The replay includes entry, WS01 operator actions, SMB/WMI pivot, second-session
+registration, 11-file collection, two rclone rounds, RDP, portable-tool deployment
+and bounded impact/recovery. **S6 was NOT RUN**. S15 is post-run evaluation rather
+than another attacker stage. RUN-05's impact comparison was one-directional;
+later runs provide bidirectional Verify evidence.
 
-## Alert coverage (raw counts in/after the window; sweep incl. duplicates)
-R16=340 (S5145 admin-share writes; add suppression group_by ShareName+RelativeTargetName
-in a follow-up), R14b=288 (BB), R10=78, R14a=72, R12=33, R11=9, R18=9, R13=8, R17=3,
-R15=2, R20=3 (portable-tool drop/run), R21=3 (impact
-README notes), R19=0 (no interactive T10 logon; RDP logged as T3/T4 network-auth).
+Artifacts include ART-07-01-18c677ef, ART-08-01, ART-09-01 rounds 1/2, ART-14-01,
+and ART-15-01. See the [ledger](../../evidence/runs/RUN-20261002-05/RUN-20261002-05.json)
+and [corrected report](../../reports/reference-run-20261002-05.md).
 
-## Operational notes
-1. R16 emits ~340 alerts from ~377 S5145 C$ events; suppression (host, ShareName, RelativeTargetName) should be added when the volume is not acceptable.
-   alert_suppression group_by (host.name, winlog.event_data.ShareName,
-   winlog.event_data.RelativeTargetName) 5m.
-2. R19 reports only after a fully interactive (T10) logon; the reference run closed the
-   session at Conn, so only T3/T4 network-auth was observed.
-3. R20 matched during the run. Note for rule maintenance: the generator loads
-   every rule file through its loader list; a rule missing from that list imports with an empty query and fails at execution ('query is null or empty') - see
-   gen_rules_ndjson.ps1).
-4. The FS01 second-session beacon was respawned once via WMI (direct
-   powershell beacon) during the run; recorded in the ledger.
-5. R12-R18 rule metadata notes predate the repository language policy and are -
-   
+## Historical stored alert counts
 
+| Rule | Documents |
+|---|---|
+| R16 | 340 |
+| R14b | 288 |
+| R10 | 78 |
+| R14a | 72 |
+| R12 | 33 |
+| R11 | 9 |
+| R18 | 9 |
+| R13 | 8 |
+| R17 | 3 |
+| R15 | 2 |
+| R20 | 3 |
+| R21 (later retired) | 3 |
+| R19 | 0 |
 
+Counts came from the historical alert sweep and include overlapping-window matches;
+they are not unique activities, incidents or false positives. R16 represents
+admin-share **access checks**, not confirmed writes. Its later suppression groups
+on host + SubjectLogonId + ShareName; an earlier proposed RelativeTargetName grouping
+was not the final exported configuration.
 
+## Corrected interpretations
+
+- RUN-05 has **two Type-10 logons at 06:00:27.723Z**. R19 had no in-window rule
+  coverage; the earlier “no interactive logon” explanation was wrong.
+- The first logon, FS01 TargetLogonId **0x2d1c6d0**, has a joined Type-10 **4634 at
+  06:01:07.328Z**. The second T10's lifecycle is not established by that join.
+- Type 4 is batch, not RDP-specific network authentication. Disconnect/reconnect
+  events remain separate from logoff.
+- R20's current query covers AnyDesk/RustDesk/TeamViewer. ProcessHacker deployment
+  is separate evidence, and R20's host-only sequence does not identify the dropped
+  file as the exact executed binary.
+- R21 was retired; R22/R23/R24 were introduced before RUN-07. Do not rewrite this
+  run's counts as though those later rules were present.
+- The second-session beacon relaunch recorded in the ledger must be kept as a
+  distinct process segment. Matching run_id alone does not establish continuous ancestry.
+
+Current metadata, suppression and analyst guidance are in the
+[rule catalogue](../../detections/README.md). The generator's source loading and
+export validation are distinct from EQL execution and detection-performance tests.

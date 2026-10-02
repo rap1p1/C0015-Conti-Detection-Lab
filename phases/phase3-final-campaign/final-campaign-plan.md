@@ -1,5 +1,36 @@
 # Final Campaign Plan — S10–S15 (Phase 3) with S1–S9 correlation anchors
 
+
+> **Historical design/investigation record.** The proposals, readiness statements,
+> commands and numbered gaps below describe an earlier iteration; they are not the
+> current procedure or a fresh assertion of deployed state. Use the
+> [current runbook](../../docs/attack-runbook.md), [campaign mapping](../../docs/attack-chain-plan.md),
+> and [RUN-09 report](../../reports/reference-run-20261002-09.md) for the implementation.
+
+## Current implementation reconciliation
+
+- Campaign execution is S1–S14; historical S15 is post-run validation.
+- Security is ingested under system.security. E7/E10 are configured in committed
+  profiles; E7 SHA-256 is at file.hash.sha256. Old missing-field/readiness claims
+  below are historical, not current sensor conclusions.
+- C2-SIM on the Windows host supplies initial and operator tasking. Queued batches
+  are OP-CMD; the current beacon loop_count is advisory. CALDERA/Sliver/Havoc were
+  options, not deployed channels in the retained runs.
+- The retained LSASS component is the compiled surrogate: 0x1010 access rights,
+  placeholder output and a decoy dump. Old real-Mimikatz/cracking proposals below
+  are superseded and do not establish the credential source for these runs.
+- S6 executes a fixed FS01 decision in RUN-09 (NOT RUN in 05–08). WS01 performs
+  collection/rclone via FS01 C$; internal WebDAV :9001 supersedes p5_sink/chunked-POST
+  and self-hosted remote-relay proposals. Do not assume FS01 beacon ancestry for all actions.
+- R19 has T10 evidence; 4624→4634 Type-10 joins exist for all five runs. Separate
+  4778 reconnect/4779 disconnect remains unverified. R20's actual executable class
+  excludes ProcessHacker; current impact/transfer coverage is R22/R23/R24, not retired R21.
+- A source 4648 and target 4624 cannot be joined by LogonId across hosts. A DLL load
+  is not injection, E10 is not extraction, and E3 is not transfer completion.
+
+## Preserved historical record
+
+
 Status: **PLAN** (approved design; execution on operator approval). Supersedes the
 phase-3 notes in ``../../docs/attack-chain-plan.md` by
 concretizing the final stages against the validated lab state (RUN-20261002-04).
@@ -23,7 +54,7 @@ section 5, all marked `[OBSERVED-C0015]`):
 | Phase | Historical behavior `[OBSERVED-C0015]` |
 |---|---|
 | Collection | ShareFinder re-run; data staged then exfiltrated from a **different server** than the backup server |
-| Transfer | **Rclone → MEGA in two rounds** (day 1 and day 4) with `--bwlimit 10M --transfers 7` (T1567.002/T1567.001, T1030 chunked) |
+| Transfer | **Rclone → MEGA in two rounds** (day 1 and day 4) with `--bwlimit 10M --transfers 7` (T1567.002/T1567.001, T1030 bandwidth-limit configuration (chunked upload was a separate proposal)) |
 | RDP | Day 2 — RDP to the backup server via the beacon; backup console; Task Manager GUI (T1021.001); also `svchost.exe -k UnistackSvcGroup -s CDPUserSvc` callback `checkauj[.]com` |
 | AnyDesk | Day 5 — portable remote-access tool installed under `c:\users\<REDACTED>\Videos` (T1219.002); long-lived connection; Process Hacker from the tool root (T1003.001-adjacent study) |
 | Impact | Conti batch against domain-joined systems (T1486); post-impact file listing (T1083); no DC interaction; post-impact clean-up/restore window |
@@ -45,7 +76,7 @@ must keep:
 | **ART-06-01** (143.dll sha256 `CBCD2A8B…`) | S8a artifacts on FS01 `C:\C0015\` — the collection staging targets the same host |
 | **ART-07-01** receipts | S9 completion — phase-3 starts only after the receipt exists (gate) |
 | Logon-id chain | `4624 TargetLogonId` ↔ `4672 SubjectLogonId` (S7/S8b) — RDP (S12) continues the same identity story (`it.admin` type-10 logon) |
-| Entity chain | `process.entity_id`/`parent.entity_id` — every new process in S10–S15 inherits the FS01 beacon lineage |
+| Entity chain | `process.entity_id`/`parent.entity_id` — inspect each host/process lineage; the implemented WS01 collection/transfer, host RDP and FS01 impact harness do not all descend from the FS01 beacon |
 | Rules R01–R18 | Keep ENABLED during phase 3 — they are the S1–S9 detection layer; phase-3 adds R19–R20 (section 5) |
 
 Gate: **S10 begins only when ART-07-01-<token>.json exists for this run_id** and the
@@ -201,9 +232,3 @@ mapping in a follow-up.
 
 Decisions (operator-approved): rclone→local sink (rev 1), RustDesk+local relay (AnyDesk-like),
 ProcessHacker E10-no-dump. No external credentials are required for the final campaign.
-
-
-
-
-
-

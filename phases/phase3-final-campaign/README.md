@@ -1,46 +1,32 @@
-# Phase 3 — Final Campaign (S10-S15)
+# Phase 3 — collection, remote access and impact (S10–S14)
 
-Exfiltration, remote access, and bounded impact — mirroring the closing chapters of the
-DFIR report — executed end to end in a single run (RUN-20261002-05) and verified across
-all stages on Elastic, with detection rules R19-R20 covering the phase.
+The campaign ends at bounded impact, S14. Post-run validation/S15, recovery and
+cleanup are separate. RUN-09 is the latest reference; RUN-07 records rule tuning.
 
-## Chain (original tools and lab surrogates)
+| Stage | Implemented behavior | Evidence and coverage |
+|---|---|---|
+| S10 | WS01 operator collects through FS01 C$, stages 11 files/309 B | E11/5145 and ART-08-01; R16 covers admin-share access checks |
+| S11a/b | WS01 rclone → internal WebDAV :9001, two rounds | E1/E3 + ART-09-01 per-file equality; R24 |
+| S12 | Operator-host RDP to FS01 | 4624 T10 → 4634 T10 LogonId join; R19 positive in 06–09 |
+| S13 | AnyDesk drop/execution and ProcessHacker deployment surface | E11/E1 as recorded; R20 covers remote-access software, not ProcessHacker |
+| S14 | FS01 dummy-corpus transformation and note spread | E11, R22/R23, ART-14-01 and recovery output |
 
-| Stage | Technique (MITRE) | Original tool (report) | Lab surrogate / tool | Evidence (RUN-20261002-05) |
-|---|---|---|---|---|
-| S10 Collection | T1005/T1039/T1074.001 | ShareFinder re-run; staging; exfiltration from a different server | beacon UNC collection → `\\FS01\C$\C0015\collect\` (11 files) | E11 + S5145 (381; C$:377) + ART-08-01 |
-| S11a/b Transfer | T1567.002/T1030 | **rclone → MEGA** (two rounds, `--bwlimit 10M --transfers 7`) | **real rclone** → **local WebDAV sink** on the C2 host (:**9001**) | E1 rclone + E3 :9001 + ART-09-01 receipts (11/11 hash both rounds) |
-| S12 RDP | T1021.001 | day-2 RDP to the backup server via the beacon | RDP `mstsc` + `cmdkey`, `it.admin` → FS01 | Security 4624 T3 network; T10 observed (lifetime not captured) |
-| S13 Remote tools | T1219.002 | AnyDesk in `Videos\`; ProcessHacker at `C:\` | real AnyDesk (`Videos\`, lab-internal) + ProcessHacker | E11 drop paths + E1 runs |
-| S14 Impact | T1486/T1083 | `locker.bat` → Conti (`-m -net -size 10` over `\\HOST\C$`), `readme.txt` note, post-impact listing | `c0015_impact.ps1` bounded surrogate: Prepare→Run(15 files)→Verify(15 mismatches)→Rollback→Verify(hash-equal) | E11 corpus + note; ART-14-01 |
+Receipts compare the observed sink set against the manifest by name, size and
+content SHA-256. The manifest-document hash is a separate canonical integrity key.
+An E3 connection does not establish cloud exfiltration, bandwidth rate or completion.
+Historical MEGA transfer is replaced by internal WebDAV. Check each replay's order:
+RDP was not between the transfer rounds in every run.
 
-## Engineering posture
+RDP Type 4 is batch, not interactive RDP. All retained runs now have a joined T10
+logoff; 4778 reconnect/4779 disconnect is separately unverified, so S12 remains PARTIAL.
+AnyDesk vendor-relay observations do not make it the simulator's C2 channel.
+The ProcessHacker surface does not prove LSASS extraction.
 
-- **Sink**: exfiltration terminates at the internal WebDAV sink on the C2 host — no public
-  cloud; receipt hash must equal the collection-manifest hash (allowlist).
-- **Remote access**: AnyDesk runs lab-internal; ProcessHacker starts without a dump or
-  credential read.
-- **Impact**: bounded, allowlist-capped, reversible — rollback is verified against the
-  backup copy by hash.
+RUN-05 used an earlier one-directional impact comparison; 06–09 record 30
+bidirectional mismatches before rollback and content/hash equality after recovery.
+Note-spread detection is impact-adjacent evidence, not proof of encryption.
 
-## Detection (rules R19-R20)
-
-- **R19** RDP Interactive Logon — Security 4624 `LogonType=10`, non-system account (BB).
-  The reference run produced network-auth logons (T3/T4); the rule reports once a fully
-  interactive logon is observed.
-- **R20** Portable Remote-Access Tool Dropped and Executed — E11 (Videos\ or drive root)
-  → E1 (remote-access/process-tool class) sequence; matched 3 alerts in the reference run.
-  via E11; matched 3 alerts on the impact notes.
-
-## Files
-
-- [final-campaign-plan.md](final-campaign-plan.md) — the plan with the DFIR cross-check table,
-  run procedure, sink design and confinement posture.
-- [detection-run-20261002-05.md](detection-run-20261002-05.md) — alert coverage and operational notes.
-- Evidence: `../../evidence/runs/RUN-20261002-05/RUN-20261002-05.json` + ART-07-01/08-01/09-01×2/14-01/15-01.
-- Verify tool: `../../scripts/verify/verify_final_phases.py` (documented in `../../scripts/README.md`).
-
-
-
-
-
+- [Historical final-stage plan](final-campaign-plan.md)
+- [RUN-05 detection notes](detection-run-20261002-05.md)
+- [Latest report](../../reports/reference-run-20261002-09.md), [evidence](../../evidence/runs/), and [rules](../../detections/README.md)
+- [Acceptance tooling](../../scripts/README.md)

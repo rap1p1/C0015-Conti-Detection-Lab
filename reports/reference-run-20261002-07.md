@@ -1,6 +1,6 @@
 # Reference Run Report — RUN-20261002-07 (campaign S1–S14, tuned rules)
 
-Window: 2026-10-02 08:50:00Z – 09:15:00Z. Ledger: `evidence/runs/RUN-20261002-07/`.
+Window: 2026-10-02 08:50:00Z – 09:15:00Z. Ledger: [evidence/runs/RUN-20261002-07/](../evidence/runs/RUN-20261002-07/).
 
 Structure: the **campaign chain is S1–S14** (ending at bounded impact). This report's
 remaining sections are **Validation & Detection Coverage** and **Recovery & Cleanup** —
@@ -44,8 +44,7 @@ Alert volume (stored docs in window; unique-activity where cardinality applies):
 Compared with RUN-20261002-06: the tuned rules added coverage (R22/R23/R24) without
 removing any stage signal; R16 stored docs 273→184 with the new suppression config.
 
-Gaps (unchanged): S12 session lifetime not captured; E7 hash field present at file.hash.sha256 (ECS; equals the artifact hash) in-axis;
-rename attribution limited (no delete auditing); rclone evidence = events + receipts.
+Evidence clarification: S6 is NOT RUN. S12 now has a **4634 Type-10 logoff at 09:04:05.508Z**, joined to the T10 logon by FS01 TargetLogonId **0x3a89180**; separate reconnect/disconnect remains unverified. E7 SHA-256 is mapped at `file.hash.sha256` and matches the expected artifact; the old ledger note saying “unpopulated” was a field-selection error. E11 does not guarantee rename attribution, and rclone completion is supported by events plus receipts.
 
 ## Recovery & Cleanup
 
@@ -58,6 +57,21 @@ rename attribution limited (no delete auditing); rclone evidence = events + rece
 
 ## References
 
-- Ledger + artifacts: `evidence/runs/RUN-20261002-07/`
-- Rule index: `detections/README.md`; verifier: `scripts/verify/verify_final_phases.py`
-- Detailed runbook: `docs/attack-runbook.md`
+- Ledger + artifacts: [evidence/runs/RUN-20261002-07/](../evidence/runs/RUN-20261002-07/)
+- Rule index: [detections/README.md](../detections/README.md); verifier: [scripts/verify/verify_final_phases.py](../scripts/verify/verify_final_phases.py)
+- Detailed runbook: [docs/attack-runbook.md](../docs/attack-runbook.md)
+
+
+## RDP lifecycle provenance update
+
+The current committed ledger records a same-FS01 **Type-10** logon-to-logoff join:
+
+| Record | UTC event time | Elasticsearch ID |
+|---|---|---|
+| 4624 logon | 2026-10-02T09:03:26.968Z | `AaD72qiPmO7CP6S6j0bF` |
+| 4634 logoff | 2026-10-02T09:04:05.508Z | `AaD726iPmO7CP6RlkU10` |
+
+Join: **4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)**, with the same recorded account/logon type and logoff after logon.
+This updates earlier “session lifetime not captured” wording; it does not establish
+4778 reconnect or 4779 disconnect. S12 remains PARTIAL in the retained ledger.
+The report uses the timestamp precision committed in the ledger.

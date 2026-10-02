@@ -1,198 +1,120 @@
-# Architecture — C0015 Conti Detection Lab
+# Lab architecture
 
-## Overview
+This document describes the implementation represented by the retained runs
+**RUN-20261002-05 through -09**. The [latest report](../reports/reference-run-20261002-09.md)
+and [ledger](../evidence/runs/RUN-20261002-09/RUN-20261002-09.json) provide run-specific
+evidence. Repository configuration is not a fresh inspection of running VMs.
 
-This document defines the authoritative infrastructure and telemetry architecture for the C0015 Conti Detection Lab. The lab reconstructs the C0015 intrusion lifecycle on isolated virtual machines, generating real Windows, Active Directory, and network telemetry for analysis in Elastic Security.
+## Hosts and network roles
 
-Status: refreshed 2026-10-02 against the reference run (RUN-20261002-05). Items previously marked unknown/pending (Word macro execution, E7/E10 signal availability, local-admin membership) were verified operationally; only verified states are asserted below.
-
-## Network Topology
-
-The lab uses a single flat host-only segment:
-
-```text
-VMnet2 — 192.168.50.0/24
-  Type:   Host-only
-  DHCP:   Disabled
-  Domain default gateway: None
-```
-
-Windows endpoints carry two adapters:
-
-| Adapter | Network | Purpose | Observed values |
-|---|---|---|---|
-| Ethernet0 | VMware NAT (Internet) | Fetch installers and updates | WS01 observed at 192.168.106.136, gateway 192.168.106.2 |
-| Ethernet1 | VMnet2 (192.168.50.0/24) | Domain traffic | WS01 192.168.50.20, FS01 192.168.50.30, DNS 192.168.50.10, no gateway |
-
-Ethernet1 carries the lower route metric so domain traffic prefers the lab NIC; outbound access (downloads, updates) goes through Ethernet0 and the NAT gateway.
-
-Because all lab systems share one flat subnet, traffic between endpoints does not traverse a router or firewall. Network-level visibility is therefore limited to host-based capture (for example Sysmon Event ID 3) or packet captures defined per experiment; there is no inline network security device available for blocking tests.
-
-## Hosts
-
-| Host | Address | Role |
+| Host | Lab address | Role |
 |---|---|---|
-| DC01 | 192.168.50.10 | Domain controller: Active Directory Domain Services, DNS, LDAP, Kerberos |
-| WS01 | 192.168.50.20 | Initial victim workstation, primary emulation origin |
-| FS01 | 192.168.50.30 | File server and lateral-movement target |
-| Kali | 192.168.50.100 | Operator host (planned), Tailscale subnet router |
-| ELASTIC01 | Tailscale network | Elasticsearch, Kibana, Fleet Server |
+| Windows operator host | 192.168.50.1 | VMware control, C2-SIM, HTTP staging, WebDAV sink, evidence capture |
+| DC01 | 192.168.50.10 | AD DS and DNS for `c0015.lab`; monitored domain controller |
+| WS01 | 192.168.50.20 | Windows 10 beachhead, Word entry, discovery and operator/transfer processes |
+| FS01 | 192.168.50.30 | Windows 10 Pro file server, WMI target, RDP endpoint, impact corpus |
+| Kali | 192.168.50.100 | Auxiliary tooling/build role; not the active operator C2 in these runs |
+| ELASTIC01 | 100.77.46.126 via Tailscale | Elasticsearch/Kibana/Fleet backend, version 9.5.3 |
 
-### DC01
+The internal lab segment is **192.168.50.0/24**. WS01/FS01 also have NAT connectivity;
+their NAT addresses are DHCP state, not stable correlation keys. Domain-facing DNS
+uses DC01. Keep interface roles separate when interpreting source addresses.
+DC01 supplies directory services and DNS; it is not merely a telemetry-only machine.
 
-Active Directory Domain Services, DNS, LDAP, and Kerberos for the `c0015.lab` domain, verified (an `nltest /dsgetdc:c0015.lab` check returns PASS from WS01 and FS01). The operating system edition is unknown. The campaign never interacts with DC01; its role is telemetry only.
+## Directory services and identity
 
-### WS01
+The domain is `c0015.lab`, NetBIOS name **C0015**. The document entry runs as
+`C0015\duc.user` (Finance). Operator actions use pre-provisioned `C0015\it.admin`;
+the recorded setup assigns local administrator rights on WS01 and FS01. Possession
+of this lab account is not evidence of credential theft in the original campaign.
 
-Windows 10, joined to `c0015.lab`, and the first victim. Adapter layout: Ethernet0 on VMware NAT (observed 192.168.106.136, gateway 192.168.106.2, used to fetch installers and updates) and Ethernet1 on VMnet2 (DNS 192.168.50.10, no gateway, lower metric for domain traffic). Microsoft Word is installed and the macro path is verified operational (auto-macro execution confirmed on the reference run 2026-10-02).
+FS01 exposes Finance and IT data folders under `C:\Shares\`. The recorded share
+permissions give Domain Admins Full access and the respective Finance/IT-Admins
+groups Change access. Share ACLs alone do not establish effective NTFS access.
+The retained collection reads those folders through **C$**, then stages data under
+`C:\C0015\collect`; it does not use the ordinary Finance/IT share names for that path.
 
-### FS01
+## Simulator and data-transfer services
 
-Windows 10 Pro (build 19045), joined to `c0015.lab`. Hosts the SMB shares Finance and IT (see Shares below). `duc.user` is a member of the Finance group; `it.admin` is a member of IT-Admins and is not a domain administrator. Local administrator rights on FS01 were verified operationally (WMI/RDP administration in the reference run).
-
-### Kali
-
-Planned operator host at 192.168.50.100. Kali is expected to act as the lab-facing gateway and Tailscale subnet router, with a NAT interface for outbound connectivity. It is part of the telemetry path to ELASTIC01 (see Telemetry Path).
-
-### ELASTIC01
-
-Runs Elasticsearch 9.5.3, Kibana, and Fleet Server (https://100.77.46.126:8220) on the Tailscale network. The agent policy is `C0015-Windows-Endpoints` in namespace `c0015`; the WS01 and FS01 agents report Healthy. Enrollment uses the dedicated lab CA certificate (`fleet-ca.crt`), delivered out of band.
-
-## Active Directory and Identity
-
-Domain: `c0015.lab` (NetBIOS `C0015`).
-
-| Account | Group | Role |
+| Service | Operator-host endpoint | Function |
 |---|---|---|
-| `C0015\duc.user` | Finance | Standard user, initial victim context |
-| `C0015\it.admin` | IT-Admins | Administrative account for controlled experiments (not a domain administrator) |
+| HTTP staging | :8000 | Serves compiled bootstrap/tool artifacts |
+| C2-SIM | :8080 | Registers sessions, queues tasks, accepts results, writes registration receipts |
+| rclone WebDAV sink | :9001 | Receives two rounds of dummy collection data |
 
-## SMB Shares (FS01)
+C2-SIM implements both initial callbacks and subsequent operator tasking. CALDERA,
+Sliver and Havoc appeared in earlier option analysis; they are not deployed components
+of the retained reference runs. AnyDesk vendor-relay traffic is separate from C2-SIM
+and was not used as the simulator's operator channel.
 
-| Share | Local path | Permission | Contents |
-|---|---|---|---|
-| `\\FS01\Finance` | `C:\Shares\Finance` | Change for the Finance group | `budget-q3.txt`, `payroll-notes.txt` |
-| `\\FS01\IT` | `C:\Shares\IT` | Change for IT-Admins | `server-inventory.txt` |
+## Sysmon profiles
 
-The Finance share holds benign dummy files used for safe collection and impact experiments.
+Recorded Sysmon: **15.21**, schema **4.91**. Both profiles are committed:
 
-## Sysmon Telemetry Configuration
+| Profile | Scope |
+|---|---|
+| [BALANCED](../configs/sysmon/sysmon-c0015-balanced.xml) | Scoped ImageLoad and ProcessAccess; targeted registry capture and background exclusions |
+| [CAPTURE](../configs/sysmon/sysmon-c0015-capture.xml) | Broader capture for investigation; higher expected volume |
 
-This section is critical: it records exactly what is deployed, what is committed, and what must be reconciled. It is the working reference for Sysmon coverage on WS01 and FS01; the operational application, backup, and verification instructions are deliverables of the Sysmon telemetry guide, provided outside this repository.
+Both use SHA-256 and IMPHASH. `DnsLookup=false` disables reverse lookups; it does
+not disable **E22 DNS Query**. BALANCED includes E7 for selected loaders/paths and
+E10 for selected access targets, including LSASS. It is not an unfiltered capture of
+all module loads or process accesses. The XML also contains path/process predicates
+and a DC DNS-connection exclusion; it is not free of lab-specific filters.
 
-### Installed baseline and configuration hash mismatch
+Event families configured across the profiles include E1/E2/E3/E5/E6/E7/E8/E9/E10/E11,
+E12–E18, E19–E22, E25/E26/E29. Empty include rules disable E23/E24/E27/E28;
+E26 records deletions without the E23 archive behavior. An enabled event family does
+not imply it occurred during S1–S3 or any other particular stage.
 
-WS01 and FS01 run Sysmon 15.21 (schema 4.91), installed at `C:\Tools\sysmon64.exe` with the active configuration at `C:\Tools\sysmon-c0015.xml`. The live baseline (sysmon-c0015-balanced.xml) enables Event IDs 1, 3, 7 (ImageLoad), 10 (ProcessAccess), 11-14 and 17-22, with exclusions: Event ID 3 for DNS to DC01:53, Event ID 11 for Elastic/Edge/diagnostic paths, a Registry include for Run/RunOnce/Services/Classes/Environment, and a Registry exclude for VMware Tcpip.
+The retained WMI-pivot evidence has E7 hashes in **`file.hash.sha256` (ECS)**.
+The previous “unpopulated” conclusion came from checking the wrong field. The current
+verifier checks the expected DLL hash. Old September configuration hashes and disabled
+E7/E10 observations are historical snapshots, not current baseline claims.
 
-The configuration hashes do not line up:
+## Windows auditing and ingestion
 
-- Live configuration on the VMs: `D30CD93C...`
-- Previously uncommitted working-tree variant: `42BC6998...`
-
-Event IDs 7 and 10 are captured by the committed balanced profile; both signals were verified in the reference runs (E7 on the DLL surrogate 2026-10-02; E10 0x1010 on the LSASS surrogate). Event ID 10 remains scoped to the credential-access study (S7b).
-
-### Committed Sysmon profiles
-
-Two complete, mutually exclusive profiles live under `configs/sysmon/`; never load both at once.
-
-- `sysmon-c0015-balanced.xml` — **BALANCED** (routine): Event IDs 1, 3, 11-14, 17-22 broad with the lab
-  exclusions; Event ID 7 (ImageLoad) scoped to lab staging/tooling paths; Event ID 10 (ProcessAccess)
-  scoped to the detection-study targets (`lab-target.exe`, `lsass.exe` — telemetry only, no interaction);
-  Registry scoped to Run/RunOnce/Services/Classes/Environment; Event IDs 23/24/27/28 disabled (archive /
-  clipboard / blocking features); E26 deletion logging on without archive.
-- `sysmon-c0015-capture.xml` — **CAPTURE** (bounded observation): all event types broad; Event IDs 7, 10
-  and 12-14 deliberately unfiltered; Event IDs 23/24/27/28 disabled as above; `DnsLookup=false`; hashes
-  SHA256+IMPHASH. Use only for short first-pass coverage checks, measure load, then switch back to BALANCED.
-- `DnsLookup` is false (reverse lookups disabled; Event ID 22 DNS queries remain enabled).
-- Hash algorithms: SHA256 and IMPHASH. Schema 4.91.
-- No IP, DLL-name, pipe-name, filename, or Microsoft-signature filtering.
-
-The CAPTURE profile is intended for bounded evidence-collection sessions: it supports Event ID 7 hash evidence for S2 and S9 and Event ID 10 evidence for the S13b study. Because Event IDs 7, 10, and 12-14 are unfiltered, it can produce substantial CPU, disk, and ingestion load; measure it first.
-
-### BALANCED profile
-
-The BALANCED profile ships in this repository: `configs/sysmon/sysmon-c0015-balanced.xml` (Event IDs 1/3/7/10/11-14/17-22 with scoping by process, module path, signature, registry area and write source). Event IDs 7 and 10 were verified live in the reference run (E7 on the DLL surrogate, E10 0x1010 on the LSASS surrogate).
-
-### Deployment flow
-
-The two profiles are alternative, complete configurations; never load both at once. The recommended flow is: deploy the CAPTURE profile for observation sessions, measure the resulting load, then switch to the BALANCED profile for routine collection.
-
-Apply a profile with `sysmon64.exe -c <file>`, always backing up the currently active configuration first. The backup, application, post-load verification, and rollback instructions are deliverables described in the Sysmon telemetry guide.
-
-### Observability status model
-
-A configuration only defines what Sysmon is able to observe; it does not guarantee that every event reaches Elastic. Track three distinct states separately:
-
-- CONFIGURED — the event type is enabled in the applied configuration.
-- LOCAL OBSERVED — the event is present in the local Windows event log.
-- INGEST VERIFIED — the event was located in Elastic (Discover).
-
-An agent reporting Healthy proves only that the agent runs; it does not prove that each log source is ingested.
-
-## Additional Audit and Log Requirements
-
-These requirements come from the Sysmon telemetry guide and apply in addition to the Sysmon XML. Select Advanced Audit Policy in Group Policy and verify the effective policy on each machine; checking the GPO name alone is not sufficient.
-
-| Host | Source / event | Collection condition |
+| Source/subcategory | Required signal or purpose | Interpretation |
 |---|---|---|
-| WS01, FS01 | Security 4624/4625/4648/4672/4634/4647 | Audit Logon, Logoff, Special Logon; success/failure per subcategory |
-| WS01, FS01 | Security 4688 | Audit Process Creation, with command line in process creation events for correlation |
-| FS01 | Security 5140/5145 | Audit File Share and Detailed File Share; success/failure |
-| FS01 | Security 4663 (4656/4660 supplemental) | Audit File System with a SACL on Finance, IT, and relevant corpus/staging folders; select ReadData/WriteData/Delete per objective |
-| DC01 | Security 4768/4769/4771, 4776 | Kerberos Authentication Service, Service Ticket Operations, Credential Validation |
-| RDP target | Security 4624 (Type 10), 4778/4779 | Logon and Other Logon/Logoff Events; also TerminalServices LocalSessionManager and RemoteConnectionManager operational channels |
-| WS01, FS01 | PowerShell Operational 4104, 4103 | Script Block Logging and Module Logging; PowerShellCore/Operational if pwsh is present |
-| WS01, FS01 | WMI-Activity/Operational | Enable the channel and ingest; record completeness depends on operation and build |
-| WS01, FS01 | System 7045/7036; Security 4697 when configured | Service install/change events; 4697 requires Audit Security System Extension |
-| WS01, FS01 | Defender/Operational and application logs | Identify blocked activity or interrupted observation |
+| Sysmon Operational | E1 ancestry, E3 connections, E7 module loads, E10 access, E11 writes | Verify per-event entity and mapped fields |
+| Security / Logon | 4624/4625/4648 where the authentication path generates them | Type 3 is network; Type 10 is RemoteInteractive; Type 4 is batch |
+| Security / Special Logon | 4672 | Assigned special privileges; not proof of group membership |
+| Security / Detailed File Share | 5145 | Share access check; not proof of complete content transfer |
+| Security / Logoff | 4634/4647 where generated | Distinguish logoff from disconnect |
+| Security / Other Logon/Logoff Events | 4778/4779 where generated | Reconnect/disconnect; not separately verified in the retained RDP lifecycles |
 
-SACLs must be placed on the relevant data folders only; do not enable auditing for every file on C: merely to satisfy this table.
+Additional sources such as PowerShell 4104, WMI-Activity, Defender Operational, object
+access 4663 with SACLs, and network packet capture can enrich investigation. Their
+availability must be checked independently; this document does not claim complete
+ingestion or run coverage for every recommended source.
 
-## Elastic Ingest Verification
+Endpoint Elastic Agents read event channels and send events to their configured
+**Elasticsearch output**. **Fleet Server (:8220) manages enrollment, policy, and
+check-ins**; it is not the telemetry relay for all event documents. Kibana provides
+Discover, rule management, and alert investigation.
 
-In the `C0015-Windows-Endpoints` policy, confirm that the Windows integration ingests `Microsoft-Windows-Sysmon/Operational` with no legacy Event ID allowlist and no processor drops that would lose Event IDs 7, 10, or 29. Ingest Security and System through the appropriate integrations and add dedicated channels only where no input exists. Do not create two inputs for the same channel without checking for duplicates.
+Recorded policy: `C0015-Windows-Endpoints`; namespace: `c0015`.
+The principal data-stream patterns are:
 
-Field preservation requirements (when supported by the integration and present in the event): raw XML / `event.original`; `host.id` / `host.name`; `provider` / `channel`; `event.code`; RecordID; `UtcTime`; `ProcessGuid` / `ParentProcessGuid`; `SourceProcessGUID` / `TargetProcessGUID`; `Image` / `ImageLoaded`; hashes and signatures; `SourceIp` / `DestinationIp` and ports; `TargetFilename` / `TargetObject`; `LogonId` / `LogonGuid`. Do not assume the same ECS fields exist identically across every dataset.
+- `logs-windows.sysmon_operational-c0015*`
+- `logs-system.security-c0015*`
 
-## Telemetry Path
+Security is in **system.security**, not an assumed windows.security dataset.
+Fleet Healthy verifies agent control-plane health, not ingestion of every source.
 
-```text
-WS01 / FS01 (Elastic Agent)
-  -> Kali (Tailscale subnet router / NAT outbound)
-  -> Fleet Server on ELASTIC01
-  -> Elasticsearch
-  -> Kibana / Elastic Security
-```
+## Verification and trust
 
-Endpoint Elastic Agents on WS01 and FS01 ship under the `C0015-Windows-Endpoints` policy (namespace `c0015`) to Fleet Server on ELASTIC01, reached through Kali acting as the Tailscale subnet router (with a NAT interface for outbound connectivity), and are analyzed in Kibana / Elastic Security.
+Distinguish **CONFIGURED**, **LOCAL OBSERVED**, and **INGEST VERIFIED**. Match local
+and ingested events by host, channel, RecordID and time where those records are
+available. Preserve raw event data and ECS fields when provided by the integration.
+Record event time separately from ingestion/alert creation time.
 
-## Repository Components
+Fleet uses the lab CA (`fleet-ca.crt`) for TLS. A Windows curl trust or revocation
+failure does not by itself diagnose the Elastic Agent's CA configuration. The
+acceptance script's lab TLS behavior is separate from Fleet enrollment trust.
+Credentials remain runtime inputs and are not required in documentation or evidence.
 
-| Component | Location | Status |
-|---|---|---|
-| C2 communication simulator (foothold beacon channel) | `scripts/c2sim.py` | Tested |
-| Artifact, hash, manifest, receipt, and scorecard tooling | `scripts/lab_tools.py` | In repository |
-| Synthetic telemetry replay fixtures (replay-only) | `scripts/fixtures/` | 12 fixtures and checker |
-| Run ledger schema and templates | `evidence/runs/RUN-20261002-05/` | Schema forbids secrets |
-| Benign, config-driven payloads: macro, HTA, DLL, beacon, bounded impact | `payloads/` | Offline-validated |
-| Detection content: atomic KQL, correlation ES|QL, EQL prototypes | `detections/` | In repository |
-| Sysmon configuration: committed baseline and CAPTURE profile | `configs/sysmon/` | Committed |
-
-Detailed blueprints and runbooks are documented in `docs/attack-chain-plan.md`; the attack chain and stage definitions (S2, S9, S13b) in `docs/attack-chain-plan.md`; correlation design in `docs/correlation-architecture.md`.
-
-## Operator C2
-
-The operator command-and-control decision is: Apache CALDERA as the primary operator C2, Sliver as an optional alternative, and Havoc excluded. CALDERA is the controlled tasking and orchestration surrogate that reproduces the command-and-control workflow of the reconstructed campaign with observable, bounded operations; it is not Cobalt Strike. The decision and payload details are documented in `docs/payloads-and-c2.md`. Operator C2 is not yet deployed.
-
-## Trust and Certificate Model
-
-Fleet Server and Elasticsearch are reached over TLS. Windows agents trust the lab CA that signed the Fleet Server certificate; enrollment uses the dedicated lab CA certificate (`fleet-ca.crt`), delivered out of band. Private keys, enrollment tokens, and certificate materials are excluded from version control and from this repository.
-
-## Operational Boundary
-
-The lab executes controlled behaviors only on owned virtual machines, using benign commands, dummy data, and safe substitutes. Out of scope are: the original Bazar/Conti malware, cracked Cobalt Strike, destructive encryption, credential theft from system processes, and uncontrolled external targeting.
-
-
-
-
-
+Campaign execution is **S1–S14**. Post-run verification, recovery and cleanup are
+separate activities. The bounded impact corpus resides on FS01, outside system and
+evidence paths; the retained recovery claim is content/hash equality, not complete
+enterprise recovery or independently verified ACL restoration.

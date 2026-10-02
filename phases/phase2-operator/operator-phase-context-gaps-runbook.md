@@ -1,5 +1,36 @@
 # Operator phase (S4–S9) — context, evidence, gaps, and exact run guide
 
+
+> **Historical design/investigation record.** The proposals, readiness statements,
+> commands and numbered gaps below describe an earlier iteration; they are not the
+> current procedure or a fresh assertion of deployed state. Use the
+> [current runbook](../../docs/attack-runbook.md), [campaign mapping](../../docs/attack-chain-plan.md),
+> and [RUN-09 report](../../reports/reference-run-20261002-09.md) for the implementation.
+
+## Current implementation reconciliation
+
+- Campaign execution is S1–S14; historical S15 is post-run validation.
+- Security is ingested under system.security. E7/E10 are configured in committed
+  profiles; E7 SHA-256 is at file.hash.sha256. Old missing-field/readiness claims
+  below are historical, not current sensor conclusions.
+- C2-SIM on the Windows host supplies initial and operator tasking. Queued batches
+  are OP-CMD; the current beacon loop_count is advisory. CALDERA/Sliver/Havoc were
+  options, not deployed channels in the retained runs.
+- The retained LSASS component is the compiled surrogate: 0x1010 access rights,
+  placeholder output and a decoy dump. Old real-Mimikatz/cracking proposals below
+  are superseded and do not establish the credential source for these runs.
+- S6 executes a fixed FS01 decision in RUN-09 (NOT RUN in 05–08). WS01 performs
+  collection/rclone via FS01 C$; internal WebDAV :9001 supersedes p5_sink/chunked-POST
+  and self-hosted remote-relay proposals. Do not assume FS01 beacon ancestry for all actions.
+- R19 has T10 evidence; 4624→4634 Type-10 joins exist for all five runs. Separate
+  4778 reconnect/4779 disconnect remains unverified. R20's actual executable class
+  excludes ProcessHacker; current impact/transfer coverage is R22/R23/R24, not retired R21.
+- A source 4648 and target 4624 cannot be joined by LogonId across hosts. A DLL load
+  is not injection, E10 is not extraction, and E3 is not transfer completion.
+
+## Preserved historical record
+
+
 Run: **RUN-20260930-01**. Machines: WS01 192.168.50.20 (duc.user; it.admin local admin after setup),
 FS01 192.168.50.30 (it.admin local admin; WMI firewall open; C:\C0015 ACL Everyone:F),
 C2 host 192.168.50.1 (beacon/C2-SIM v3.2, Elastic 100.77.46.126:9200), DC01.
@@ -58,7 +89,7 @@ Original campaign: operator from runbook → discovery → credential test/refin
 **Rule-writing updates based on the v2 results:**
 - S8b: rule `E1 parent=wmiprvse & child=rundll32 + E7 unsigned-DLL + E3 :8080` is **live again** (matches the camp); keep the behavior-rule fallback for loader hosts (old G7).
 - S7b: E10 lsass rule (0x1010/0x1fffff, non-system) — the source can be either the wmiprvse→powershell→mimikatz chain or the elevated beacon.
-- S7/S8a: the LogonId join is now feasible — use `winlog.logon.id` (4648.SubjectLogonId ↔ 4624.TargetLogonId / TargetLogonGuid).
+- Correction to the historical join proposal: on FS01, join 4624.TargetLogonId ↔ 4672.SubjectLogonId with host/boot/time context. Never join WS01 4648 to FS01 4624 by LogonId; use account, IPs, time and verified authentication context instead.
 
 ## 5. End-to-end rerun guide (EXACT — verified version)
 > The "standard" commands below have been proven to produce the expected evidence. Each item lists the machine and where to collect the evidence.

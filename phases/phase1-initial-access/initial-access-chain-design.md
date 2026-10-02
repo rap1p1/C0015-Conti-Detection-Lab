@@ -1,5 +1,36 @@
 # Initial Access Chain — Design (remote operator, macro-only delivery, WMI→rundll32)
 
+
+> **Historical design/investigation record.** The proposals, readiness statements,
+> commands and numbered gaps below describe an earlier iteration; they are not the
+> current procedure or a fresh assertion of deployed state. Use the
+> [current runbook](../../docs/attack-runbook.md), [campaign mapping](../../docs/attack-chain-plan.md),
+> and [RUN-09 report](../../reports/reference-run-20261002-09.md) for the implementation.
+
+## Current implementation reconciliation
+
+- Campaign execution is S1–S14; historical S15 is post-run validation.
+- Security is ingested under system.security. E7/E10 are configured in committed
+  profiles; E7 SHA-256 is at file.hash.sha256. Old missing-field/readiness claims
+  below are historical, not current sensor conclusions.
+- C2-SIM on the Windows host supplies initial and operator tasking. Queued batches
+  are OP-CMD; the current beacon loop_count is advisory. CALDERA/Sliver/Havoc were
+  options, not deployed channels in the retained runs.
+- The retained LSASS component is the compiled surrogate: 0x1010 access rights,
+  placeholder output and a decoy dump. Old real-Mimikatz/cracking proposals below
+  are superseded and do not establish the credential source for these runs.
+- S6 executes a fixed FS01 decision in RUN-09 (NOT RUN in 05–08). WS01 performs
+  collection/rclone via FS01 C$; internal WebDAV :9001 supersedes p5_sink/chunked-POST
+  and self-hosted remote-relay proposals. Do not assume FS01 beacon ancestry for all actions.
+- R19 has T10 evidence; 4624→4634 Type-10 joins exist for all five runs. Separate
+  4778 reconnect/4779 disconnect remains unverified. R20's actual executable class
+  excludes ProcessHacker; current impact/transfer coverage is R22/R23/R24, not retired R21.
+- A source 4648 and target 4624 cannot be joined by LogonId across hosts. A DLL load
+  is not injection, E10 is not extraction, and E3 is not transfer completion.
+
+## Preserved historical record
+
+
 Status: **DESIGN** (awaiting access approval: vmrun credentials, Elastic credentials, it.admin, station, docm automation).
 Reference run: `RUN-20260930-01` (ledger + telemetry: `../../docs/telemetry-comparison-c0015-vs-lab.md`,
 `../phase2-operator/operator-phase-context-gaps-runbook.md`).
@@ -223,5 +254,3 @@ be clean (delete Resiliency/DocumentRecovery after a crash before opening), auto
 Note: occasionally mshta shows a transient "script error: write to file failed (code 0)" while
 writing the marker, but the file is written successfully anyway (confirmed by E11) and the script
 continues.
-
-

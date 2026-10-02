@@ -1,36 +1,38 @@
-# scripts — Infrastructure & tools
+# Infrastructure and verification tools
 
-| Script | Purpose | Key technical points |
-|---|---|---|
-| `c2sim.py` | C2 simulator (HTTP :8080) | endpoints: `/register`, `/poll`, `/cmd`, `/runbook`, `/sessions`, `/results`; sessions/tasks in memory; beacon polling loop with jitter; runbook batches executed as ordered tasks; results capped (`result_cap_bytes`) |
-| `c2sim_guard.py` | watchdog for C2-SIM | relaunches c2sim on crash/exit (used by `launch_servers.ps1 -Stop` to tear down together) |
-| `lab_tools.py` | evidence toolkit | `artifact-new` / `artifact-check` (sha256'd artifact files), `manifest-new` (corpus manifest with per-file hash/size), `receipt-check` (hash equality vs manifest), `score` (coverage scorecard), `fixture-check` (offline fixture validation) |
-| `runbooks/c0015-phase2.json` | S4-S5 discovery batch | the exact `[OBSERVED-C0015]` command set: `net group "domain admins" /dom`, `net localgroup "administrator"`, `nltest /domain_trusts /all_trusts`, `net view /all /domain`, `net view /all`, `whoami`, `tasklist /s`, `ping`, `systeminfo`, `Get-SmbShare` |
-| `fixtures/` | offline event fixtures | E1/E3/E7/E10/E11/S4624/S4625/S5145 samples + fixture README, replayable for rule tests |
-| `tests/test_offline.py` | offline test suite | runs rule queries against the fixtures without Elastic (`python -m unittest`) |
-| `scripts/verify/verify_run_evidence.py` | run telemetry verifier | per-stage Elastic queries by window (S1-S9) |
-| `scripts/verify/verify_final_phases.py` | final-campaign verifier | per-stage Elastic queries for S1-S15 (plain `urllib`, unverified TLS for the lab ES) |
-| `scripts/rules/gen_rules_ndjson.ps1` | rule builder | deterministic rule_id (SHA-256 of name), suppression map, metadata; **loader list must include every rule file** |
-| `scripts/diag/wmi_rundll32_diag.ps1` | G2 diagnostic | SWbemLocator COM transport probe for the WMI→rundll32 pivot |
+| Component | Purpose |
+|---|---|
+| [c2sim.py](c2sim.py) | HTTP simulator: registration, task queue, operator commands, results, and session receipts |
+| [c2sim_guard.py](c2sim_guard.py) | Simulator watchdog; launch/stop harness coordinates its lifecycle |
+| [lab_tools.py](lab_tools.py) | Artifact creation/checking, manifests, receipts, scorecards, and fixture checks |
+| [runbooks/](runbooks/) | Ordered discovery command data; separate from the simulator's default task stream |
+| [fixtures/](fixtures/) | 11 synthetic JSON fixtures; not real run evidence |
+| [tests/](tests/) | 20 offline component tests; no EQL engine or Elastic integration test |
+| [verify/verify_run_evidence.py](verify/verify_run_evidence.py) | Earlier telemetry verifier; consult its run/window settings |
+| [verify/verify_final_phases.py](verify/verify_final_phases.py) | Run-specific acceptance assertions against Elastic, runtime log, and committed artifacts |
+| [verify/fetch_evidence_ids.py](verify/fetch_evidence_ids.py) | Event-reference collection for defined windows |
+| [rules/gen_rules_ndjson.ps1](rules/gen_rules_ndjson.ps1) | Query-to-NDJSON builder with metadata and export validation |
+| [diag/wmi_rundll32_diag.ps1](diag/wmi_rundll32_diag.ps1) | Historical WMI transport diagnostic |
 
-## Offline tests
+Run offline component tests from the repository root:
 
-```
+```bash
 python -m unittest discover -s scripts/tests
 ```
 
-## Runbooks
+Acceptance is a separate operation requiring retained Elastic telemetry and runtime
+inputs. Supported run IDs are defined in the verifier. Some checks are informational,
+including the 4634 session-end lookup; they are not all failure gates. R19/R23 checks
+can use archived ledger references when live alert documents have been cleared.
+See [evidence documentation](../evidence/README.md) before interpreting `ACCEPTED`.
 
-`runbooks/c0015-phase2.json` is the canonical discovery runbook; queue it on a session
-with `POST /runbook?session=<token>&name=c0015-phase2`.
+## Simulator interface
 
+Implemented endpoints include **POST `/session/register`**, **GET `/task/next`**,
+**POST `/result`**, **POST `/cmd`**, **POST `/runbook`**, and GET `/sessions`,
+`/results`, `/last`. The old `/register` and `/poll` names are not current routes.
+Full endpoint semantics are in [payloads-and-c2.md](../docs/payloads-and-c2.md).
 
-
-
-
-## Control model
-
-The simulator accepts operator-issued commands (`/cmd`) and runbook batches; benign-execution
-guarantees are procedural (operator conventions, staged payloads, scheduled-task delegation), not
-code-enforced allowlists. Task-type allowlists inside runbooks are a convention, not an enforcement
-boundary.
+Operator commands are dynamic. Size checks and a limited credential-string filter
+do not provide a benign-command allowlist or comprehensive secret detection.
+Sessions/results are in memory; a server restart does not preserve them.

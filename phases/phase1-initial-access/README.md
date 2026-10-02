@@ -1,48 +1,28 @@
-# Phase 1 — Initial Access Chain (S1-S3)
+# Phase 1 — entry and bootstrap (S1–S3)
 
-The entry phase: a weaponized Word document whose **macro self-writes** the full staged
-toolchain to disk (config.ini, bootstrap.hta, c0015_beacon.ps1), then hands off to
-mshta → HTA → regsvr32-loading DLL surrogate → beacon.
+A generated laboratory DOCM is opened on WS01 as `duc.user`. Its macro writes the
+embedded config, HTA and beacon, then starts mshta. The HTA downloads a benign
+DLL-as-JPG and invokes regsvr32; the bootstrap DLL starts the session-1 beacon.
+Manual document open substitutes for delivery. This is not evidence of a real
+phishing email, password-protected archive or original malware execution.
 
-## Chain (with original tools from the DFIR report)
+| Stage | Telemetry and supporting evidence |
+|---|---|
+| S1 entry/self-write | WINWORD E1/E11 and workflow log; child mshta linked by parent entity |
+| S2 HTA/proxy bootstrap | mshta → regsvr32 E1, HTTP-download E3, JPG/marker E11, loader E7 |
+| S3 beacon | Proxy → PowerShell E1, entity-owned E3, registration/task/result context |
 
-| Step | Technique | Original (report) | Lab surrogate | Evidence |
-|---|---|---|---|---|
-| Delivery/exec | T1566.001 → T1204.002 | password-protected zip + macro Word doc | manual victim open of `c0015_entry.docm` (AutoOpen macro) | E1 WINWORD (par=explorer) |
-| Macro self-write | T1059.005 + T1105 | macro drops HTA (files) | macro **writes config/hta/beacon natively** (no COM) | `c0015wf.log` step log + E11 by WINWORD |
-| HTA bootstrap | T1218.005 / T1059.007 | encoded HTA + JS/VBScript | `payloads/hta/bootstrap.hta` (config-driven) | E1 mshta (par=WINWORD) |
-| DLL surrogate | T1218.010 / T1105 | `compareForfor.jpg` → regsvr32 | `c0015-comparefor.jpg` → regsvr32 /s | E7 jpg-as-DLL + E11 |
-| Beacon | T1071.001 | BazarLoader → Cobalt Strike | `c0015_beacon.ps1` (phase3) → C2-SIM :8080 | `register` on C2-SIM |
+Children have their own entity IDs. The join is child.parent.entity_id to
+parent.process.entity_id, not an identical entity across the chain. The current
+entry is direct Office → mshta; a CMD hop in an old fixture is not mandatory.
 
-## Self-generating entry macro
+R01–R09 provide related detection predicates. **R04 does not match WINWORD's
+self-writes**; it targets script/proxy writers. E7 hashes are available at
+`file.hash.sha256`. Unsigned loading alone does not prove injection or T1553.002.
 
-Before the victim opens the document, the WS01 disk holds **no lab tooling** — the
-macro creates it at runtime. Production recipe (see the design doc in this folder):
+## Read next
 
-1. `payloads/packaging/gen_macro_embedded.ps1` — builds a self-contained standard-module
-   VBA source with the config/HTA/beacon embedded as base64 chunks, joined at runtime
-   (no Const-concatenation), native-I/O decoder/writer, single `AutoOpen` trigger.
-2. `payloads/packaging/install_macro_docm.ps1` — injects the module into **the document's
-   own VB project** (`$doc.VBProject`) as a **standard module** (`c0015Payload`), never
-   into `ThisDocument` (avoids inherited-member collisions) and never via
-   `Word.VBE.ActiveVBProject` (which resolves to `Normal.dotm` and silently saves a
-   macro-less .docm).
-3. Open requirements: interactive Word session + auto-macros enabled + a clean Word
-   state (Word's `Resiliency\DocumentRecovery` must be cleared after any crash/kill —
-   recovered documents do not run Document_Open/AutoOpen).
-
-## Detection (rules that fire in this phase)
-
-R01 (office→script/shell), R02 (mshta→regsvr32/rundll32), R03 (E7 unsigned staging),
-R04 (staging file writes — catches the macro self-write), R05 (regsvr32→PS),
-R06 (script-host egress), R07 (office→mshta→proxy sequence), R08 (unsigned module→PS).
-
-## Files
-
-- [initial-access-chain-design.md](initial-access-chain-design.md) — entry-chain design,
-  macro self-write investigation records, operator-phase design.
-- Payloads: `../payloads/docm/`, `../payloads/hta/`, `../payloads/dll/`, `../payloads/beacon/`,
-  `../payloads/packaging/`.
-- Chain context: `../docs/attack-chain-plan.md` (S1-S3 rows), `../docs/attack-runbook.md`.
-
-
+- [Historical entry design and investigation](initial-access-chain-design.md)
+- [Current runbook](../../docs/attack-runbook.md)
+- [Components](../../payloads/) and [rule catalogue](../../detections/README.md)
+- [Latest run evidence](../../evidence/runs/RUN-20261002-09/)

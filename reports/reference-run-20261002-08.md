@@ -1,6 +1,6 @@
 # Reference Run Report — RUN-20261002-08 (campaign S1–S14, final tuned-rules run)
 
-Window: 2026-10-02 09:33:00Z – 09:56:00Z. Ledger: `evidence/runs/RUN-20261002-08/`.
+Window: 2026-10-02 09:33:00Z – 09:56:00Z. Ledger: [evidence/runs/RUN-20261002-08/](../evidence/runs/RUN-20261002-08/).
 
 Structure: **campaign chain S1–S14** (ends at bounded impact), then **Validation &
 Detection Coverage** and **Recovery & Cleanup** — Detection-Engineer work, not campaign
@@ -13,11 +13,11 @@ behavior.
 | S1 entry | macro self-write → mshta → regsvr32 (entity-joined) → register `93ddfe8b` 09:33:23Z (`S1-6eb01d7793ddfe8b`) |
 | S4–S5 discovery/share | runbook batch; net view E1s |
 | S7b LSASS surface | E10 lsass grant 0x1010 (no dump) |
-| S8a/S8b handoff+pivot | 5145 C$; rundll32 (par=WmiPrvSE, LabEntry) ~09:39:2xZ (retried after config propagation); E7 unsigned |
+| S8a/S8b handoff+pivot | 5145 C$; rundll32 (par=WmiPrvSE, LabEntry) **09:39:45.723Z**, E1 `AaD7-6iPmO7CP6Tu_Akw` (retried after config propagation); E7 unsigned |
 | S9 session-2 | `S1-725a83c09ee55cdb` 09:39:46Z; receipt `ART-07-01-9ee55cdb` (run_id corrected to RUN-20261002-08) |
 | S10 collection | ART-08-01 manifest (11 files / 309 B); 228×5145 C$ (collection reads target C$, not the ordinary shares) |
 | S11a/b transfer | rclone rounds 1+2 → sink (22 files); receipts 11/11 full-set equality |
-| S12 RDP | interactive logon (T10) it.admin, TargetLogonId 0x3da16ed; R19 alerts 09:43:37Z |
+| S12 RDP | T10 logon **09:43:20.269Z** → T10 logoff **09:43:52.154Z**, joined by FS01 TargetLogonId **0x3da16ed**; R19 alert creation 09:43:37Z |
 | S13 remote tools | AnyDesk drop→run (09:44:37→09:45:05), ProcessHacker drop 09:44:46 |
 | S14 impact | 15 files; Verify 30 bidirectional mismatches → Rollback → hash-equal |
 
@@ -56,11 +56,32 @@ R23 fired again with the entity-based grouping — the 3 note creates share one
 
 - Impact fully reversed: `Rollback OK`, post-restore `Verify` = bidirectional hash-equal.
 - Beacons/Word/mshta/tools terminated; rclone sink and servers stopped after evidence.
-- Screenshots for the report are captured by the author per `docs/screenshot-guide.md` (kept out of the repo).
+- Screenshots are maintained by the author outside this snapshot. The previously referenced screenshot guide/assets directory is not committed; visual evidence is not required to resolve the event references in the ledger.
 
 ## References
 
-- Ledger + artifacts: `evidence/runs/RUN-20261002-08/`
-- Screenshots: `reports/assets/` · Rule index: `detections/README.md`
+- Ledger + artifacts: [evidence/runs/RUN-20261002-08/](../evidence/runs/RUN-20261002-08/)
+- Rule index: [detections/README.md](../detections/README.md). Screenshot slots above refer to external author-held images, not an in-repository assets directory.
 
 
+## Evidence scope
+
+S6 is NOT RUN. S12 is PARTIAL only for separate 4778 reconnect/4779 disconnect
+characterization; the joined logon-to-logoff records above are retained evidence.
+Some older ledger notes still use superseded lifetime wording. E7 hashes are at
+`file.hash.sha256`; missing-field claims from the old verifier are retracted.
+
+
+## RDP lifecycle provenance update
+
+The current committed ledger records a same-FS01 **Type-10** logon-to-logoff join:
+
+| Record | UTC event time | Elasticsearch ID |
+|---|---|---|
+| 4624 logon | 2026-10-02T09:43:20.269Z | `AaD7_6iPmO7CP6VWCLR_` |
+| 4634 logoff | 2026-10-02T09:43:52.154Z | `AaD7_6iPmO7CP6XMCgw6` |
+
+Join: **4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)**, with the same recorded account/logon type and logoff after logon.
+This updates earlier “session lifetime not captured” wording; it does not establish
+4778 reconnect or 4779 disconnect. S12 remains PARTIAL in the retained ledger.
+The report uses the timestamp precision committed in the ledger.
