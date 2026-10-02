@@ -1,5 +1,9 @@
 # C0015 Detection Lab
 
+> **Repository language: English.** All repository content (docs, code comments, commit
+> messages, artifacts) is written in English; conversational notes in issues/PRs may use
+> the author's language.
+
 Evidence-driven reconstruction of [MITRE ATT&CK Campaign C0015](https://attack.mitre.org/campaigns/C0015/)
 (Conti/Bazar intrusion, DFIR Report *CONTInuing the Bazar Ransomware Story*, 2021-11-29) for detection
 engineering and incident-response training on an owned homelab. The lab relies on real Windows, Active
