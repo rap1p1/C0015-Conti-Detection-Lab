@@ -296,7 +296,7 @@ retention and the runtime C2 log; the recorded scorecard preserves the result fr
 | Item | What is established | Remaining limitation |
 |---|---|---|
 | S6 | Target-selection orchestration EXECUTED in RUN-20261002-09: server-side decision (FS01, discovery context) recorded as `ART-06-02-RUN09` at 13:12:37Z | **resolved** (RUN-09; earlier ledger rows keep the historical NOT RUN) |
-| S12 | Type-10 interactive logons are observed in RUN-06/07/08/09; R19 positive | Session lifetime: RUN-09 captured the T10 logon (13:17:54Z) + session state (rdp-tcp#9 Conn); 4778/4779 disconnect events were not generated (abrupt client close) - **partially resolved**, gap documented |
+| S12 | Type-10 interactive logons are observed in RUN-06/07/08/09; R19 positive | Session lifetime: RUN-09 verified logon-to-logoff BY TargetLogonId (T10 4624 13:17:54Z 0x4cc3dae -> 4634 13:18:36Z same LogonId, Type 10) + session Conn; 4779 (disconnect)/4778 (reconnect) not separately captured - **partially resolved**, gap documented |
 | E7 | ImageLoad enabled (BALANCED); E7 unsigned load joined to the pivot entity with ****`file.hash.sha256` present (ECS) on all four runs - equals the surrogate artifact hash (cbcd2a8b...) | **resolved** (verified 2026-10-02; hash read at `file.hash.sha256`, not `winlog.event_data.Hashes`) |
 | RUN-08 provenance | Ledger rebuilt with real Elasticsearch ids + exact UTC timestamps for every stage reference (S1 chain 09:33:20-22Z, S3 09:33:25Z, S4/S5 09:33:23Z, S7b 09:37:24Z, S8a 09:37:06Z/09:39:35Z, S8b 09:39:45Z, S9 09:39:48Z, S12 09:43:20Z, S13 09:44-45Z, S14 09:45:55Z, R23 source notes + alert ids) | **resolved** (2026-10-02) |
 | Collection and tool correlation | S10 collection reads observed as 5145 C$ (the runbook reads Finance/IT content THROUGH C$, 228 events in RUN-08); R20 documents the host-level join and the analyst hash cross-check (E11.file.hash.sha256 vs E1.process.hash) | **resolved as documented** - R16 covers the S10 reads (mechanism = C$); binary identity is a documented procedural step, not an EQL join |
@@ -356,6 +356,7 @@ is used for lab sessions; any observed vendor-relay traffic is not used as the s
 - [Payload and C2 design](docs/payloads-and-c2.md)
 
 Licensed under [MIT](LICENSE).
+
 
 
 

@@ -427,9 +427,19 @@
           "host": "FS01",
           "channel": "query session",
           "detail": "interactive logon observed; session lifetime not collected (limitation)"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "4634",
+          "es_id": "AaD7naiPmO7CP6Oh-IwA",
+          "ts": "2026-10-02T07:56:38.302Z",
+          "detail": "session end - logoff (4634) joined to the Type-10 logon by TargetLogonId (0x35a46e2, LogonType 10); timestamp follows the 4624",
+          "join": "4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)"
         }
       ],
-      "notes": "interactive logon observed (R19 true positive); session lifetime not captured - partial characterization"
+      "notes": "interactive logon observed (R19 true positive); session lifetime not captured - partial characterization Logon-to-logoff verified by TargetLogonId join (4634 0x35a46e2); 4779 (disconnect)/4778 (reconnect) not separately verified."
     },
     {
       "stage": "S13",

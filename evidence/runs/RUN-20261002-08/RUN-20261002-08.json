@@ -361,9 +361,19 @@
           ],
           "ts": "2026-10-02T09:43:37.545Z",
           "detail": "R19 alerts x2 on the T10 logon"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "4634",
+          "es_id": "AaD7_6iPmO7CP6XMCgw6",
+          "ts": "2026-10-02T09:43:52.154Z",
+          "detail": "session end - logoff (4634) joined to the Type-10 logon by TargetLogonId (0x3da16ed, LogonType 10); timestamp follows the 4624",
+          "join": "4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)"
         }
       ],
-      "notes": "interactive logon observed; session lifetime not captured (addressed in RUN-20261002-09 with 4778/4779 + query session)"
+      "notes": "interactive logon observed; session lifetime not captured (addressed in RUN-20261002-09 with 4778/4779 + query session) Logon-to-logoff verified by TargetLogonId join (4634 0x3da16ed); 4779 (disconnect)/4778 (reconnect) not separately verified."
     },
     {
       "stage": "S13",

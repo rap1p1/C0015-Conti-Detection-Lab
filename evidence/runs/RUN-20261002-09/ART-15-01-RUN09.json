@@ -9,5 +9,5 @@
     "window": "2026-10-02T13:01:00Z -> 2026-10-02T13:35:00Z",
     "result": "ACCEPTED"
   },
-  "notes": "Post-run validation. S6 target-selection executed (ART-06-02). S12: T10 logon 13:17:54Z + session Conn + end 4634 logoff 13:18:22Z (87x4634 in window, local=ES); 4779 disconnect not generated locally (audit effective) - generation gap, not ingest; stays PARTIAL."
+  "notes": "Post-run validation. S6 executed (ART-06-02). S12 lifecycle verified BY LogonId join: T10 4624 13:17:54Z (TargetLogonId 0x4cc3dae) -> rdp-tcp#9 Conn -> 4634 logoff 13:18:36Z (same TargetLogonId, LogonType 10). 4779/4778 not captured (disconnect/reconnect); 4634 local=ES count parity (87/87), not per-event reconciliation. Stays PARTIAL."
 }

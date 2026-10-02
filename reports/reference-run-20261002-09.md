@@ -14,7 +14,7 @@ Window: 2026-10-02 12:55:00Z – 13:35:00Z. Ledger: `evidence/runs/RUN-20261002-
 | S9 session-2 | register `7e715c9a` 13:15:10Z + receipt `ART-07-01-7e715c9a.json` |
 | S10 | ART-08-01 manifest (11 files / 309 B) |
 | S11a/S11b | rclone rounds (E1 13:17:07Z / 13:18:51Z) → sink 22 files; receipts 11/11 full-set |
-| S12 RDP | **T10 interactive logon 13:17:54.978Z** (TargetLogonId 0x4cc3dae); R19 alerts 13:18:45Z; session `rdp-tcp#9 Conn` captured; **end = 4634 logoff 13:18:22Z** (ingested, local=ES 87x). 4779 (disconnect) not generated locally (audit effective) - generation gap; 4778 (reconnect) n/a |
+| S12 RDP | **T10 interactive logon 13:17:54.978Z** (TargetLogonId 0x4cc3dae); R19 alerts 13:18:45Z; session `rdp-tcp#9 Conn`; **end = 4634 logoff 13:18:36Z joined by TargetLogonId (0x4cc3dae, Type 10)** (ingested; local=ES count parity 87/87, not per-event reconciliation). 4779 (disconnect)/4778 (reconnect): not separately verified |
 | S13 | AnyDesk drop→run (13:19:49→13:20:16), ProcessHacker drop 13:19:59 |
 | S14 impact | 15 files; Verify 30 bidirectional mismatches → Rollback → hash-equal |
 
@@ -28,7 +28,7 @@ Offline tests: 20/20 OK (task sequence updated for the S6 selection step).
 
 - **S6**: resolved — orchestration decision executed and artifacted (RUN-09).
 - **S12**: partially resolved — T10 + session state captured; 4778/4779 disconnect
-  events not generated (abrupt client close); the gap is recorded, not papered over.
+  events: not separately captured for this run; the disconnect/reconnect pair (4778/4779) is a distinct step from logoff and remains unverified.
 - **RUN-09 provenance**: every stage reference carries real ids/timestamps where the
   live event was fetched; timing annotations are honest (multiple beacon relaunches
   caused by the short `loop_count` in the first guest config are documented).
@@ -42,3 +42,4 @@ Offline tests: 20/20 OK (task sequence updated for the S6 selection step).
 
 - Ledger + artifacts: `evidence/runs/RUN-20261002-09/`
 - Rule index: `detections/README.md` · Verifier: `scripts/verify/verify_final_phases.py`
+

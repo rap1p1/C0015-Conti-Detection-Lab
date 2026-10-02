@@ -311,9 +311,19 @@
             "bf4a3c5dc66970376b1989175e2e99d56603d5a2168621099e26baeddf7c163b",
             "cac55aace197ed2bc3651220d0a3a9bab82a36700322f04183147c33721e1cd9"
           ]
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "4634",
+          "es_id": "AaD726iPmO7CP6RlkU10",
+          "ts": "2026-10-02T09:04:05.508Z",
+          "detail": "session end - logoff (4634) joined to the Type-10 logon by TargetLogonId (0x3a89180, LogonType 10); timestamp follows the 4624",
+          "join": "4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)"
         }
       ],
-      "notes": "interactive logon observed; session lifetime not captured"
+      "notes": "interactive logon observed; session lifetime not captured Logon-to-logoff verified by TargetLogonId join (4634 0x3a89180); 4779 (disconnect)/4778 (reconnect) not separately verified."
     },
     {
       "stage": "S13",

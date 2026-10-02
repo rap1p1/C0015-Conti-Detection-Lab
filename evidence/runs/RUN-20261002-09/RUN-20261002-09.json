@@ -389,12 +389,13 @@
           "host": "fs01",
           "channel": "Security",
           "event": "4634",
-          "es_id": "AaD8xKiPmO7CP6YWYrKP",
-          "ts": "2026-10-02T13:18:22.4Z",
-          "detail": "session end - logoff (4634) for it.admin at RDP close (ingested; 87x4634 in the window)"
+          "es_id": "AaD8xKiPmO7CP6ZkaTUg",
+          "ts": "2026-10-02T13:18:36.7Z",
+          "detail": "session end - logoff (4634) Joined to the Type-10 logon BY TargetLogonId: TargetLogonId=0x4cc3dae (= the 4624 T10 logon id), LogonType=10, account=it.admin, domain=C0015; timestamp follows the 4624 (13:17:54.978Z). Earlier candidate 4634 (0x4cd9a43, LogonType 4) was a batch logoff - rejected.",
+          "join": "4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)"
         }
       ],
-      "notes": "Lifecycle verified: logon = T10 4624 13:17:54.978Z; session state = rdp-tcp#9 Conn; end = 4634 logoff 13:18:22Z (ingested). 4779 (disconnect) was NOT generated even locally (audit effective - checked; no clean disconnect handshake); 4778 (reconnect) not applicable. Generation gap, not an ingest gap."
+      "notes": "Lifecycle verified by LogonId join: logon = 4624 T10 13:17:54.978Z (TargetLogonId 0x4cc3dae); session state = rdp-tcp#9 Conn; end = 4634 logoff 13:18:36Z with the SAME TargetLogonId (0x4cc3dae, LogonType 10) - ingested. 4779 (disconnect) / 4778 (reconnect): not separately verified; 4634 count match (local 87 = ES 87) shows count parity, not per-event reconciliation. Status PARTIAL (clean-disconnect events not captured)."
     },
     {
       "stage": "S13",
@@ -564,7 +565,7 @@
     {
       "artifact_id": "ART-15",
       "path": "evidence/runs/RUN-20261002-09/ART-15-01-RUN09.json",
-      "sha256": "CA939529EF1D09B56100B2A260D3499FC44278556DBFF879CA084B5CD50F7ABD",
+      "sha256": "EAF4354FE7EB82DD619A910F6F41F2ED6DF17081AD97BAFBBFF173F0B0DBC941",
       "producer_stage": "S15",
       "consumer_stage": ""
     }

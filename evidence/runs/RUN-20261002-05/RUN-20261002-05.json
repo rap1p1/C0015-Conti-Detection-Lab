@@ -421,9 +421,19 @@
           "host": "FS01",
           "channel": "query session",
           "detail": "client closed while the session was listed in Conn state; the Type-10 logon events above were recorded; session lifetime not collected"
+        },
+        {
+          "kind": "event",
+          "host": "fs01",
+          "channel": "Security",
+          "event": "4634",
+          "es_id": "AaD7M6iPmO7CP6PqEWBE",
+          "ts": "2026-10-02T06:01:07.328Z",
+          "detail": "session end - logoff (4634) joined to the Type-10 logon by TargetLogonId (0x2d1c6d0, LogonType 10); timestamp follows the 4624",
+          "join": "4624.TargetLogonId == 4634.TargetLogonId (same host, same boot)"
         }
       ],
-      "notes": "interactive logon observed (T10 x2 at 06:00:27Z); R19 had no sweep coverage in this window (rule imported after the run) - alerts absent; session lifetime not captured; partial characterization"
+      "notes": "interactive logon observed (T10 x2 at 06:00:27Z); R19 had no sweep coverage in this window (rule imported after the run) - alerts absent; session lifetime not captured; partial characterization Logon-to-logoff verified by TargetLogonId join (4634 0x2d1c6d0); 4779 (disconnect)/4778 (reconnect) not separately verified."
     },
     {
       "stage": "S13",

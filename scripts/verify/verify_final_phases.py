@@ -297,15 +297,18 @@ def main():
         if s:
             print(f"      TargetLogonId={getpath(s, 'winlog.event_data.TargetLogonId')} "
                   f"LogonProcess={getpath(s, 'winlog.event_data.LogonProcessName')}")
-        # session-end evidence: 4634 (logoff) present in the window (informational;
-        # 4779/clean-disconnect is not required - it may legitimately not be generated)
-        e4634 = q(SEC, [{"term": {"event.code": "4634"}}, {"term": {"host.name": "fs01"}},
-                        {"term": {"winlog.event_data.TargetUserName": RUN_USER.get(RUN, "it.admin")}}], 1)
-        if e4634:
-            print(f"  ok  S12 session end observed via 4634 (logoff) "
-                  f"es_id={e4634[0]['_id']} ts={e4634[0]['_source'].get('@timestamp')}")
-        else:
-            print("  note S12: no 4634 logoff in the window (session end not evidenced this run)")
+        # session-end evidence: 4634 (logoff) JOINED to the T10 logon by TargetLogonId
+        # (same host, same boot, after the logon) - informational; 4779/4778 not required
+        t10_id = getpath(s, "winlog.event_data.TargetLogonId") if s else None
+        if t10_id:
+            e4634 = q(SEC, [{"term": {"event.code": "4634"}}, {"term": {"host.name": "fs01"}},
+                            {"term": {"winlog.event_data.TargetLogonId": t10_id}},
+                            {"term": {"winlog.event_data.LogonType": "10"}}], 1, asc=False)
+            if e4634:
+                print(f"  ok  S12 session end joined by TargetLogonId {t10_id}: 4634 (logoff) "
+                      f"es_id={e4634[0]['_id']} ts={e4634[0]['_source'].get('@timestamp')}")
+            else:
+                print(f"  note S12: no 4634 with TargetLogonId {t10_id} - session end not confirmed by LogonId join")
         alerts = q(AL, [{"term": {"kibana.alert.rule.name":
                                   "C0015 | R19 | RDP Interactive Logon by Non-System Account"}}], 5)
         if EXPECT_R19_ALERTS[RUN]:
