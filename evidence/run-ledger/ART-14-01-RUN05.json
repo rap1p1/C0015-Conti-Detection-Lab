@@ -1,9 +1,32 @@
-Prepare OK: corpus=C:\C0015-Impact-Corpus backup=C:\C0015-Impact-Backup
-Run OK: files=15 bytes=615 elapsed=0.1s
-Verify listing: 15 files under C:\C0015-Impact-Corpus
-Verify FAIL: 15 mismatches
-Rollback OK: restored from C:\C0015-Impact-Backup
-Verify listing: 15 files under C:\C0015-Impact-Corpus
-Verify OK: corpus matches backup (count/hash)
-The process cannot access the file because it is being used by another process.
-
+{
+  "artifact_id": "ART-14-01",
+  "run_id": "RUN-20261002-05",
+  "schema_version": "1.0",
+  "kind": "impact-metrics-summary",
+  "output_ref": "evidence/run-ledger/ART-14-01-RUN05.txt",
+  "actions": [
+    {
+      "result": "PASS",
+      "action": "Prepare"
+    },
+    {
+      "result": "PASS (15 files / 615 bytes transformed)",
+      "action": "Run"
+    },
+    {
+      "result": "PASS (15 listings; 15 mismatches = impact applied)",
+      "action": "Verify"
+    },
+    {
+      "result": "PASS",
+      "action": "Rollback"
+    },
+    {
+      "result": "PASS (corpus matches backup, count/hash)",
+      "action": "Verify-post-restore"
+    }
+  ],
+  "trailing_output_error": "harness-side redirect artifact (echo to the same log file the redirection targets); impact actions themselves completed before it - no impact failure",
+  "producer_stage": "S14",
+  "consumer_stage": "S15"
+}
