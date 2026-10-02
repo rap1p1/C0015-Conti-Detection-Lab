@@ -57,7 +57,7 @@
       "evidence_refs": [
         { "kind": "impact", "detail": "Prepare OK; Run 15 files/615 B (06:04Z); Verify 15 mismatches; Rollback OK; Verify post-restore hash-OK" },
         { "kind": "E11", "detail": "C:\\C0015-Impact-Corpus + README_C0015_LAB.txt + .c0015 renames 06:04Z" },
-        { "kind": "rule", "detail": "R21 fired (3 alerts: README notes it/hr/finance)" }
+        { "kind": "file", "detail": "impact notes observed in corpus dirs (README_C0015_LAB.txt)" }
       ], "notes": "bounded surrogate (allowlist corpus, reversible); recovery evidence = hash compare" },
     { "stage": "S15", "host": "lab", "status": "PASS",
       "evidence_refs": [
@@ -73,3 +73,4 @@
     { "artifact_id": "ART-15-01", "path": "stage/p3/art15_01.json", "producer_stage": "S15", "consumer_stage": "none" }
   ],
   "notes": "Boundary crossings per operator authorization: real AnyDesk (public relay), real rclone (local sink only - no public cloud), ProcessHacker E10-no-dump, real RDP. Impact remains bounded/reversible."
+

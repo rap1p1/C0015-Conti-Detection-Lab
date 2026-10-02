@@ -46,7 +46,7 @@ must keep:
 | **ART-07-01** receipts | S9 completion — phase-3 starts only after the receipt exists (gate) |
 | Logon-id chain | `4624 TargetLogonId` ↔ `4672 SubjectLogonId` (S7/S8b) — RDP (S12) continues the same identity story (`it.admin` type-10 logon) |
 | Entity chain | `process.entity_id`/`parent.entity_id` — every new process in S10–S15 inherits the FS01 beacon lineage |
-| Rules R01–R18 | Keep ENABLED during phase 3 — they are the S1–S9 detection layer; phase-3 adds R19–R21 (section 5) |
+| Rules R01–R18 | Keep ENABLED during phase 3 — they are the S1–S9 detection layer; phase-3 adds R19–R20 (section 5) |
 
 Gate: **S10 begins only when ART-07-01-<token>.json exists for this run_id** and the
 FS01 `phase7-session2` beacon is live (c2sim `/sessions`).
@@ -133,7 +133,7 @@ FS01 `phase7-session2` beacon is live (c2sim `/sessions`).
   if SMB-driven; post-impact E11 listing — needs Sysmon E23/26 (config flag) — record as optional.
 - Safety: allowlist-root-capped, no real encryption, no propagation; corpus separate from evidence.
 - Artifacts: `ART-14-01` impact metrics + recovery report (`lab_tools.py` compute + commit).
-- Detection: **R21** proposal (section 5).
+- Detection: —
 
 ### S15 — E2E run + investigation exercise (engineering + training)
 
@@ -165,7 +165,7 @@ extend the existing S1–S9 mapping with S10–S15 rows.
    S14 impact → verify/rollback → `ART-14-01`; S15 score → `ART-15-01`.
 5. Verify: `stage/analysis/verify_run_evidence.py` extended with phase-3 sections
    (sink receipts, 4624 T10, 4778, impact manifests, scorecard) — window = full run.
-6. Alerts: per-rule counts on the full window (expected new: R19/R20/R21 + existing
+6. Alerts: per-rule counts on the full window (expected new: R19/R20 + existing
    R01–R18) — update `detection-run-<run>.md` + README mapping.
 7. Ledger `RUN-<final>.json` + receipts committed; cleanup (beacons, servers, Defender
    re-enable decision recorded).
@@ -201,6 +201,7 @@ mapping in a follow-up.
 
 Decisions (operator-approved): rclone→local sink (rev 1), RustDesk+local relay (AnyDesk-like),
 ProcessHacker E10-no-dump. No external credentials are required for the final campaign.
+
 
 
 

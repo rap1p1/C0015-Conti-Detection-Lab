@@ -27,4 +27,4 @@ powershell -File c0015_impact.ps1 -Manifest impact-manifest.json -Action Verify
 powershell -File c0015_impact.ps1 -Manifest impact-manifest.json -Action Rollback
 ```
 
-Telemetry: high-rate E11 (renames/note), E2 changes; R21 detects the note/extension class.
+Telemetry: high-rate E11 (renames/note), E2 changes; Impact writes are monitored through the corpus E11 sweep.

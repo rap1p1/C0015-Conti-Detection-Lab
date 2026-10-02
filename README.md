@@ -23,14 +23,14 @@ recorded run.
 | S11a/b | T1567.002/T1030 | **rclone → MEGA** (two rounds) | real rclone → **local WebDAV sink** (:9001) | E1 rclone, E3 :9001, receipt ART-09-01 | R06/R09 |
 | S12 | T1021.001 | RDP to the backup server (day 2) | RDP `mstsc` + `cmdkey` | Security 4624 T3/T4/T10 | R19 |
 | S13 | T1219.002 | AnyDesk in `Videos\`, ProcessHacker at `C:\` | real AnyDesk (lab-internal) + ProcessHacker | E11 drop paths + E1 | R20 |
-| S14 | T1486/T1083 | `locker.bat` + Conti (`-m -net -size 10 ...`) | `c0015_impact.ps1` bounded surrogate (reversible) | E11 bulk rename + note | R21 |
+| S14 | T1486/T1083 | `locker.bat` + Conti (`-m -net -size 10 ...`) | `c0015_impact.ps1` bounded surrogate (reversible) | E11 bulk rename + note | — |
 
 ## Repository structure
 
 ```
 phases/      phase1-initial-access | phase2-operator | phase3-final-campaign   (each with its own README)
 docs/        canonical technical records (chain, runbook, architecture, correlation, C2 design)
-detections/  rule suite R01-R21 (eql/ + README: full index, severity and stage mapping)
+detections/  rule suite R01-R20 (eql/ + README: full index, severity and stage mapping)
 payloads/    lab tooling per chain stage (beacon, dll, hta, impact, docm, lsass, packaging)
 scripts/     infrastructure: C2-SIM, watchdog, evidence toolkit, runbooks, fixtures, tests
 configs/     agent/Sysmon configuration
@@ -40,11 +40,11 @@ stage/       runtime files (generated document, per-run configs, tools) — giti
 
 ## Detection engineering
 
-Twenty-one Elastic EQL rules (R01-R21) implement a layered detection model that mirrors the
+Twenty-one Elastic EQL rules (R01-R20) implement a layered detection model that mirrors the
 intrusion chronology: initial access (R01-R08), beacon live-off-the-land activity (R09-R13),
 credential access and lateral movement (R14a-R18), and remote-access/exfiltration/impact
-(R19-R21). The alerting set — **R17** (WMI pivot to an unsigned module), **R18** (proxy-spawned
-beacon egress) and **R21** (impact artifacts) — is high severity; the remaining rules operate as
+(R19-R20). The alerting set — **R17** (WMI pivot to an unsigned module), **R18** (proxy-spawned
+beacon egress) — is high severity; the remaining rules operate as
 correlation building blocks with suppression on noisy sources. Every rule uses a deterministic
 `rule_id` (SHA-256 of the rule name) and is written without environment-specific values.
 Full index, stage mapping and run coverage: [detections/README.md](detections/README.md).
@@ -68,3 +68,4 @@ Full index, stage mapping and run coverage: [detections/README.md](detections/RE
 - [docs/payloads-and-c2.md](docs/payloads-and-c2.md) — payload and C2 design.
 - `phases/phaseN/` — per-phase plans and run records.
 - [evidence/run-ledger/](evidence/run-ledger/) — ledger schema and the reference run.
+

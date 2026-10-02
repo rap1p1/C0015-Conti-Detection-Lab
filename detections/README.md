@@ -1,4 +1,4 @@
-# detections — Rule suite R01-R21
+# detections — Rule suite R01-R20
 
 Elastic EQL detections engineered against the lab replay of Campaign C0015. All rules
 follow the same conventions:
@@ -20,7 +20,6 @@ follow the same conventions:
 |---|---|---|---|---|
 | **R17** | WMI-Spawned Process Loading an Unsigned Module | 73 | host+entity | S8b — wmiprvse → rundll32 → unsigned `143.dll` (sequence E1→E7; `[any where]` because E7 is `category=library`) |
 | **R18** | Proxy-Spawned PowerShell Making an Egress Connection | 73 | host+entity | S9/S2 — rundll32/regsvr32 → powershell → E3 egress (sequence, 120s maxspan) |
-| **R21** | Ransomware Note or Bulk File Extension Change | 73 | — | S14 — note class (README*/DECRYPT*/HOW_TO*/READ_ME*) or novel extension `*.c0015` (3 matches in the reference run (RUN-20261002-05)) |
 
 ### 🟠 Medium (building-block ON = hidden from the default alert view until correlated)
 
@@ -56,7 +55,7 @@ follow the same conventions:
 | Stage (technique) | Victim-side artifacts | E# / S# | Key fields | Rule & what drives the match |
 |---|---|---|---|---|
 | **S1** Entry (T1204.002/T1059.005 → T1218.005/T1105/T1218.010) | Word macro **self-writes** config.ini/bootstrap.hta/c0015_beacon.ps1 to `%PUBLIC%\C0015`; mshta → HTA → downloads `c0015-comparefor.jpg` (DLL) → regsvr32 /s | E1 (WINWORD/mshta/regsvr32), **E11 (proc=WINWORD)**, E3 `:8000`, E7 (jpg-as-DLL) | `process.name` + `parent.name`/`entity_id` (chain), `file.path` (`*C0015*`), `destination.port=8000` | R01/R02/R03/R04/R07/R08 |
-| **S2-S3** Beacon (T1071.001, T1016) | beacon powershell (con của regsvr32) + callback `:8080` + markers | E1, E3 `:8080`, E11 | `process.name=powershell` + `parent=regsvr32`, `process.entity_id`, `destination.port=8080` | R05/R06/R09/R18 |
+| **S2-S3** Beacon (T1071.001, T1016) | beacon powershell (child of regsvr32) + callback `:8080` + markers | E1, E3 `:8080`, E11 | `process.name=powershell` + `parent=regsvr32`, `process.entity_id`, `destination.port=8080` | R05/R06/R09/R18 |
 | **S4** Discovery (T1057/T1069/T1482/T1016/T1018) | beacon → cmd → `whoami/net/tasklist/nltest/net view/ping/systeminfo` | E1 (cmd, tool) | chain `powershell→cmd→tool`, `process.name` class, entity | R10/R11/R12 |
 | **S5** Share enum (T1135) | `net view \\FS01` + Get-SmbShare | E1 | `process.command_line` class (`* view*`, `*Get-SmbShare*`) | R13 |
 | **S7** Auth (T1078) | network logon explicit cred → FS01 | S4624 T3, S4672, S4625 | `LogonType=3`, `user.name` (non-`*$`/SYSTEM), `TargetLogonId` | R14a/R14b |
@@ -67,15 +66,15 @@ follow the same conventions:
 | **S10** Collection (T1005/T1039/T1074.001) | beacon reads shares (UNC), copies into staging dir, zips | E11 (`*collect*`), **S5145** | `file.path` (`*collect*`), `ShareName`, `RelativeTargetName`, `user.name` | R16 (share read/write); R04 class |
 | **S11** Transfer (T1567.002 surrogate/T1030) | **real rclone** (`--transfers 7 --bwlimit 10M --max-age 2y`) → local WebDAV sink :9001 | E1 (rclone), E3 egress `:9001` | `process.name=rclone.exe`, `process.command_line` (transfer-flag class), `destination.port=9001` | R06/R09 class; ART-09-01 receipt hash-equality (host-side, independent) |
 | **S12** RDP (T1021.001) | mstsc client; RDP NLA logon | **S4624** T3/T4/T10, S4778/4779 | `LogonType` ("10" interactive; "3"/"4" network/NLA), `TargetUserName`, `IpAddress` | R19 (T10 non-system; BB — run logged T3/T4 network-auth, T10 pending an interactive logon) |
-| **S13** Remote tool (T1219.002) | portable tool vào `Videos\` / `C:\` root rồi chạy | E11 (drop), E1 (run) | `file.path` (`*\\Videos\\*`, `C:\\*.exe`), `file.extension=exe`, `process.name` class (AnyDesk/RustDesk/TeamViewer/ProcessHacker) | R20 (sequence drop→run, join host, maxspan 10m) |
-| **S14** Impact (T1486 surrogate/T1083) | bulk rename + extension change; ransom-note file; post-impact listing | E11, E2 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME*), `file.extension` (novel class), `file.path` (`*Impact*`) | R21; recovery evidence = Rollback + hash compare |
+| **S13** Remote tool (T1219.002) | portable tool dropped into `Videos\` / `C:\` root, then run | E11 (drop), E1 (run) | `file.path` (`*\\Videos\\*`, `C:\\*.exe`), `file.extension=exe`, `process.name` class (AnyDesk/RustDesk/TeamViewer/ProcessHacker) | R20 (sequence drop→run, join host, maxspan 10m) |
+| **S14** Impact (T1486 surrogate/T1083) | bulk rename + extension change; ransom-note file; post-impact listing | E11, E2 | `file.name` (README*/DECRYPT*/HOW_TO*/READ_ME*), `file.extension` (novel class), `file.path` (`*Impact*`) | — (impact writes monitored via E11 sweep); recovery evidence = Rollback + hash compare |
 | **S15** E2E / IR | full ledger + receipts + scorecard | — | run_id + artifact hashes | ART-15-01 coverage scorecard |
 
 ## Run coverage (latest: RUN-20261002-05)
 
 Raw alert counts in/after the run window (sweep incl. duplicates; BB-ON rows are hidden
 from the default view): R16=340 (no suppression configured), R14b=288(BB), R10=78, R14a=72,
-R12=33, R11=9, R18=9, R13=8, R17=3, R15=2, R20=3, R21=3, R19=0 (no interactive logon in the run window).
+R12=33, R11=9, R18=9, R13=8, R17=3, R15=2 , R20=3, R19=0 (no interactive logon in the run window).
 Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 
 ## Rule-authoring notes
@@ -91,4 +90,7 @@ Full record: `../phases/phase3-final-campaign/detection-run-20261002-05.md`.
 - The generator (`stage/analysis/gen_rules_ndjson.ps1`) loads every rule file listed in its
   `$q` loader — adding a rule requires adding BOTH the `.eql` file and the loader entry
   (an empty query imports silently and the rule fails at execution: "query is null or empty").
+
+
+
 

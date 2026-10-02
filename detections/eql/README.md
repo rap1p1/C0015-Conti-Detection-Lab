@@ -1,4 +1,4 @@
-# eql — Rule files R01-R21
+# eql — Rule files R01-R20
 
 One `.eql` file per rule; regenerated into import NDJSON by
 `../stage/analysis/gen_rules_ndjson.ps1` (which must list every rule id in its `$q`
@@ -28,7 +28,7 @@ loader). The full index, severity, suppression and stage mapping live in
 | `r18-proxy-spawned-powershell-egress.eql` | R18 (🔴) | S9/S2 |
 | `r19-rdp-interactive-logon.eql` | R19 | S12 |
 | `r20-portable-remote-access-tool.eql` | R20 | S13 |
-| `r21-ransomware-note-bulk-file-change.eql` | R21 (🔴) | S14 |
 
 Import artifacts: `C0015-S1-S3-elastic-rules.ndjson` (R01-R11) and
-`C0015-S4-S9-elastic-rules.ndjson` (R12-R21) — regenerated on every run of the generator.
+`C0015-S4-S9-elastic-rules.ndjson` (R12-R20) — regenerated on every run of the generator.
+

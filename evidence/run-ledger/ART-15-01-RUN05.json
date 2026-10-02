@@ -39,10 +39,10 @@
       "R17 WMI-Spawned Unsigned": 3,
       "R15 LSASS Access": 2,
       "R20 Portable Remote Tool": 3,
-      "R21 Ransomware Note/Bulk Rename": 3,
       "R19 RDP Interactive": "0 (reference run produced T3/T4 network-auth logons; interactive T10 logon not completed)"
     },
-    "notes": "R20 and R21 matched during the reference run; R19 reports once an interactive T10 logon is observed; all rules use deterministic rule_id"
+    "notes": "R20 matched during the reference run; R19 reports once an interactive T10 logon is observed; all rules use deterministic rule_id"
   },
   "artifacts_indexed": ["ART-07-01-18c677ef", "ART-08-01", "ART-09-01 r1", "ART-09-01 r2", "ART-14-01", "ART-15-01"]
 }
+

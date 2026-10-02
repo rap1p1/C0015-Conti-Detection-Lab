@@ -2,7 +2,7 @@
 
 Exfiltration, remote access, and bounded impact — mirroring the closing chapters of the
 DFIR report — executed end to end in a single run (RUN-20261002-05) and verified across
-all stages on Elastic, with detection rules R19-R21 covering the phase.
+all stages on Elastic, with detection rules R19-R20 covering the phase.
 
 ## Chain (original tools and lab surrogates)
 
@@ -23,14 +23,13 @@ all stages on Elastic, with detection rules R19-R21 covering the phase.
 - **Impact**: bounded, allowlist-capped, reversible — rollback is verified against the
   backup copy by hash.
 
-## Detection (rules R19-R21)
+## Detection (rules R19-R20)
 
 - **R19** RDP Interactive Logon — Security 4624 `LogonType=10`, non-system account (BB).
   The reference run produced network-auth logons (T3/T4); the rule reports once a fully
   interactive logon is observed.
 - **R20** Portable Remote-Access Tool Dropped and Executed — E11 (Videos\ or drive root)
   → E1 (remote-access/process-tool class) sequence; matched 3 alerts in the reference run.
-- **R21** Ransomware Note or Bulk File Extension Change — note class or novel extension
   via E11; matched 3 alerts on the impact notes.
 
 ## Files
@@ -40,3 +39,4 @@ all stages on Elastic, with detection rules R19-R21 covering the phase.
 - [detection-run-20261002-05.md](detection-run-20261002-05.md) — alert coverage and operational notes.
 - Evidence: `../../evidence/run-ledger/RUN-20261002-05.json` + ART-07-01/08-01/09-01×2/14-01/15-01.
 - Verify tool: `../../stage/analysis/verify_final_phases.py` (documented in `../../scripts/README.md`).
+

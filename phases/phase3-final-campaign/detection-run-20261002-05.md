@@ -2,6 +2,8 @@
 
 Window: 2026-10-02 05:41:00Z -> 06:12:00Z (entry chain at 05:41:41Z, impact at 06:04Z).
 
+> R21 was retired after this run; the alert counts below record the run as executed.
+
 ## Campaign result
 - S1-S15 completed under one run_id: macro self-write entry (3rd consecutive reproducible
   entry), remote operator on WS01, WMI pivot to FS01, collection (11 files), real-rclone
@@ -23,11 +25,13 @@ README notes), R19=0 (no interactive T10 logon; RDP logged as T3/T4 network-auth
    winlog.event_data.RelativeTargetName) 5m.
 2. R19 reports only after a fully interactive (T10) logon; the reference run closed the
    session at Conn, so only T3/T4 network-auth was observed.
-3. R20 and R21 matched during the run. Note for rule maintenance: the generator loads
+3. R20 matched during the run. Note for rule maintenance: the generator loads
    every rule file through its loader list; a rule missing from that list imports with an empty query and fails at execution ('query is null or empty') - see
    gen_rules_ndjson.ps1).
 4. The FS01 second-session beacon was respawned once via WMI (direct
    powershell beacon) during the run; recorded in the ledger.
 5. R12-R18 rule metadata notes predate the repository language policy and are -
    
+
+
 
