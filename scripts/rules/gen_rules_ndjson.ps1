@@ -69,7 +69,7 @@ $rules = @()
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R12 | PowerShell-Driven Discovery via Nested CMD' `
-  -Descr 'Detects the discovery sequence powershell -> cmd.exe -> discovery tool (net/tasklist/nltest/whoami/systeminfo/arp/wmic/ipconfig), anchored by process.entity_id - the beacon discovery batch (S4).' `
+  -Descr 'Detects the direct discovery chain powershell -> cmd.exe -> discovery tool (net/tasklist/nltest/whoami/systeminfo/arp/wmic/ipconfig) anchored by entity - the beacon discovery batch (S4). Tree shapes with two CMD layers are covered by R10+R11 correlation, not by this rule.' `
   -Note '## Scope
 
 S4 operator discovery (T1057/T1018/T1016/T1069/T1482) when the session beacon runs the runbook batch. Building block: ON - correlate with R10/R11 for the full chain.
@@ -87,7 +87,7 @@ Sysmon Operational, index logs-windows.sysmon_operational-c0015*. Interval 1m, l
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R13 | Share Enumeration via net view or Get-SmbShare' `
-  -Descr 'Detects network share enumeration through E1 command-line classes: net.exe/net1.exe with view/use parameters, or PowerShell calling Get-SmbShare (S5, T1135).' `
+  -Descr 'Detects share enumeration through command-line classes: net view (net.exe/net1.exe) or PowerShell calling Get-SmbShare (S5, T1135). net use sessions are not treated as share discovery.' `
   -Note '## Scope
 
 S5 share enumeration; a net use against a share is a precursor to lateral movement (S7).
@@ -104,7 +104,7 @@ Inspect the surrounding command batch to determine context; correlate net use en
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R14a | Network Logon by Non-System Account' `
-  -Descr 'Detects network logon (Security 4624 LogonType 3) by a real account; the authentication layer for lateral movement hops (WMI/SMB with explicit credentials, S7/S8b).' `
+  -Descr 'Detects network logon (Security 4624 LogonType 3) by a real account - an authentication signal observed before the WMI/SMB hops (S7/S8b). Does not by itself prove explicit-credential use or account abuse.' `
   -Note '## Scope
 
 S7 authentication signal. Requires the Logon/Logoff audit policy (enabled by default for success).
@@ -117,11 +117,11 @@ Security channel, index logs-system.security-c0015*. Interval 1m, look-back 5m. 
 
 Match source (SubjectUserName/WorkstationName) and target; a Type-3 logon with an administrative account preceding WMI/SMB activity indicates lateral movement.' `
   -Sev low -Risk 21 -FP @('Legitimate network logons (backup agents, admin tools, scheduled tasks with stored credentials).') `
-  -Threat (Tech $tLatMv 'T1078' 'Valid Accounts') -Idx $sec -Query $q['r14a-network-logon-by-user'] -BBlock 'default'
+  -Threat (Tech $tDefEv 'T1078' 'Valid Accounts') -Idx $sec -Query $q['r14a-network-logon-by-user'] -BBlock 'default'
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R14b | Elevated Privileges Assigned to Non-System Account' `
-  -Descr 'Detects Security 4672 (special privileges assigned to a new logon) for a real account - the elevated-login signal complementary to R14a.' `
+  -Descr 'Detects Security 4672 (special privileges assigned to a new logon) for a real account - elevated-login context complementary to R14a. Context only: privilege assignment does not prove privilege-escalation behavior.' `
   -Note '## Scope
 
 S7/S8b: elevated logon(s) used for WMI/SMB administration. Building block: ON - combine with R14a for the network-logon + special-privileges story.
@@ -134,7 +134,7 @@ Security channel, index logs-system.security-c0015*. Interval 1m, look-back 5m.
 
 A 4672 immediately before wmiprvse->rundll32 (R17) on the same host completes the lateral-movement chain.' `
   -Sev medium -Risk 47 -FP @('Legitimate admin console/RDP logons also produce 4672.') `
-  -Threat (Tech $tLatMv 'T1078' 'Valid Accounts') -Idx $sec -Query $q['r14b-elevated-privileges-assigned-to-user'] -BBlock 'default'
+  -Threat (Tech $tDefEv 'T1078' 'Valid Accounts') -Idx $sec -Query $q['r14b-elevated-privileges-assigned-to-user'] -BBlock 'default'
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
   -Name 'C0015 | R15 | LSASS Access with Credential-Access Grant' `
@@ -222,8 +222,8 @@ Confirm the source IP (winlog.event_data.IpAddress) and correlate the TargetLogo
   -Threat (Tech $tLatMv 'T1021' 'Remote Services' 'T1021.001' 'Remote Desktop Protocol') -Idx $sec -Query $q['r19-rdp-interactive-logon'] -BBlock 'default'
 
 $rules += New-Rule -Id ([guid]::NewGuid()) -RuleId ([guid]::NewGuid()) `
-  -Name 'C0015 | R20 | Portable Remote-Access or Process Tool Dropped and Executed' `
-  -Descr 'Detects a portable tool (remote-access software: AnyDesk/RustDesk/TeamViewer; process-administration utility: ProcessHacker) dropped into a non-standard location (Videos or drive root) and executed - E11 then E1 sequence (S13, T1219.002 for remote access; ProcessHacker maps to process-discovery tooling, not remote access).' `
+  -Name 'C0015 | R20 | Portable Tool Dropped into Non-Standard Location then Executed' `
+  -Descr 'Detects a portable tool dropped into a non-standard location (Videos or drive root) and later executed - E11 then E1 sequence (S13). Two tool classes with distinct MITRE mappings: remote desktop software (AnyDesk/RustDesk/TeamViewer, T1219.002 Remote Desktop Software) and process-administration tooling (ProcessHacker). Host-level correlation - the rule does not prove the executed binary is the dropped file.' `
   -Note '## Scope
 
 S13 tool deployment mirroring the report (AnyDesk under Videos\, ProcessHacker at C:\ root). The sequence joins by host.name only - it does not prove that the executed binary is the dropped file; treat as correlation.
@@ -248,7 +248,7 @@ $specs = @(
      note='## Scope`n`nS1 initial access: the document macro launches the script host. Building block: ON.`n`n## Data and schedule`n`nSysmon Operational, index logs-windows.sysmon_operational-c0015*. Interval 1m, look-back 5m.`n`n## Investigation`n`nConfirm the parent is the Office process and the child is a script interpreter; the chain continues with R02/R07.';
      threat=(Tech $tExec 'T1059' 'Command and Scripting Interpreter' 'T1059.005' 'Visual Basic') },
   @{ id='r02-script-host-spawning-proxy-loader'; name='C0015 | R02 | Script Host Spawning Regsvr32 or Rundll32';
-     desc='Detects mshta/cmd/powershell spawning regsvr32 or rundll32 (E1) - the transition from the HTA bootstrap to the signed-proxy loader (S1, T1218.010).';
+     desc='Detects mshta/wscript/cscript spawning regsvr32 or rundll32 (E1) - the transition from the HTA bootstrap to the signed-proxy loader (S1, T1218.010/T1218.011).';
      note='## Scope`n`nS1 proxy execution after the HTA runs. Building block: ON.`n`n## Investigation`n`nMatch the child command line - regsvr32 /s with a staged path feeds R03.';
      threat=(Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.010' 'Regsvr32') },
   @{ id='r03-proxy-loader-loading-unsigned-module'; name='C0015 | R03 | Proxy Loader Loading an Unsigned Module from a Staging Path';
@@ -256,7 +256,7 @@ $specs = @(
      note='## Scope`n`nS1 DLL-as-JPG load. Building block: ON.`n`n## Investigation`n`nCheck Signed=false + hash; correlate with E11 of the staged file and the subsequent beacon (R05/R06).';
      threat=(Tech $tDefEv 'T1218' 'Signed Binary Proxy Execution' 'T1218.010' 'Regsvr32') },
   @{ id='r04-script-or-proxy-staging-file-write'; name='C0015 | R04 | Script or Proxy Writing to a Staging Path';
-     desc='Detects script/proxy processes writing to staging paths (%PUBLIC%, temp, ProgramData) via E11 (S1/S2/S10, T1105 staging).';
+     desc='Detects script/proxy processes writing files to staging paths via E11 - ingress staging signal (S1/S2, T1105). A file creation alone does not prove a download.';
      note='## Scope`n`nStaged file writes from script/proxy processes. The entry macro''s own writes are WINWORD-originated E11 events and fall outside this predicate - coverage claim is limited accordingly. Building block: ON.`n`n## Investigation`n`nReview the written file names and the writing process.';
      threat=(Tech $tC2 'T1105' 'Ingress Tool Transfer') },
   @{ id='r05-proxy-loader-spawning-powershell'; name='C0015 | R05 | Regsvr32 or Rundll32 Spawning PowerShell';
@@ -264,7 +264,7 @@ $specs = @(
      note='## Scope`n`nS2 beacon launch. Building block: ON.`n`n## Investigation`n`nJoin the child entity with E3 egress (R06) to confirm the C2 callback.';
      threat=(Tech $tExec 'T1059' 'Command and Scripting Interpreter' 'T1059.001' 'PowerShell') },
   @{ id='r06-script-host-network-egress'; name='C0015 | R06 | Script Host Network Egress';
-     desc='Detects a script host (powershell/mshta/cmd) initiating an egress connection (E3) - the beacon callback channel (S2-S3, T1071.001). Suppressed by entity to tolerate the polling loop.';
+     desc='Detects a script host (powershell/mshta/wscript) initiating an egress connection (E3) - the beacon callback channel (S2-S3, T1071.001). The connection itself does not prove HTTP or C2. Suppressed by entity to tolerate the polling loop.';
      note='## Scope`n`nBeacon C2 traffic. Building block: ON; suppression (entity, 5m) keeps the polling loop from flooding.`n`n## Investigation`n`nFilter by destination port/interval; regular polling to one endpoint is the session signature.';
      threat=(Tech $tC2 'T1071' 'Application Layer Protocol' 'T1071.001' 'Web Protocols') },
   @{ id='r07-office-to-mshta-to-proxy-loader'; name='C0015 | R07 | Office to Mshta to Proxy Loader';
@@ -280,7 +280,7 @@ $specs = @(
      note='## Scope`n`nS2-S3 callback after proxy hand-off. Building block: ON.`n`n## Investigation`n`nSame entity vs R18 (which adds the rundll32/regsvr32 parent); treat as the session indicator.';
      threat=(Tech $tC2 'T1071' 'Application Layer Protocol' 'T1071.001' 'Web Protocols') },
   @{ id='r10-powershell-spawning-nested-cmd'; name='C0015 | R10 | PowerShell Spawning Nested CMD Processes';
-     desc='Detects powershell spawning cmd.exe (E1) - the beacon command-execution pattern (S4).';
+     desc='Detects PowerShell spawning nested cmd.exe - outer and inner CMD layers (E1) - the beacon command-execution pattern (S4).';
      note='## Scope`n`nS4 task execution. Building block: ON; suppression (host+entity, 5m).`n`n## Investigation`n`nNested cmd from the beacon entity is expected during discovery batches; isolate large bursts.';
      threat=(Tech $tExec 'T1059' 'Command and Scripting Interpreter' 'T1059.001' 'PowerShell') },
   @{ id='r11-nested-cmd-launching-discovery-tool'; name='C0015 | R11 | Nested CMD Launching a Discovery-Capable Tool';
@@ -310,6 +310,8 @@ $supp = @{
   'C0015 | R12 | PowerShell-Driven Discovery via Nested CMD'                     = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R13 | Share Enumeration via net view or Get-SmbShare'                 = @{ group_by = @('process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R14a | Network Logon by Non-System Account'                           = @{ group_by = @('host.name', 'winlog.event_data.TargetLogonId'); duration = @{ value = 5; unit = 'm' } }
+  'C0015 | R14b | Elevated Privileges Assigned to Non-System Account'                  = @{ group_by = @('host.name', 'winlog.event_data.SubjectLogonId'); duration = @{ value = 5; unit = 'm' } }
+  'C0015 | R16 | Admin Share Access (SMB)'                                           = @{ group_by = @('host.name', 'winlog.event_data.SubjectLogonId', 'winlog.event_data.ShareName'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R15 | LSASS Access with Credential-Access Grant'                      = @{ group_by = @('process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R17 | WMI-Spawned Process Loading an Unsigned Module'                 = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
   'C0015 | R18 | Proxy-Spawned PowerShell Making an Egress Connection'           = @{ group_by = @('host.name', 'process.entity_id'); duration = @{ value = 5; unit = 'm' } }
@@ -331,3 +333,6 @@ if (($ids | Select-Object -Unique).Count -ne $ids.Count) { throw "duplicate rule
 Write-Output "written S1-S3: $($s3rules.Count) rules"
 ($rules | ForEach-Object { $_ | ConvertTo-Json -Depth 12 -Compress }) | Set-Content -LiteralPath "$repo\detections\exports\c0015-rules-r12-r20.ndjson" -Encoding UTF8
 Write-Output "written S4-S9: $($rules.Count) rules"
+
+
+
