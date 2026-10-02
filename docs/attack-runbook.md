@@ -1,4 +1,4 @@
-# C0015 Attack Runbook — definitive step-by-step (S1–S15)
+# C0015 Attack Runbook — definitive step-by-step (Campaign S1–S14)
 
 Canonical, machine-by-machine runbook for reproducing the C0015-inspired chain on the lab.
 All steps are **benign surrogates on owned VMs**. Every stage lists: the **machine(s) and
@@ -309,7 +309,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
 
 ---
 
-## S15 — Verification + documentation
+## Validation & Detection Coverage (post-run, Detection-Engineer work)
 
 - **C2 host** (env creds only; `ES_USER`/`ES_PASS`):
   ```powershell
@@ -326,7 +326,7 @@ Copy-Item stage/ws01/config-phase7.ini build/out/tools/config-phase7.ini -Force
 
 ---
 
-## Post-run
+## Recovery & Cleanup
 
 - Cleanup (beacons, Word, mshta, AnyDesk/ProcessHacker, rclone, servers):
   `pwsh payloads/packaging/launch_servers.ps1 -Stop` + taskkills per VM.

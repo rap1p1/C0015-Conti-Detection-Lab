@@ -1,0 +1,13 @@
+{
+  "artifact_id": "ART-15-01",
+  "run_id": "RUN-20261002-07",
+  "schema_version": "1.0",
+  "producer_stage": "S15",
+  "generated_utc": "2026-10-02T09:09:01Z",
+  "verification": {
+    "tool": "scripts/verify/verify_final_phases.py",
+    "window": "2026-10-02T08:50:00Z -> 2026-10-02T09:15:00Z",
+    "result": "ACCEPTED"
+  },
+  "notes": "Post-run validation (ledger, acceptance, alert volume) - this stage is the Detection-Engineer evaluation, not simulated campaign behavior. Impact: S14. Tuned rules: R16/R14b suppression, R22/R23/R24 added."
+}

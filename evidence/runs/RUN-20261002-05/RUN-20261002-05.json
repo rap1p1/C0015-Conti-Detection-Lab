@@ -567,7 +567,7 @@
     {
       "artifact_id": "ART-15-01",
       "path": "evidence/runs/RUN-20261002-05/ART-15-01-RUN05.json",
-      "sha256": "79E61CF9E101A13DAFF7107D0674ABCE6E68A28ED4D4BA5A99432E9DA7099B68",
+      "sha256": "5779A0274D0E56A05D2521C7F59A4DF270E60FEFF1CDD8620307AF16D8E66E46",
       "producer_stage": "S15",
       "consumer_stage": ""
     }
