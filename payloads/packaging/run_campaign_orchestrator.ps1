@@ -114,7 +114,7 @@ function Start-Phase {
         if (Test-Path $src) { Copy-Item $src (Join-Path $toolsDir $t) -Force }
         else { Step "TOOLS MISSING (build/deploy first): $Staging\$t" }
     }
-    & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir 'build/out' | Out-Null
+    & (Join-Path $repo 'payloads/packaging/launch_servers.ps1') -C2Ip $C2Ip -PublishDir 'build/out' -LedgerDir (Join-Path 'evidence/runs' $RunId) | Out-Null
     Wait-Listeners
     Step '== WS01 (entry-chain, remote via vmrun): install_macro_docm.ps1 -MacroSource stage/ws01/macro_embedded.vba =='
     Step '== WS01: mo test.docm (victim action; macros enabled qua Trust Center preflight) =='
@@ -232,6 +232,7 @@ switch ($Action) {
         Invoke-Phase3
     }
 }
+
 
 
 

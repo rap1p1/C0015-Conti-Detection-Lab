@@ -5,9 +5,9 @@ Each run is a directory containing its ledger and artifacts.
 | Path | Contents |
 |---|---|
 | `RUN-schema.json` | ledger schema (stages / input+output artifacts / artifact_index with sha256) |
-| `RUN-20261002-05/` | reference run: the final campaign S1-S15 |
+| `RUN-20261002-06/` | reference run (current): final campaign re-run - canonical hashes, bidirectional Verify, R19 positive |\n| `RUN-20261002-05/` | first full campaign run S1-S15 |
 
-## RUN-20261002-05 files
+## RUN-20261002-06 files (current)\n\nMirrors the 05 layout (ledger + ART-07-01/08-01/09-01 x2 with sink_files/14-01/15-01).\n\n## RUN-20261002-05 files (first full run)
 
 | File | Contents |
 |---|---|

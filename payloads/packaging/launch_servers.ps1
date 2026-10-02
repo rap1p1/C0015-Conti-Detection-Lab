@@ -24,7 +24,7 @@ param(
     [int]$C2Port = 8080,
     [string]$PublishDir,
     [int]$HttpPort = 8000,
-    [string]$LedgerDir = 'evidence/runs/RUN-20261002-05',
+    [string]$LedgerDir = 'evidence/runs',
     [string]$LogPath = 'c2sim.log',
     [switch]$Stop,
     [string]$PidFile = '.phase1-servers.pid',
@@ -99,4 +99,5 @@ Write-Output "  HTTP DLL http://$C2Ip`:$HttpPort"
 Write-Output "  pid file: $PidFile  (stop later with -Stop; watchdog child pid: $GuardState)"
 Start-Sleep -Seconds 1
 Write-Output "  verify C2-SIM: $C2Ip`:$C2Port reachable; DLL at http://$C2Ip`:$HttpPort/c0015-comparefor.jpg"
+
 

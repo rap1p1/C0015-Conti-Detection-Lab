@@ -25,7 +25,11 @@ USER = os.environ.get("ES_USER", "elastic")
 PASS = os.environ["ES_PASS"]  # required
 SYS = ".ds-logs-windows.sysmon_operational-*"
 SEC = ".ds-logs-system.security-*"
-W0, W1 = "2026-10-02T05:41:00Z", "2026-10-02T06:12:00Z"
+RUN = sys.argv[1] if len(sys.argv) > 1 else "RUN-20261002-05"
+W0, W1 = {
+    "RUN-20261002-05": ("2026-10-02T05:41:00Z", "2026-10-02T06:12:00Z"),
+    "RUN-20261002-06": ("2026-10-02T07:49:00Z", "2026-10-02T08:12:00Z"),
+}.get(RUN, ("2026-10-02T05:41:00Z", "2026-10-02T08:12:00Z"))
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
@@ -89,7 +93,8 @@ def main():
                 esc(("process.parent.name", "regsvr32.exe"))], 1)
     require("S2", "beacon powershell (parent=regsvr32)", h)
     log = ROOT / "c2sim.log"
-    if log.exists() and "S1-9a7cab91e7fd4f9f" in log.read_text(encoding="utf-8", errors="ignore"):
+    tok = "S1-0d84eba20418da28" if RUN == "RUN-20261002-06" else "S1-9a7cab91e7fd4f9f"
+    if log.exists() and (tok in log.read_text(encoding="utf-8", errors="ignore")):
         print("  ok  S2  phase3 register token in c2sim.log")
     else:
         FAILURES.append("S2: phase3 register token not found in c2sim.log")
@@ -112,7 +117,7 @@ def main():
     require("S9", "second-session egress :8080", h)
 
     # S10 collection manifest
-    man = ROOT / "evidence" / "runs" / "RUN-20261002-05" / "ART-08-01-RUN05.json"
+    man = ROOT / "evidence" / "runs" / RUN / f"ART-08-01-RUN{RUN.split('-')[-1]}.json"
     if man.exists():
         m = json.loads(man.read_text(encoding="utf-8"))
         if m.get("payload", {}).get("files") and len(m["payload"]["files"]) == 11:
@@ -124,7 +129,7 @@ def main():
 
     # S11 receipts: canonical manifest hash equality + sink_files
     for r1 in ("round1", "round2"):
-        rec = ROOT / "evidence" / "runs" / "RUN-20261002-05" / f"ART-09-01-{r1}-RUN05.json"
+        rec = ROOT / "evidence" / "runs" / RUN / f"ART-09-01-{r1}-RUN{RUN.split('-')[-1]}.json"
         r = json.loads(rec.read_text(encoding="utf-8"))
         got = _canon_sha256(man)
         if r.get("manifest_sha256") != got:
@@ -153,7 +158,7 @@ def main():
     require("S14", "impact note write", h)
 
     # artifact_index canonical hash verification
-    ledger = json.loads((ROOT / "evidence" / "runs" / "RUN-20261002-05" / "RUN-20261002-05.json").read_text(encoding="utf-8"))
+    ledger = json.loads((ROOT / "evidence" / "runs" / RUN / f"{RUN}.json").read_text(encoding="utf-8"))
     for a in ledger["artifact_index"]:
         ap = ROOT / a["path"]
         if ap.exists() and _canon_sha256(ap) != a["sha256"]:
@@ -170,3 +175,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+

@@ -1,0 +1,74 @@
+{
+  "artifact_id": "ART-09-01",
+  "run_id": "RUN-20261002-06",
+  "round": 1,
+  "schema_version": "1.0",
+  "producer_phase": 10,
+  "consumer_phase": 15,
+  "verified_at": "2026-10-02T08:05:00Z",
+  "verified_files": 11,
+  "total_files": 11,
+  "manifest_ref": "evidence/runs/RUN-20261002-06/ART-08-01-RUN06.json",
+  "manifest_sha256": "06DB3A33AEC5B93019998474204A9E05CB6682E54A84BBFE501B6C366682503E",
+  "manifest_sha256_norm": "sha256 of LF-normalized content (canonical convention)",
+  "sink_files": [
+    {
+      "name": "Finance/budget-forecast.txt",
+      "size": 23,
+      "sha256": "FB9BAA9DBA9F603C5FCE54350DEC9C64140B670C54634170C62DFD1BE5014509"
+    },
+    {
+      "name": "Finance/budget-q3.txt",
+      "size": 35,
+      "sha256": "C9600769029E2E4BEC9424A2FD7D8100E99839E05E9AD341F4F80B6F964B7FD5"
+    },
+    {
+      "name": "Finance/client-onboarding.txt",
+      "size": 30,
+      "sha256": "8C792D5D661A898FB98522792EAD148A980012C8DB2BCA3C742DE040CB1E23B7"
+    },
+    {
+      "name": "Finance/import-template.txt",
+      "size": 26,
+      "sha256": "F6A58069B692114B256C5B4F2997D14F2612F785E0F44AA1511C49FDACB9AA35"
+    },
+    {
+      "name": "Finance/payroll-notes.txt",
+      "size": 24,
+      "sha256": "C5D05F13523F1F5D2C74464974A397A90CF08D17766D4CC0149955C5A52A30B1"
+    },
+    {
+      "name": "Finance/q3-vendors.txt",
+      "size": 32,
+      "sha256": "C0309AAF76888A296AB0A8F07BD98BA8731AC83BDD4F0AC8CB27722B3995C958"
+    },
+    {
+      "name": "IT/ad-groups-audit.txt",
+      "size": 29,
+      "sha256": "5C258B70EEE46A2D6D9FA11BBFA6D2CC2E40901C71B6DD63F342887CBFB96CD4"
+    },
+    {
+      "name": "IT/backup-schedule.txt",
+      "size": 27,
+      "sha256": "5BE46DD97A733054AA702F8D5230CFB296A72CCE54A6D7D19A393BC487308B1D"
+    },
+    {
+      "name": "IT/network-map.txt",
+      "size": 25,
+      "sha256": "E2FE594AF50587C71EBA82C4732020DF4E39DA5E98DF9DF4152E3E505BAF5683"
+    },
+    {
+      "name": "IT/server-inventory.txt",
+      "size": 27,
+      "sha256": "E71065AB76E34A25863523DF0954EBDCD6BF347DED392945157780E807C16A70"
+    },
+    {
+      "name": "IT/vault-notes.txt",
+      "size": 31,
+      "sha256": "7C17E07E853017F880DA301F4AE0DD9C09BC4468F51D6D94E79F1BB0952E128D"
+    }
+  ],
+  "tool": "rclone.exe 1.75.1 (copy --max-age 2y --ignore-existing --auto-confirm --multi-thread-streams 7 --transfers 7 --bwlimit 10M -> webdav sink local)",
+  "note": "internal sink (no public cloud)",
+  "matched": "all-files-hash-equal-manifest"
+}

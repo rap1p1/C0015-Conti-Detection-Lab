@@ -5,15 +5,18 @@ Output: JSON map stage -> list of {id, ts, host, event, note}.
 Usage: python fetch_evidence_ids.py
 """
 import json
+import os
 import ssl
 import urllib.request
 import base64
 
 ES = "https://100.77.46.126:9200"
-AUTH = "Basic " + base64.b64encode(f"{os.environ[\"ES_USER\"]}:{os.environ[\"ES_PASS\"]}".encode()).decode()
+AUTH = "Basic " + base64.b64encode(f"{os.environ['ES_USER']}:{os.environ['ES_PASS']}".encode()).decode()
 SYS = ".ds-logs-windows.sysmon_operational-*"
 SEC = ".ds-logs-system.security-*"
-W0, W1 = "2026-10-02T05:41:00Z", "2026-10-02T06:12:00Z"
+import os as _os
+W0 = _os.environ.get("RUN_W0", "2026-10-02T05:41:00Z")
+W1 = _os.environ.get("RUN_W1", "2026-10-02T06:12:00Z")
 CTX = ssl.create_default_context(); CTX.check_hostname = False; CTX.verify_mode = ssl.CERT_NONE
 
 
@@ -42,7 +45,7 @@ out["S1"] = [ev(x, "entry WINWORD") for x in q(SYS, [{"term": {"event.code": "1"
          + [ev(x, "mshta from WINWORD") for x in q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "mshta.exe"}}], 1)] \
          + [ev(x, "regsvr32 from mshta") for x in q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "regsvr32.exe"}}], 1)]
 out["S2"] = [ev(x, "beacon powershell E1 (child of regsvr32)") for x in q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "powershell.exe"}}, {"term": {"process.parent.name": "regsvr32.exe"}}], 1)]
-out["S4"] = [ev(x, "first cmd discovery child") for x in q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "cmd.exe"}}], 1)]
+out["S4"] = [ev(x, "first discovery cmd on the beachhead") for x in q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "cmd.exe"}}, {"term": {"host.name": "ws01"}}, {"range": {"@timestamp": {"gte": "2026-10-02T07:50:03Z"}}}] , 1)]
 out["S5"] = [ev(x, "net view enumeration") for x in q(SYS, [{"term": {"event.code": "1"}}, {"term": {"process.name": "net1.exe"}}], 2)]
 out["S7"] = [ev(x, "network logon it.admin") for x in q(SEC, [{"term": {"event.code": "4624"}}, {"term": {"host.name": "fs01"}}, {"term": {"winlog.event_data.TargetUserName": "it.admin"}}], 1)]
 out["S7b"] = [ev(x, "mimikatz E10 lsass") for x in q(SYS, [{"term": {"event.code": "10"}}, {"term": {"process.name": "mimikatz.exe"}}], 1)]
@@ -60,4 +63,8 @@ out["S14"] = [ev(x, "impact note write") for x in q(SYS, [{"term": {"event.code"
            + [ev(x, "impact corpus write") for x in q(SYS, [{"term": {"event.code": "11"}}, {"wildcard": {"file.path": "*Impact-Corpus*"}}], 1)]
 
 print(json.dumps(out, indent=1))
+
+
+
+
 

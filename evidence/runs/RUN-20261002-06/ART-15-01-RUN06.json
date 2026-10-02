@@ -1,0 +1,1 @@
+{"artifact_id":"ART-15-01","run_id":"RUN-20261002-06","schema_version":"1.0","producer_stage":"S15","generated_utc":"2026-10-02T08:20:00Z","verification":{"tool":"scripts/verify/verify_final_phases.py","window":"2026-10-02T07:49:00Z -> 2026-10-02T08:12:00Z","result":"ACCEPTED"},"notes":"re-run with canonical hashes, bidirectional impact Verify, env-only tooling"}

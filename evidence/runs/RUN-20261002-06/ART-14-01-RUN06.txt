@@ -1,0 +1,8 @@
+Prepare OK: corpus=C:\C0015-Impact-Corpus backup=C:\C0015-Impact-Backup
+Run OK: files=15 bytes=615 elapsed=0.1s
+Verify listing: 15 corpus files, 15 backup files under C:\C0015-Impact-Corpus
+Verify FAIL: 30 mismatches
+Rollback OK: restored from C:\C0015-Impact-Backup
+Verify listing: 15 corpus files, 15 backup files under C:\C0015-Impact-Corpus
+Verify OK: corpus matches backup (bidirectional count/hash)
+The process cannot access the file because it is being used by another process.
