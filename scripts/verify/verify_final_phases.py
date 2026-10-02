@@ -59,6 +59,8 @@ TOKEN = {
 }
 EXPECT_T10 = {"RUN-20261002-05": True, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True, "RUN-20261002-09": True}
 EXPECT_R19_ALERTS = {"RUN-20261002-05": False, "RUN-20261002-06": True, "RUN-20261002-07": True, "RUN-20261002-08": True, "RUN-20261002-09": True}
+RUN_USER = {"RUN-20261002-05": "it.admin", "RUN-20261002-06": "it.admin",
+            "RUN-20261002-07": "it.admin", "RUN-20261002-08": "it.admin", "RUN-20261002-09": "it.admin"}
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -295,6 +297,15 @@ def main():
         if s:
             print(f"      TargetLogonId={getpath(s, 'winlog.event_data.TargetLogonId')} "
                   f"LogonProcess={getpath(s, 'winlog.event_data.LogonProcessName')}")
+        # session-end evidence: 4634 (logoff) present in the window (informational;
+        # 4779/clean-disconnect is not required - it may legitimately not be generated)
+        e4634 = q(SEC, [{"term": {"event.code": "4634"}}, {"term": {"host.name": "fs01"}},
+                        {"term": {"winlog.event_data.TargetUserName": RUN_USER.get(RUN, "it.admin")}}], 1)
+        if e4634:
+            print(f"  ok  S12 session end observed via 4634 (logoff) "
+                  f"es_id={e4634[0]['_id']} ts={e4634[0]['_source'].get('@timestamp')}")
+        else:
+            print("  note S12: no 4634 logoff in the window (session end not evidenced this run)")
         alerts = q(AL, [{"term": {"kibana.alert.rule.name":
                                   "C0015 | R19 | RDP Interactive Logon by Non-System Account"}}], 5)
         if EXPECT_R19_ALERTS[RUN]:
